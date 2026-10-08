@@ -28,6 +28,19 @@ CONTRACT = r'''
 '''
 
 
+TIMING_MARKER = "## 时长与稳态判定补充（v2）"
+TIMING_CONTRACT = r'''
+
+## 时长与稳态判定补充（v2）
+- 本节纠正旧契约的“稳态/峰值”混称：全时最大绝对声压仅是所运行时间窗口内的峰值分布，不证明稳态。
+- 如仅运行指定步数，必须保留该步数，不得擅自延长；报告实际 dt、样本数、结束时间。时间轴浮点取整可能导致样本数与期望相差一步，必须以实际数组为准。
+- 有点传感器时，根据实际距离和声速计算几何到达时间 distance_m / sound_speed；结束时间不足时明确提示“主波尚未到达传感器”，不得将到达前微弱数值振荡称为有效响应。
+- 要求稳态但时长不足时，输出短时瞬态/窗口峰值并说明需求未满足，另给延长时长的建议；不得将执行成功或非零压力当作稳态达成。
+- 延长时间后也须比较后段多个周期的振幅/相位稳定性，未检查收敛不得声称已达到稳态。
+- 例如水中 c=1500 m/s、dx=0.25 mm、CFL=0.3 时 dt=0.05 us，30 步约1.5 us；5 mm 到达时间约3.33 us。此例不能输出“稳态已完成”的结论。
+'''
+
+
 def main() -> None:
     graph = json.load(open(sys.argv[1], encoding="utf-8"))
     found = False
@@ -41,6 +54,8 @@ def main() -> None:
             text = text.replace("pressure = p.params[0]", "pressure = p.params")
             if MARKER not in text:
                 text = text.rstrip() + CONTRACT
+            if TIMING_MARKER not in text:
+                text = text.rstrip() + TIMING_CONTRACT
             message["text"] = text
             found = True
     if not found:
