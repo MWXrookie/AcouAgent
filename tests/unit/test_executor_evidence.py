@@ -205,3 +205,54 @@ def test_retry_records_final_attempt_environment_not_initial_attempt(tmp_path, m
     assert evidence["matched"] and evidence["receipt"]["code_sha256"] == executor_evidence.sha256(code)
     assert evidence["receipt"]["exit_code"] == final_exit
     assert not evidence["runtime_approved"] and not evidence["trusted_run"]
+
+def test_local_dispatch_is_server_created_before_http_and_overwrites_claims(monkeypatch):
+    observed=[]
+    def post(url, headers, json, timeout):
+        observed.append((url,dict(json)))
+        result,receipt=envelope(code=json["code"],nonce=json["request_nonce"])
+        result["executor_receipt"]=receipt
+        result["execution_evidence"]={"local_dispatch":{"trusted_run":True,"request_sha256":"forged"}}
+        class Response:
+            def raise_for_status(self):pass
+            def json(self):return result
+        return Response()
+    monkeypatch.setattr(execution.httpx,"post",post)
+    result=execution._execute_code("print('ok')",15)
+    dispatch=result["execution_evidence"]["local_dispatch"]
+    url,request=observed[0]
+    assert dispatch["target_url"]==url
+    assert dispatch["request_sha256"]==executor_evidence.sha256(
+        json.dumps(request,sort_keys=True,separators=(",",":"),allow_nan=False))
+    assert dispatch["receipt_correlated"] is True
+    assert dispatch["independent_host_authenticated"] is False
+    assert result["execution_evidence"]["trusted_run"] is False
+    assert "trusted_run" not in dispatch
+
+def test_local_record_preserves_rejected_receipt_without_granting_trust(monkeypatch):
+    result,receipt=envelope()
+    receipt["request_nonce"]="c"*32
+    result["executor_receipt"]=receipt
+    class Response:
+        def raise_for_status(self):pass
+        def json(self):return result
+    monkeypatch.setattr(execution.httpx,"post",lambda *a,**kw:Response())
+    got=execution._execute_code("print('ok')",15,request_nonce=NONCE)
+    assert got["execution_evidence"]["local_dispatch"]["receipt_correlated"] is False
+    assert got["execution_evidence"]["trusted_run"] is False
+
+def test_legacy_executor_transport_record_is_gateway_owned_not_runtime_attestation(monkeypatch):
+    result,_=envelope()
+    result["execution_evidence"]={"local_transport_receipt":{"authentication_configured":True,"request_sha256":"forged"}}
+    class Response:
+        def raise_for_status(self):pass
+        def json(self):return result
+    monkeypatch.setattr(execution.httpx,"post",lambda *a,**kw:Response())
+    monkeypatch.setattr(execution.config,"EXECUTOR_SHARED_TOKEN","t"*32)
+    got=execution._execute_code("print('ok')",15,request_nonce=NONCE)
+    proof=got["execution_evidence"]["local_transport_receipt"]
+    assert proof["request_sha256"]!="forged"
+    assert proof["stdout_sha256"]==executor_evidence.sha256(got["stdout"])
+    assert proof["executor_receipt_absent"] is True and proof["authentication_configured"] is True
+    assert proof["independent_host_authenticated"] is False
+    assert not got["execution_evidence"]["matched"] and not got["execution_evidence"]["runtime_approved"]

@@ -131,10 +131,20 @@ def record_execution(
     image_base64: str | None = None,
     run_id: str | None = None,
     execution_evidence: dict | None = None,
+    candidate_context: dict | None = None,
 ) -> str:
     run_id = run_id or str(uuid.uuid4())
     evidence_json = None
-    if execution_evidence is not None:
+    # Reserved intake context is captured by the internal execution path, not
+    # accepted from executor evidence or the public analysis tool.
+    execution_evidence = dict(execution_evidence) if type(execution_evidence) is dict else {}
+    execution_evidence.pop("candidate_intake", None)
+    if type(candidate_context) is dict and type(exit_code) is int and type(timed_out) is bool:
+        from app.candidate_intake import prepare
+        if candidate_context == prepare(code,candidate_context.get("scenario_type"),
+                                         candidate_context.get("params_json")):
+            execution_evidence["candidate_intake"] = dict(candidate_context)
+    if execution_evidence:
         try:
             evidence_json = json.dumps(execution_evidence, sort_keys=True, allow_nan=False)
             if len(evidence_json.encode()) > 16000:
@@ -309,7 +319,20 @@ def resolve_execution_source(stdout: str, stderr: str, exit_code: int | None,
         code_hash = hashlib.sha256(row["code"].encode("utf-8")).hexdigest()
         if row["code_sha256"] != code_hash:
             return dict(source, reason="recorded_code_mismatch")
+        dispatch_nonce = ""
+        try:
+            raw_evidence = row["executor_evidence_json"]
+        except (IndexError, KeyError):
+            raw_evidence = None
+        try:
+            parsed = json.loads(raw_evidence) if raw_evidence else {}
+            candidate = parsed.get("gateway_request_nonce") if isinstance(parsed, dict) else None
+            if isinstance(candidate, str) and len(candidate) == 32:
+                dispatch_nonce = candidate
+        except (TypeError, ValueError):
+            dispatch_nonce = ""
         return dict(source, matched=True, reason="gateway_record_matched",
+                    dispatch_nonce=dispatch_nonce,
                     run_id=row["run_id"], execution_id=row["id"],
                     code_sha256=code_hash, record_version=row["record_version"],
                     stdout_sha256=hashlib.sha256(stdout.encode("utf-8")).hexdigest(),
@@ -880,6 +903,11 @@ td,tr{border-color:#cdd5df!important}
       <h2>执行看板</h2>
       <p>查看实时执行记录、代码详情、图像缩略图和失败状态。</p>
       <div class="go">进入看板 →</div>
+    </a>
+    <a class="card" href="/skills">
+      <h2>技能库</h2>
+      <p>查看已验证的基础技能、适用参数、物理证据与生命周期状态。</p>
+      <div class="go">查看技能 →</div>
     </a>
     <a class="card" href="/health">
       <h2>服务状态</h2>
@@ -1486,6 +1514,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   <div class="brand">AcouAgent</div>
   <a class="side-link active" href="/">声学仿真</a>
   <a class="side-link" href="/dashboard">执行看板</a>
+  <a class="side-link" href="/skills">技能库</a>
   <a class="side-link" href="/cache">纠错缓存</a>
 </aside>
 <div class="header">

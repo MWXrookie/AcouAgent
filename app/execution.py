@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from app import config, executor_evidence
+from app import config, executor_evidence, runtime_registry_service
 
 # 与 analysis.py 的场数据输出约定一致
 _FIELD_START = "__ACOU_FIELD_START__"
@@ -83,13 +83,31 @@ def _clean_code(code: str) -> str:
     return code
 
 
-def _execute_code(code: str, timeout_seconds: int) -> dict[str, Any]:
+def _execute_code(code: str, timeout_seconds: int, *, request_nonce: str | None = None) -> dict[str, Any]:
     """提交代码到 jwave-executor 并返回执行结果."""
-    nonce = uuid.uuid4().hex
+    approval = runtime_registry_service.capture_dispatch_contract()
+    nonce = uuid.uuid4().hex if request_nonce is None else request_nonce
+    if not isinstance(nonce, str) or re.fullmatch(r"[0-9a-f]{32}", nonce) is None:
+        raise ValueError("invalid_internal_request_nonce")
+    # Created before transport, outside sandbox output. No user key or root
+    # enrollment is needed for this local request/response correlation.
+    request = {"code": code, "timeout_seconds": timeout_seconds, "request_nonce": nonce}
+    local_dispatch = {
+        "version": "local-dispatch.v1",
+        "source_kind": "managed_executor_transport",
+        "request_sha256": executor_evidence.sha256(
+            json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False)),
+        "code_sha256": executor_evidence.sha256(code),
+        "request_nonce": nonce,
+        "timeout_seconds": timeout_seconds,
+        "target_url": f"{config.EXECUTOR_URL}/execute",
+        "trust_boundary": "gateway_and_internal_executor",
+        "independent_host_authenticated": False,
+    }
     response = httpx.post(
-        f"{config.EXECUTOR_URL}/execute",
+        local_dispatch["target_url"],
         headers={"X-Executor-Token": config.EXECUTOR_SHARED_TOKEN},
-        json={"code": code, "timeout_seconds": timeout_seconds, "request_nonce": nonce},
+        json=request,
         timeout=timeout_seconds + 10,
     )
     response.raise_for_status()
@@ -98,9 +116,32 @@ def _execute_code(code: str, timeout_seconds: int) -> dict[str, Any]:
     receipt = result.pop("executor_receipt", None)
     result["execution_evidence"] = executor_evidence.verify_executor_receipt(
         receipt, result, code, timeout_seconds, nonce)
+    result["execution_evidence"]["approval_usage"] = runtime_registry_service.recheck_dispatch_contract(
+        approval, result["execution_evidence"])
     # Persist gateway-created context independently of executor response fields.
     result["execution_evidence"]["gateway_request_nonce"] = nonce
     result["execution_evidence"]["gateway_timeout_seconds"] = timeout_seconds
+    # A correlated local transport record is not a physical verdict or a
+    # cross-host trust grant. Optional accumulation checks physics separately.
+    result["execution_evidence"]["local_dispatch"] = dict(
+        local_dispatch, receipt_correlated=result["execution_evidence"]["matched"] is True)
+
+    # Legacy managed executors have no executor-side nonce receipt. Preserve a
+    # separate gateway transport record; never label it an executor receipt.
+    if (type(result.get("stdout")) is str and type(result.get("stderr")) is str
+            and type(result.get("exit_code")) is int and type(result.get("timed_out")) is bool):
+        result["execution_evidence"]["local_transport_receipt"] = {
+            "version":"gateway-transport-receipt.v1",
+            "request_sha256":local_dispatch["request_sha256"],
+            "request_nonce":nonce,
+            "stdout_sha256":executor_evidence.sha256(result["stdout"]),
+            "stderr_sha256":executor_evidence.sha256(result["stderr"]),
+            "exit_code":result["exit_code"],"timed_out":result["timed_out"],
+            "executor_receipt_absent":receipt is None,
+            "authentication_configured":isinstance(config.EXECUTOR_SHARED_TOKEN,str)
+                and len(config.EXECUTOR_SHARED_TOKEN)>=32,
+            "independent_host_authenticated":False,
+        }
     return result
 
 
@@ -208,6 +249,27 @@ def _stderr_is_warning_only(stderr: str, exit_code: int | None, timed_out: bool)
     return not any(marker in lowered for marker in fatal_markers)
 
 
+def _timing_report_note(stdout: str) -> str:
+    """Static bounded copy only; never render output-provided messages or flags."""
+    from app.analysis import _extract_sensor
+    from app.physics_timing import assess_sensor_timing
+    try:
+        diagnostic = (assess_sensor_timing(_extract_sensor(stdout))
+                      if isinstance(stdout, str) and len(stdout) <= 400000 else {})
+    except (ValueError, TypeError, OverflowError, RecursionError):
+        diagnostic = {}
+    if diagnostic.get("status") == "insufficient":
+        if diagnostic.get("reason") == "ends_before_geometric_arrival":
+            note = "按输出中未认证的参数计算，仿真结束时间早于声波到达传感器的几何时间；本次不能作为有效接收响应或稳态结果。"
+        else:
+            note = "按输出中未认证的参数计算，到达传感器后的采样不足一个声源周期；本次不能作为稳态结果。"
+    elif diagnostic.get("status") == "unverified":
+        note = "按输出中未认证的参数计算，采样窗口未触发明显时长不足，但尚未检查收敛，不能确认稳态。"
+    else:
+        note = "时间轴或物理参数不足以判定传播时长与稳态；执行完成不代表物理验证通过。"
+    return note
+
+
 def _build_report(result: dict[str, Any], original_code: str) -> str:
     """Build a human-readable Markdown report from execution results."""
     exit_code = result.get("exit_code")
@@ -217,6 +279,8 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
     stderr = result.get("stderr", "") or ""
     total_attempts = result.get("total_attempts", 1)
     image_base64 = result.get("image_base64")
+
+    timing_note = _timing_report_note(stdout) if exit_code == 0 and not timed_out else None
 
     # 剔除场数据 JSON 块（__ACOU_FIELD_START__/END__ 仅供 analyze 分析，不展示给用户）
     stdout = re.sub(
@@ -266,6 +330,9 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
     lines.append(f"| 执行耗时 | {duration_ms:.0f} ms |" if duration_ms else "| 执行耗时 | - |")
     lines.append(f"| 尝试次数 | {total_attempts} 次 |")
     lines.append("")
+
+    if timing_note:
+        lines.extend(["### 物理验证说明", "", timing_note, ""])
 
     if max_pressure is not None or pressure_shape:
         lines.append("### 📈 关键数据")

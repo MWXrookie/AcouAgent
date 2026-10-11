@@ -37,3 +37,21 @@ def validate() -> None:
         raise RuntimeError("MCP_AUTH_TOKEN must be set and at least 32 characters long")
     if not EXECUTOR_SHARED_TOKEN or len(EXECUTOR_SHARED_TOKEN) < 32:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+
+# Skill features are opt-in; no flag alone certifies a run or activates a skill.
+SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "true"
+SKILL_RETRIEVAL_ENABLED = os.environ.get("SKILL_RETRIEVAL_ENABLED", "").lower() == "true"
+SKILL_INJECTION_ENABLED = os.environ.get("SKILL_INJECTION_ENABLED", "").lower() == "true"
+SKILL_LEARNING_ENABLED = os.environ.get("SKILL_LEARNING_ENABLED", "").lower() == "true"
+
+# Explicit host-only provenance observation is separate from automatic learning.
+SKILL_CASE_OBSERVATION_ENABLED = os.environ.get("SKILL_CASE_OBSERVATION_ENABLED", "").lower() == "true"
+
+# Explicit operator intake is independent of automatic learning. Neither switch
+# certifies provenance; local profiles require managed receipts and physics,
+# while advanced cross-host stages still require signed authority.
+SKILL_MANUAL_INTAKE_ENABLED = os.environ.get("SKILL_MANUAL_INTAKE_ENABLED", "").lower() == "true"
+
+def fixed_intake_enabled():
+    return SKILL_LIBRARY_ENABLED is True and (
+        SKILL_LEARNING_ENABLED is True or SKILL_MANUAL_INTAKE_ENABLED is True)

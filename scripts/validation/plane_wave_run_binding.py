@@ -48,6 +48,7 @@ def inspect_run(database, run_id):
                "parameters_bound": False, "runtime_contract_version": RUNTIME_CONTRACT_VERSION,
                "runtime_contract_scope": "isolated_validation_only", "runtime_approved": False,
                "execution_receipt_matched": False, "runtime_contract_matched": False,
+               "dispatch_context_matched": False,
                "provenance_prerequisites_passed": False, "reason": "invalid_run_reference"}
     if not isinstance(run_id, str) or not run_id:
         return receipt
@@ -113,6 +114,12 @@ def inspect_run(database, run_id):
         receipt["runtime_contract_matched"] = runtime_hash == ISOLATED_RUNTIME_SHA256
         if not receipt["runtime_contract_matched"]:
             receipt["reason"] = "isolated_runtime_contract_mismatch"
+            return receipt
+        from app import controlled_dispatch
+        context = controlled_dispatch.inspect(db, run_id, context_nonce)
+        receipt["dispatch_context_matched"] = context["dispatch_context_matched"]
+        if not context["dispatch_context_matched"]:
+            receipt["reason"] = context["reason"]
             return receipt
         receipt["provenance_prerequisites_passed"] = receipt["numeric_pass"]
         receipt["reason"] = "production_runtime_approval_pending" if receipt["numeric_pass"] else "numeric_checks_failed"

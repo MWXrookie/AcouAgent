@@ -1,0 +1,54 @@
+{
+  "version": "source-window-acceptance.v1",
+  "scope": "offline acceptance design; not a runtime quality gate",
+  "source": {
+    "family": "gaussian_modulated_sine",
+    "frequency_hz": 100000,
+    "center_s": 0.000015,
+    "sigma_s": 0.000005
+  },
+  "window": {
+    "start_s": 0,
+    "end_s": 0.00001
+  },
+  "checks": [
+    {
+      "id": "center_in_window",
+      "rule": "start_s <= center_s <= end_s",
+      "expected": false
+    },
+    {
+      "id": "complete_three_sigma_envelope",
+      "rule": "start_s <= center_s-3*sigma_s and end_s >= center_s+3*sigma_s",
+      "expected": false,
+      "meaning": "declared finite 3-sigma coverage criterion, not exact support of Gaussian"
+    },
+    {
+      "id": "field_semantics",
+      "rule": "temporal_max_abs must not be labelled final_frame",
+      "actual": "temporal_max_abs"
+    },
+    {
+      "id": "distance_evidence",
+      "rule": "c*t_end alone is theoretical, not measured; require emission-time convention and time-resolved measurements"
+    }
+  ],
+  "negative_cases": [
+    "center after window",
+    "center before window",
+    "nonpositive or nonfinite frequency/sigma",
+    "nonfinite window bounds",
+    "reversed or empty window",
+    "temporal maximum mislabelled final frame"
+  ],
+  "positive_cases": [
+    "center in window with stated truncation",
+    "declared three-sigma envelope fully covered",
+    "time resolved probe with known emission reference"
+  ],
+  "trust": {
+    "trusted_run": false,
+    "physics_accepted": false
+  },
+  "next": "implement offline numeric checker with normal/invalid/boundary tests; then separately integrate only after architecture acceptance"
+}

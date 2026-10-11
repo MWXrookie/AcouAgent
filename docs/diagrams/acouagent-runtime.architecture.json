@@ -21,7 +21,7 @@
           "mcp_gateway",
           "simulation_pipeline"
         ],
-        "note": "自然语言请求从 Web 门户进入 Dify，再由 MCP 工具触发仿真执行闭环。"
+        "note": "实际Dify发布版cf384716已补首次及重试生成的输出/时长/可选元数据契约；其他草稿内容保留。生产仅报告展示更新，模型端到端与物理正确性未新验。"
       },
       {
         "id": "quality-loop",
@@ -33,7 +33,7 @@
           "deepseek_api",
           "state_store"
         ],
-        "note": "宿主侧可只读观察执行器镜像；尚未绑定实际运行窗口，批准前置不授予 Q3/Q4。"
+        "note": "analysis时长诊断和可选元数据只给unknown/insufficient/unverified，不授信；门控严格数字/JSON且最多Q2。历史授权仅报告/Dify输出契约已同步，技能新代码未部署。"
       },
       {
         "id": "knowledge-path",
@@ -54,8 +54,304 @@
           "jwave_sandbox"
         ],
         "note": "执行器仅连接内部网络，代码在只读、降权和资源受限的沙箱内运行。"
+      },
+      {
+        "id": "fixed-recipe-configuration",
+        "label": "固定配方配置检查",
+        "focus": [
+          "simulation_pipeline"
+        ],
+        "note": "固定VAL-1在代码pin之后派发之前进行AST配置重算；仅静态一致性，实际宿主与参数未认证，信任及学习关闭。HTML/视觉待补。 内部固定请求构造器拒绝调用者代码/参数/超时覆盖，派发使用服务端源码及配置，未改变executor协议。 固定请求封套在内部派发前校验run/nonce/摘要，不是宿主认证。四开关false。 受限请求上下文与派发记录同事务追加，执行前只读重核；仍非宿主认证。 派生前置可复用调用方事务；跨库授权未实现，旧读快照不是最新撤回授权。"
+      },
+      {
+        "id": "host-observer-test",
+        "label": "宿主观察链待接入",
+        "focus": [
+          "simulation_pipeline",
+          "jwave_sandbox",
+          "state_store"
+        ],
+        "note": "公开根已由用户批准；人工解锁排障暂停。schema10 native根期限/终态撤回、具体run签名批准及候选观察同事务核验已实现，测试只用临时根/替身身份/原始解析夹具。实际宿主与生产运行签名未验，全部可信字段false，不启动服务或读秘密。"
+      },
+      {
+        "id": "skill-mainline-recovery",
+        "label": "技能候选与检索前置",
+        "focus": [
+          "simulation_pipeline",
+          "state_store"
+        ],
+        "note": "schema13；普通候选只Q2，正向固定源与声明参数完整匹配才受限交付；同事务运行证据/反馈关联、撤回回退与备份。隔离签名夹具不等于生产身份，四开关false。真实召回/当前Dify接线/整体终验待完成，HTML视觉暂缓。"
+      },
+      {
+        "id": "fixed-reference-offline",
+        "label": "固定技能内部消费",
+        "focus": [
+          "mcp_gateway",
+          "state_store",
+          "dify_workflow"
+        ],
+        "note": "schema13；固定源/策略登记→只读已核元数据→同库生成/reader重核→独立新派发/观察→反馈。生成共享2秒截止；公开build不建库。host-only源协调只显式已解锁key/运行批准，无自启。ASGI认证与loopback解析数组检查，非生产身份/Dify/真实五类物理。新原始五类诊断不授信；新物理资源阻塞；HTML视觉暂缓，合同未过。"
       }
-    ]
+    ],
+    "fixedDerivationAuthority": {
+      "scope": "offline fixed-profile only",
+      "transaction": "same authority SQLite snapshot",
+      "independentChildReceipt": true,
+      "currentSignedUpstreamPolicyRequired": true,
+      "immutableDerivationBinding": true,
+      "maxDepth": 4,
+      "maxNodes": 8,
+      "deadlineSeconds": 2,
+      "productionEnabled": false,
+      "generalQ3Accepted": false
+    },
+    "revalidationEpoch": {
+      "action": "admin-only questioned to candidate/Q2",
+      "requiresFreshIndependentDispatch": true,
+      "atomicAuditAndState": true,
+      "productionEnabled": false
+    },
+    "consistencyBundle": {
+      "scope": "four fixed source-free periodic experiments only",
+      "retainedRawReanalysis": true,
+      "maximumQuality": "Q2 diagnostic only; provenance and consistency do not replace physical acceptance",
+      "generalQ3Accepted": false,
+      "wholePeriodicFineGrid": true
+    },
+    "localMcpTransport": {
+      "tcpLoopbackVerified": true,
+      "syntheticAuthAndRoot": true,
+      "productionAccepted": false,
+      "currentDifyVerified": false
+    },
+    "auditHistoryIndices": {
+      "schema": 14,
+      "productionMigrated": false,
+      "boundedLegacyVM": true
+    },
+    "drivenEnergyDiagnostic": {
+      "rawWorkAndFlux": true,
+      "perIntervalTolerance": 0.01,
+      "supportedModel": "uniform_lossless_stationary_linear",
+      "actualSolverRunVerified": true,
+      "grantsTrust": false,
+      "twoStepRawRefinement": true,
+      "commonPressureEnergyWorkCompared": true,
+      "allCasesRequired": true,
+      "refinementAuthenticated": false,
+      "source": "auxiliary/reference/reuse-mainline-20261010/physics-resource-summary.json",
+      "zeroVelocityInitialization": "solver default u0=None",
+      "sensorOutput": "dictionary avoids deprecated tuple output"
+    },
+    "consistencySource": {
+      "schema": 15,
+      "scope": "consistency-sourcefree-v2",
+      "fourIndependentDispatches": true,
+      "batchCaseUniqueIndex": true,
+      "atomicQ2Diagnostic": true,
+      "activePromotion": false,
+      "codeHandoff": false,
+      "physicalAcceptanceComplete": false,
+      "productionInvoked": false,
+      "defaultEnabled": false,
+      "explicitHostCoordinator": true,
+      "dispatchBeforeEachHttp": true,
+      "safeFailureStages": true,
+      "auxiliaryCaseFeedbackBound": true,
+      "actualUseAuthenticated": false,
+      "exactCandidateBoundaryRechecked": true,
+      "requiredRecordedQuality": "Q2"
+    },
+    "consistencyAnalytic": {
+      "reference": "dAlembert_periodic_planar_initial",
+      "reviewedDomainM": 0.032,
+      "exactParametersOnly": true,
+      "maxRelativeErrorExclusive": 0.01,
+      "retainedActualOutputsReanalysed": true,
+      "newSolverRun": false,
+      "trustGranted": false,
+      "notFiveClassVAL1": true
+    },
+    "portalRevalidation": {
+      "readonlyDetailAuditSnapshot": true,
+      "staleAuditRejected": true,
+      "action": "questioned to candidate/Q2 only",
+      "requiresFreshIndependentEvidence": true,
+      "browserReverified": true,
+      "productionEnabled": false,
+      "browserVerified": true,
+      "syntheticOnly": true,
+      "humanUat": false
+    },
+    "candidateHistoryRead": {
+      "sqlValueCaps": true,
+      "maxSqliteVM": 1000000,
+      "maxStdoutBytes": 400000,
+      "exactlyOneFieldBlock": true,
+      "binaryContextRefused": true,
+      "recoveryCursorRetainedOnReadFailure": true,
+      "productionEnabled": false
+    },
+    "recallEvaluationConsistency": {
+      "configuredReadonlySearch": true,
+      "sameConnectionDataVersionMonitor": true,
+      "fileReplacementRejected": true,
+      "mutationPreventsMetricAcceptance": true,
+      "injectedSearchExplicitlyUnchecked": true,
+      "labelsAuthenticated": false,
+      "productionEvaluated": false,
+      "datasetRegularFileOnly": true,
+      "datasetBytesLimit": 200000,
+      "datasetChangedDuringReadRejected": true,
+      "noFifoWait": true,
+      "datasetRepeatedBoundedBytesCompared": true
+    },
+    "stage1Wiring": {
+      "currentDraftExported": true,
+      "draftUpdated": true,
+      "runtimeVerified": true,
+      "runtimeVerification": "actual Dify MCPTool authenticated search; empty fallback",
+      "published": false,
+      "nodes": 36,
+      "edges": 38,
+      "jsonResponseNormalizer": true,
+      "gatewayImage": "local/dify-mcp:skill-stage1-20261010",
+      "libraryEnabled": true,
+      "retrievalEnabled": true,
+      "injectionEnabled": false,
+      "learningEnabled": false,
+      "skillDatabaseProvisioned": false,
+      "positiveReuseVerified": false
+    },
+    "fixedFiveRawDiagnostics": {
+      "actualSolverRunVerified": true,
+      "allCasesNumericallyPassed": true,
+      "maximumErrorPercent": 0.09342698857235376,
+      "qualityLevel": "Q2",
+      "sourceAuthenticated": false,
+      "runtimeApproved": false
+    },
+    "public_case_batch1": {
+      "paper_records": 7,
+      "fulltext_method_reviews": 6,
+      "source_rules": 13,
+      "actual_new_runs": 5,
+      "prior_actual_reanalyses": 5,
+      "candidate_count": 10,
+      "quality": "Q2",
+      "trust_authenticated": false,
+      "query_draft_count": 40,
+      "independent_positive_configurations": 10,
+      "formal_recall_passed": false,
+      "full_split_unit_passed": 1191,
+      "production_written": false,
+      "archify_html_validation": "deferred_by_user",
+      "evidence": "auxiliary/reference/case-batch1-20261010"
+    },
+    "case_source_intake": {
+      "closed_cases": 10,
+      "profile": "case-source.v1",
+      "namespace": "acou-host-val1-20261008_case_batch1",
+      "default_enabled": false,
+      "learning_required": false,
+      "authority_db_transaction": "BEGIN IMMEDIATE",
+      "atomic_candidate_and_audit": true,
+      "quality": "Q2",
+      "trust_grant": false,
+      "actual_use_authenticated": false,
+      "host_observer_deployed": false,
+      "production_written": false,
+      "core_tests_passed": 1216,
+      "full_unit_suite_repeated": false,
+      "evidence": "auxiliary/reference/case-source-20261011",
+      "root_expiry_rechecked_before_commit": true,
+      "explicit_fresh_observation_candidate_coordinator": true,
+      "response_raw_output_returned": false,
+      "post_http_lifecycle_rechecked": true,
+      "latest_related_tests_evidence": "auxiliary/reference/case-pipeline-20261011",
+      "core_tests_for_prior_source_only": 1216,
+      "latest_related_passed": 140,
+      "actual_solver_bridge_smoke": {
+        "real_solver": true,
+        "successful_cases": 1,
+        "ephemeral_owner": true,
+        "identity_injected": true,
+        "independent_host_authenticated": false,
+        "root_revocation_blocks_dispatch": true,
+        "production_written": false,
+        "evidence": "auxiliary/reference/case-real-pipeline-20261011"
+      },
+      "candidate_persists_root_identity": true
+    },
+    "manual_fixed_intake": {
+      "flag": "SKILL_MANUAL_INTAKE_ENABLED",
+      "default_enabled": false,
+      "automatic_learning_required": false,
+      "signed_authority_required": true,
+      "root_expiry_and_gate_rechecked_before_commit": true,
+      "public_admission_tool": false,
+      "production_deployed": false,
+      "related_tests_passed": 178,
+      "evidence": "auxiliary/reference/fixed-admission-commit-20261011"
+    },
+    "local_executor_provenance": {
+      "version": "local-dispatch.v1",
+      "owner_signature_required_for_basic_path": false,
+      "independent_signature_optional": true,
+      "request_snapshot_before_http": true,
+      "persistence": "existing dashboard evidence_json after response",
+      "failed_transport_persisted": false,
+      "receipt_correlation_grants_physics": false,
+      "production_deployed": false,
+      "related_tests_passed": 75,
+      "evidence": "auxiliary/reference/local-dispatch-20261011"
+    },
+    "local_basic_checkpoint": {
+      "date": "2026-10-11",
+      "schema": 16,
+      "image": "local/dify-mcp:local-basic-v3-20261011",
+      "scope": "managed-local-plane-wave.v1",
+      "production_skill_count_verified": 1,
+      "draft_nodes": 52,
+      "draft_edges": 56,
+      "published": false,
+      "learning": false,
+      "reference_injection": true,
+      "source_boundary": "managed gateway authenticated internal executor response; legacy executor without nonce receipt; no cross-host attestation",
+      "actual_use_authenticated": false,
+      "full_acceptance": false,
+      "html_validation_deferred": true
+    },
+    "local_reuse_checkpoint": {
+      "schema": 17,
+      "gateway_image": "local/dify-mcp:skills-nav-20261011",
+      "reviewed_scopes": [
+        "managed-local-plane-wave.v1",
+        "managed-local-interface-wide.v1"
+      ],
+      "production_skills": 2,
+      "execution_reuse_verified": true,
+      "model_adoption_authenticated": false,
+      "actual_use_authenticated": false,
+      "learning_enabled": false,
+      "published_workflow_changed": false,
+      "executor_changed": false,
+      "evidence": "auxiliary/reference/local-reuse-20261011",
+      "html_validation": "deferred"
+    },
+    "skill_navigation": {
+      "portal_sidebar": "/skills",
+      "browser_verified": true,
+      "records_visible": 2
+    },
+    "github_preflight": {
+      "unit_passed": 1334,
+      "subtests_passed": 10,
+      "unit_files": 87,
+      "operator_cli_packaged": true,
+      "interface_design": "deferred",
+      "new_environment_dependency_install": "not_run"
+    }
   },
   "components": [
     {
@@ -286,7 +582,7 @@
         "门户显示阶段进度，完成回执后展示报告",
         "Flash 无思考生成；保留检索与结果审查",
         "180s 截止并请求停止；不自动重放任务",
-        "候选仅内部；激活与检索未上线，执行成功不代表物理正确"
+        "技能门户确认/撤回与只读声明已接；临时SQLite浏览器验证，声明不授信，未部署"
       ]
     },
     {
@@ -296,7 +592,7 @@
         "Bearer 鉴权；AST 与物理参数校验",
         "网关由标准场/时序生成热力图与波形图",
         "Q0-Q2 核验场、网格/PML 和参数；Q3/Q4 待场景规则与基准",
-        "SQLite 候选按参数指纹去重；仅接收 Q2，拒绝自报 Q3/Q4"
+        "终验矩阵：技能库未通过；K3认证/通用门控与K5正向消费未实现；候选重复来源内容冲突拒绝"
       ]
     },
     {
@@ -305,7 +601,8 @@
       "items": [
         "沙箱仅连 executor_internal，代码上限 20KB、执行 1-30s",
         "read_only、cap_drop ALL、pids 256、内存 4GB、CPU 2 核",
-        "BYOK：公网 HTTPS/443，无重定向；管理写入须令牌与审计"
+        "BYOK：公网 HTTPS/443，无重定向；管理写入须令牌与审计",
+        "临时根撤回/一次性封套消费账本离线原型；未联查批准/派生/物理，不授信"
       ]
     }
   ]

@@ -74,3 +74,87 @@ def test_missing_registry_does_not_create(fixed):
     _, data = fixed
     assert not service.inspect_eligibility(*observed(data))["contract_eligible"]
     assert not service.DATABASE.exists()
+
+
+@pytest.mark.parametrize("mode", ["normal", "retired", "package_changed", "runtime", "receipt"])
+def test_dispatch_completion_recheck(fixed, mode):
+    manifest, data = fixed
+    token = service.config.PORTAL_ADMIN_TOKEN
+    service.register_candidate(token, "fixture")
+    service.change_status(token, 1, "approved", "fixture")
+    before = service.capture_dispatch_contract()
+    evidence = {"matched": mode != "receipt",
+                "receipt": {"runtime_sha256": data["runtime_sha256"]}}
+    if mode == "retired":
+        service.change_status(token, 2, "retired", "during run")
+    if mode == "package_changed":
+        data["runtime_sha256"] = "f" * 64
+        manifest.write_text(json.dumps(data))
+    if mode == "runtime":
+        evidence["receipt"]["runtime_sha256"] = "f" * 64
+    result = service.recheck_dispatch_contract(before, evidence)
+    assert result["approval_window_matched"] == (mode == "normal")
+    assert not result["runtime_approved"] and not result["trusted_run"] and not result["run_bound"]
+    assert result["dispatch_revision"] == 2
+
+
+def test_dispatch_missing_registry_no_creation(fixed):
+    assert not service.capture_dispatch_contract()["contract_eligible"]
+    assert not service.DATABASE.exists()
+
+
+@pytest.mark.parametrize("retire", [False, True])
+def test_gateway_dispatch_uses_server_snapshot_and_rechecks_after_http(fixed, monkeypatch, retire):
+    from app import execution
+    from tests.unit.test_executor_evidence import envelope
+    manifest, data = fixed
+    _, receipt = envelope()
+    data["runtime_sha256"] = receipt["runtime_sha256"]
+    manifest.write_text(json.dumps(data))
+    token = service.config.PORTAL_ADMIN_TOKEN
+    service.register_candidate(token, "fixture")
+    service.change_status(token, 1, "approved", "fixture")
+    def post(url, headers, json, timeout):
+        if retire:
+            service.change_status(token, 2, "retired", "in flight")
+        result, receipt = envelope(code=json["code"], nonce=json["request_nonce"])
+        result["executor_receipt"] = receipt
+        # An executor response cannot self-approve the gateway-created evidence.
+        result["execution_evidence"] = {"approval_usage": {"runtime_approved": True}}
+        class Response:
+            def raise_for_status(self): pass
+            def json(self): return result
+        return Response()
+    monkeypatch.setattr(execution.httpx, "post", post)
+    evidence = execution._execute_code("print('ok')", 15)["execution_evidence"]
+    usage = evidence["approval_usage"]
+    assert evidence["matched"]
+    assert usage["approval_window_matched"] == (not retire)
+    assert not usage["trusted_run"] and not usage["runtime_approved"] and not usage["run_bound"]
+    if retire:
+        assert usage["reason"] == "not_currently_approved"
+
+
+@pytest.mark.parametrize("evidence", [
+    None,
+    {},
+    {"matched": True},
+    {"matched": True, "receipt": {}},
+    {"matched": True, "receipt": {"runtime_sha256": "z" * 64}},
+    {"matched": True, "receipt": None},
+])
+def test_dispatch_recheck_denies_malformed_evidence_without_raising(fixed, evidence):
+    """Dispatch-path safety: bad evidence must deny, never crash the caller."""
+    manifest, data = fixed
+    token = service.config.PORTAL_ADMIN_TOKEN
+    service.register_candidate(token, "fixture")
+    service.change_status(token, 1, "approved", "fixture")
+    before = service.capture_dispatch_contract()
+    result = service.recheck_dispatch_contract(before, evidence)
+    assert result["approval_window_matched"] is False
+    assert not result["trusted_run"]
+    assert not result["runtime_approved"]
+    assert not result["run_bound"]
+    assert result["reason"] in {"invalid_dispatch_evidence",
+                                "executor_receipt_unmatched",
+                                "executor_runtime_mismatch"}

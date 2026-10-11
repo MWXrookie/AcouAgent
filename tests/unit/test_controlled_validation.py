@@ -9,7 +9,7 @@ from scripts.validation import plane_wave_run_binding as binding
 from tests.unit.test_plane_wave_evidence import evidence
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME = json.loads((ROOT / "auxiliary/reference/executor-receipt-2026-10-02/http-validation.json").read_text())["gateway_verifier"]["receipt"]["runtime"]
+RUNTIME = json.loads((ROOT / "tests/fixtures/executor_runtime_identity.json").read_text())
 NONCE = "a"*32
 
 
@@ -20,18 +20,19 @@ def history(tmp_path, monkeypatch):
     return Path(dashboard.DB_PATH)
 
 
-def fake_execute(code, timeout):
+def fake_execute(code, timeout, *, request_nonce=None):
+    nonce = NONCE if request_nonce is None else request_nonce
     assert timeout == 30 and binding.digest(code) == binding.RECIPE_SHA256
     stdout = json.dumps(evidence())
     result = {"stdout": stdout, "stderr": "", "exit_code": 0, "timed_out": False, "duration_ms": 1}
     runtime = copy.deepcopy(RUNTIME)
-    receipt = {"version": "executor-receipt.v1", "request_nonce": NONCE,
+    receipt = {"version": "executor-receipt.v1", "request_nonce": nonce,
                "code_sha256": binding.digest(code), "stdout_sha256": binding.digest(stdout),
                "stderr_sha256": binding.digest(""), "exit_code": 0, "timed_out": False,
                "timeout_seconds": 30, "runtime": runtime,
                "runtime_sha256": binding.digest(json.dumps(runtime, sort_keys=True, separators=(",", ":")))}
-    verified = executor_evidence.verify_executor_receipt(receipt, result, code, timeout, NONCE)
-    verified.update(gateway_request_nonce=NONCE, gateway_timeout_seconds=timeout)
+    verified = executor_evidence.verify_executor_receipt(receipt, result, code, timeout, nonce)
+    verified.update(gateway_request_nonce=nonce, gateway_timeout_seconds=timeout)
     result["execution_evidence"] = verified
     return result
 
@@ -45,6 +46,7 @@ def test_fixed_dispatch_record_validator_and_isolated_contract_connect(history, 
     result = run(monkeypatch)
     checked = result["validation"]
     assert checked["run_id"] == result["run_id"]
+    assert checked["dispatch_context_matched"]
     assert checked["provenance_prerequisites_passed"]
     assert checked["code_contract_matched"] and checked["execution_receipt_matched"]
     assert checked["runtime_contract_matched"] and checked["numeric_pass"]
@@ -100,8 +102,8 @@ def test_gateway_matched_flag_cannot_replace_independent_checks(history, monkeyp
 
 @pytest.mark.parametrize("failed", ["timeout", "exit", "bad_config"])
 def test_execution_or_parameter_failure_cannot_pass(history, monkeypatch, failed):
-    def execute(code, timeout):
-        result = fake_execute(code, timeout)
+    def execute(code, timeout, **kwargs):
+        result = fake_execute(code, timeout, **kwargs)
         if failed == "timeout":
             result["timed_out"] = True
         elif failed == "exit":
@@ -128,3 +130,13 @@ def test_unreviewed_asset_stops_before_execution(history, monkeypatch, tmp_path)
 def test_database_read_failure_never_returns_a_trust_claim(history, monkeypatch):
     result = run(monkeypatch)
     assert not binding.inspect_run(history.parent / "missing.db", result["run_id"])["provenance_prerequisites_passed"]
+
+def test_configuration_drift_stops_before_dispatch_record(history, monkeypatch):
+    from scripts.validation import plane_wave_evidence
+    from app import controlled_dispatch
+    changed = dict(plane_wave_evidence.EXPECTED_CONFIGURATION, cfl=.2)
+    monkeypatch.setattr(plane_wave_evidence, "EXPECTED_CONFIGURATION", changed)
+    monkeypatch.setattr(controlled_dispatch, "record", lambda *args: pytest.fail("must not persist dispatch"))
+    monkeypatch.setattr(execution, "_execute_code", lambda *args, **kwargs: pytest.fail("must not execute"))
+    with pytest.raises(ValueError, match="configuration_mismatch"):
+        controlled_validation.run_controlled_plane_wave()

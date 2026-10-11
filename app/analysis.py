@@ -137,6 +137,7 @@ def _extract_sensor(stdout: str) -> dict | None:
                 continue
             return {
                 "time": time_values,
+                "timing_metadata": payload.get("timing_metadata"),
                 "pressure": pressure,
                 "sensor_index": payload.get("sensor_index") or payload.get("sensor_indices"),
                 "sensor_position": payload.get("sensor_position_m") or payload.get("sensor_position"),
@@ -382,9 +383,22 @@ def _analyze_impl(
     """
     from app.dashboard import resolve_execution_source
     source = resolve_execution_source(stdout_text or "", stderr_text or "", exit_code, run_id)
+    # Consumption-time approval recheck: a retired or changed approval makes the
+    # recorded completion unusable, even though the run itself did execute.
+    try:
+        from app import runtime_registry_service as _registry
+        consumed = _registry.verify_completion_for_consumption(source.get("dispatch_nonce", ""))
+    except Exception:  # noqa: BLE001 - never let a governance lookup break analysis
+        consumed = {"consumable": False, "receipt_present": False,
+                    "trusted_run": False, "runtime_approved": False,
+                    "reason": "consumption_check_unavailable"}
+    source["approval_consumable"] = bool(consumed.get("consumable"))
+    source["approval_consumption_reason"] = consumed.get("reason")
     run_id = source.get("run_id", "")
     payload = _extract_field(stdout_text or "")
     sensor = _extract_sensor(stdout_text or "")
+    from app.physics_timing import assess_sensor_timing
+    timing = assess_sensor_timing(sensor)
     rows, shape = _to_float_matrix(payload["data"]) if payload else (None, None)
 
     if rows is None:
@@ -412,6 +426,7 @@ def _analyze_impl(
         }
         from app.physics_gate import assess_quality
         result.update(assess_quality(exit_code=exit_code, timed_out=source.get("timed_out", False), analysis=result, params_json=params_json))
+        result["timing_diagnostic"] = timing
         result["run_id"] = run_id or None
         result["execution_source"] = source
         return result
@@ -451,6 +466,7 @@ def _analyze_impl(
     }
     from app.physics_gate import assess_quality
     result.update(assess_quality(exit_code=exit_code, timed_out=source.get("timed_out", False), analysis=result, params_json=params_json))
+    result["timing_diagnostic"] = timing
     result["run_id"] = run_id or None
     result["execution_source"] = source
     return result

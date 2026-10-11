@@ -93,6 +93,8 @@ async def _merge_requirement(requirement: str, message: str, model_config: dict 
 
 def register(mcp) -> None:
     """向 FastMCP 实例注册本模块的全部 Web 路由。"""
+    from app.skill_api import register as register_skill_api
+    register_skill_api(mcp)
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> PlainTextResponse:

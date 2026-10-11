@@ -14,7 +14,7 @@ def evidence():
         sigma = 12 * 0.00025 / 1500
         raw[key] = [0.5*(math.exp(-0.5*((t-arrival)/sigma)**2)
                          + math.exp(-0.5*((t+arrival)/sigma)**2)) for t in times]
-    return {"raw_evidence": raw, "status": "FAIL", "theory": {"peak": 999}, "err_pct": {"peak": 999}}
+    return {"raw_evidence": raw, "status": "FAIL", "theory": {"peak": 999}, "err_pct": {"peak_x1": 999}}
 
 
 def test_independent_analytic_waveform_and_untrusted_receipt():
