@@ -1,0 +1,8 @@
+# Gateway-only stage-one rollout. Learning and code injection remain off.
+services:
+  dify-mcp:
+    environment:
+      SKILL_LIBRARY_ENABLED: "true"
+      SKILL_RETRIEVAL_ENABLED: "true"
+      SKILL_INJECTION_ENABLED: "false"
+      SKILL_LEARNING_ENABLED: "false"

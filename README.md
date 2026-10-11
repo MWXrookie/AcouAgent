@@ -1,205 +1,127 @@
-# Dify FastMCP JWave Server
+# AcouAgent · 声学仿真与成功技能库
 
-声学仿真 MCP 服务平台。Dify 工作流 → MCP 网关 → 沙箱执行器 → Markdown 报告。
+自然语言声学仿真服务：Dify 提取参数和生成代码，FastMCP 网关调用 jwave 沙箱执行，SQLite 保存执行历史与可复用技能。技能检索发生在参数提取之后、代码生成之前；缺少合格技能或证据时回退原上下文。
 
-> ℹ️ 文档中的 IP/路径均为**部署环境示例**（默认内网 `192.168.30.200`），按你的环境替换；
-> 测试脚本的网关地址可用环境变量 `GW_BASE_URL` 覆盖。
+## 当前可用范围
 
-## 部署架构
+截至 2026-10-11，本机试用支持两项**精确固定配置**：
 
-```
-dify-mcp :8001 (FastMCP 网关 + Web 门户)
-  ├── jwave-executor :8010 (隔离沙箱, 内网)
-  ├── Dify nginx :80 (工作流引擎)
-  └── DeepSeek API (纠错 + 代码修正)
-```
+| 技能 | 配方范围 | 已验证行为 |
+| --- | --- | --- |
+| 平面波初压 | 二维均匀介质、高斯初压、固定网格与传感器 | 接纳、检索、参考交付、实际执行与撤回 |
+| 法向界面反射/透射 | 两均匀半空间、宽横向域、固定材料与参数 | 完整解析波形检查、接纳、检索、一次实际复用 |
 
-两个容器：`dify-mcp` (Python 3.11-slim) + `jwave-executor` (Ubuntu 24.04, Conda jwave 0.2.1)。
+这些配置由服务端目录固定，修改频率、材料或网格不会继承原认证。普通运行只有判定为 `normal` 且通过物理合理性门才可积累为候选；退出码 0 或模型自述不能证明物理正确。候选不能自动成为可复用技能。
 
-## 项目结构
+本机基础使用不要求用户配置签名私钥。受控网关留证与物理检查负责本机固定技能；跨主机独立来源认证是单独的高级路径。自动学习默认关闭。当前部署的 Dify 技能接线仅更新草稿，尚未发布，也未完成真实模型采用、通用/派生场景和 30 项独立配置召回验收。详见 [验收矩阵](docs/SKILL_LIBRARY_ACCEPTANCE.md)。
+
+## 架构与安全
 
 ```text
-.
-├── app/                    # 网关运行代码
-│   ├── server_safe.py      # FastMCP 入口
-│   ├── tools.py            # MCP 仿真执行/纠错/校验工具
-│   ├── analysis.py         # 结果分析与物理语义门
-│   ├── static_check.py     # 生成代码 AST 静态检查
-│   ├── portal.py           # Web 路由
-│   └── web/                # 运行页面 HTML
-├── executor/               # Docker jwave 沙箱
-├── docs/                   # 项目文档、知识库、测试报告
-├── tests/                  # 单元与集成测试
-├── scripts/workflow/       # 历史 Dify 工作流生成/修补脚本
-├── scripts/tests/          # 本地回归与稳定性测试
-├── pyproject.toml          # Python 项目与测试工具配置
-├── requirements.lock.txt   # 运行时依赖
-├── Dockerfile
-├── compose.yaml
-└── auxiliary/              # 参考实现、插件测试、一次性试验，不参与部署
+浏览器 / Dify
+    → FastMCP 网关 :8001
+        → SQLite：执行历史 / 纠错缓存 / 技能与只追加审计
+        → jwave executor :8010（内部隔离网络）
 ```
 
-## 快速命令
+技能代码仍只经过原 executor：只读文件系统、降权、cap-drop、no-new-privileges、网络隔离与资源上限保持。生成参考每次重核精确参数、版本、来源、物理证据、撤回与一次消费；公开检索只读，最多返回 3 条元数据。
+
+## 新环境部署
+
+需要 Docker Compose、现有 Dify 网络与应用配置。先设置自己的服务认证信息：
 
 ```bash
-cd <项目目录>                             # 按你的部署路径
-docker compose up -d --build          # 构建并启动
-docker compose ps                      # 查看状态
-docker restart docker-api-1 docker-worker-1  # MCP schema 刷新
+cp .env.example .env
+# 编辑 .env：设置 MCP_AUTH_TOKEN、EXECUTOR_SHARED_TOKEN，
+# 按需设置 DIFY_API_KEY、DEEPSEEK_API_KEY 和 PORTAL_ADMIN_TOKEN。
+docker compose up -d --build
+docker compose ps
 ```
 
-## Web 门户路由
+上述构建命令用于新环境。已有生产 executor 的更新应使用经过验证的镜像和 **gateway-only** 方式，不重建 executor。模板见 [部署说明](deploy/README.md)。本机镜像、生产库及凭据不随仓库分发。
 
-| 路由 | 页面 | 功能 |
-|------|------|------|
-| `/` `/portal` | 门户首页 | 导航卡片 + **声学仿真问答**（自然语言输入→Markdown 报告） |
-| `/dashboard` | 执行看板 | 实时执行记录、代码展开、图像预览、清空历史 |
-| `/cache` | 纠错缓存 | 经验条目、命中率、置信度分布、高频经验 |
-| `/health` | 健康检查 | 网关存活检测 |
+默认不开启技能库。要试用人工准备的固定基础技能，在 `.env` 显式设置：
 
-## API 端点
+```dotenv
+SKILL_LIBRARY_ENABLED=true
+SKILL_RETRIEVAL_ENABLED=true
+SKILL_INJECTION_ENABLED=true
+SKILL_MANUAL_INTAKE_ENABLED=true
+SKILL_LEARNING_ENABLED=false
+```
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/ask` | POST | 门户问答代理 → Dify 工作流（返回 Markdown 报告） |
-| `/dashboard/api/executions` | GET | 执行历史（分页） |
-| `/dashboard/api/executions` | DELETE | 清空执行历史 |
-| `/dashboard/api/cache_stats` | GET | 纠错缓存统计 JSON |
-
-## MCP 工具
-
-网关共注册 **6 个 MCP 工具**（FastMCP 3.4.6，入口薄壳 `app/server_safe.py` + 模块 `app/tools.py`/`app/portal.py`/`app/analysis.py`）：
-
-| 工具 | 说明 |
-|------|------|
-| `run_jwave_code` | 执行 Python 代码（1-30s 超时, 20KB 上限） |
-| `run_jwave_code_with_retry` | 沙箱执行 + DeepSeek 自动纠错 + 重试（≤7 次）+ **自动生成 Markdown 报告**；物理结果由独立分析工具判定 |
-| `validate_simulation_params` | 硬编码物理规则校验（Nyquist/CFL/网格/PML） |
-| `jwave_environment` | 执行器环境健康检查 |
-| `list_installed_libraries` | 已安装工具列表 |
-
-## MCP 调用方式
-
-- 端点：`POST http://192.168.30.200:8001/mcp`（`path=/mcp`，stateless HTTP 模式）
-- 认证：`Authorization: Bearer <MCP_AUTH_TOKEN>`
-- **必须带** `Accept: application/json, text/event-stream`，否则返回 **406 Not Acceptable**
-- 示例（initialize）：
+重建或更新网关使配置生效后，执行以下显式操作。首次 `init` 仅创建缺失库，不覆盖或迁移既有库：
 
 ```bash
-curl -X POST http://192.168.30.200:8001/mcp \
-  -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1.0"}}}'
+docker exec dify-mcp python -m scripts.skill_library.local_basic init
+docker exec dify-mcp python -m scripts.skill_library.local_basic seed
+docker exec dify-mcp python -m scripts.skill_library.local_basic status
+docker exec dify-mcp python -m scripts.skill_library.local_basic verify-reuse
 ```
 
-> ⚠️ `:8001` 只绑定到 `192.168.30.200`，**`127.0.0.1` 连不上**（健康检查需用局域网 IP）。
-
-## 数据存储
-
-- SQLite `/app/data/execution_history.db` — 执行记录（数据卷 `dify-mcp-server_dify_mcp_data` 持久化）
-- SQLite `/app/data/error_cache.db` — 纠错经验缓存（同卷持久化）
-- 测试报告 `docs/test_results_raw*.json` — 通过 docs 目录挂载自动同步
-
-## 测试
-
-| 脚本 | 用途 | ⚠️ 注意 |
-|------|------|---------|
-| `sh scripts/tests/run_unit_tests.sh` | 独立开发镜像中的单元测试 | 免费，不修改生产镜像 |
-| `scripts/tests/run_50_tests_new.py` | 50 次端到端回归（真实调用 Dify 工作流 + DeepSeek） | **有模型费用**，运行前先确认 |
-| `scripts/tests/retest_p0.py` | P0 重点场景小批量重测 | 费用低 |
-
-- 测试目标：`http://localhost/v1/workflows/run`，需要 `DIFY_API_KEY` 环境变量
-- 语法预检：`python3 -m py_compile app/server_safe.py app/tools.py app/portal.py app/analysis.py app/static_check.py app/cache_store.py app/execution.py app/llm.py app/config.py app/dashboard.py executor/executor.py`
-- 单元测试：`sh scripts/tests/run_unit_tests.sh`
-- 集成测试：`GW_BASE_URL=http://<gateway> docker run ... python -m pytest tests/integration`（使用同一开发镜像）
-- 现有报告：`docs/test_report_phase1_new.md`（48/50=96%）、`docs/test_report_10.md`（10/10=100%）
-
-## Dify 工作流配置
-
-- MCP URL: `http://dify-mcp:8001/mcp`
-- Auth: `Authorization: Bearer <MCP_AUTH_TOKEN>`
-- SSRF 白名单: `SSRF_PROXY_ALLOW_PRIVATE_DOMAINS=dify-mcp`
-- 工作流链路（9 节点）：Start → 需求分析 → 知识检索 → 模板转换 → 参数提取 → **参数校验（validate_simulation_params，T-005 新增）** → 代码生成 → MCP retry → **代码节点**（提取 report 字段）→ 结束节点输出 Markdown
-
-### 代码节点配置
-
-```python
-import json
-
-def main(mcp_json):
-    data = mcp_json
-    if isinstance(data, list) and len(data) > 0:
-        data = data[0]
-    if isinstance(data, str):
-        try:
-            data = json.loads(data)
-        except Exception:
-            return {"result": data}
-    if not isinstance(data, dict):
-        return {"result": str(data)}
-    report = data.get("report", "")
-    if report:
-        return {"result": report}
-    return {"result": json.dumps(data, ensure_ascii=False, indent=2)}
-```
-
-输出变量：`result`。结束节点引用：`{{代码节点.result}}`。
-
-## 当前状态（2026-08-17 实测）
-
-- 所有路由 200 OK
-- Dify 工作流通畅，返回 Markdown 报告
-- 门户问答功能正常
-- T-006 最终测试：**50 次, 48 成功, 96.0%**（≥90% 门禁通过）
-- **阶段一已正式关闭**（`phase-1-complete` tag，2026-08-17）
-- 纠错缓存：12 条经验, 27 次命中, 88.9% 成功率
-- 执行看板：31 条记录, 30 成功, 1 失败
-- 看板图像列已修复（每个仿真独立保存图片）
-- 缓存置信度逻辑已修复（正确升降级+退役机制）
-- 执行看板已精简为 5 列（去掉工具列, 代码摘要智能跳过 import）
-- P1 已修复（2026-08-17）：`.env` 中 `MCP_AUTH_TOKEN`/`MCP_EXTRA_MODULES` 重复行已去重并重建容器
-- 遗留：P2「2D均质初始压力」成功率 80%（阶段一测试中 2 次失败，待修）
-
-## 环境变量
+第二项固定界面技能使用相同命令加：
 
 ```bash
-MCP_AUTH_TOKEN=<32+ 字符>          # MCP 网关 Bearer token（必填）
-EXECUTOR_SHARED_TOKEN=<32+ 字符>   # 网关↔执行器内部认证（必填）
-DEEPSEEK_API_KEY=sk-...            # 自动纠错用（可选，缺省时 retry 工具报错）
-DEEPSEEK_MODEL=deepseek-chat
-CODE_RETRY_MAX=7                   # 自动纠错重试上限
-DIFY_API_KEY=app-...               # Dify App API Key（门户 /ask 代理用）
-PORTAL_ADMIN_TOKEN=<32+ 字符>       # 可选；启用看板重跑/清空记录的管理令牌
+--profile managed-local-interface-wide.v1
 ```
 
-> 完整变量清单见 `.env.example`。新环境从 `cp .env.example .env` 起步，真实密钥由项目 Owner 私发，**不得提交到 git**。
+`seed` 与 `verify-reuse` 会真正调用受限 executor；不调用模型。重复 seed 不重复执行已合格技能，撤回后不自动恢复。现有库升级须先只读备份，再显式调用迁移；详见 [本机基础技能](docs/SKILL_LOCAL_BASIC.md) 与 [参考执行关联](docs/SKILL_LOCAL_REUSE_2026-10-11.md)。
 
-未配置 `PORTAL_ADMIN_TOKEN` 时，重跑和清空历史 API 会安全地返回 403；配置后调用方必须通过 `X-Admin-Token` 提供同一令牌。BYOK 自定义端点只允许解析到公网地址的 HTTPS/443，且不跟随重定向。
+## 页面与工具
 
-## 可信性与追踪
+默认门户：`http://127.0.0.1:8001/portal`（绑定地址按 `DIFY_MCP_BIND_IP` 配置）。
 
-- 每次工具执行生成或接收 `run_id`，用于关联执行、结果分析和纠错模型成本；Dify 工作流调用分析工具时应原样传递此值。
-- `verdict=normal` 仅代表基础数值健康。结果额外给出 Q0–Q2：Q0 未达到数值有效、Q1 为有限非零场、Q2 为通过基础参数约束；Q3/Q4 必须由后续场景物理规则与参考基准产生。
+| 路由 | 功能 |
+| --- | --- |
+| `/`、`/portal`、`/chat` | 自然语言多轮仿真，侧栏包含技能库入口 |
+| `/skills` | 技能列表、适用参数、版本、证据与反馈 |
+| `/dashboard` | 执行历史、代码与报告 |
+| `/cache` | 纠错经验缓存 |
+| `/health` | 网关存活检查 |
 
-## 备份
+网关注册 9 个 MCP 工具：
 
-```bash
-# 备份目录在 Owner 本地/VM（.claude 为本地工具目录，不入仓库）
+- 执行：`run_jwave_code`、`run_jwave_code_with_retry`
+- 环境：`jwave_environment`、`list_installed_libraries`
+- 校验/分析：`validate_simulation_params`、`analyze_simulation_result`
+- 技能：`search_simulation_skill`、`build_simulation_generation_context`、`read_simulation_generation_context`
+
+MCP 地址为 `http://<gateway>:8001/mcp`，使用 `Authorization: Bearer <MCP_AUTH_TOKEN>`；HTTP 客户端须接受 `application/json, text/event-stream`。管理员反馈需要 `PORTAL_ADMIN_TOKEN`，令牌不写入浏览器持久存储。构建/读取上下文工具不接受调用者代码、可信布尔或自行编造的证明。
+
+## Dify 接线
+
+首次和重试分支分别绑定自己的参数：
+
+```text
+参数提取 → 参数适配 → 只读技能检索
+         → 服务端生成决定 → 提取编号 → 服务端重新验证
+         → 参考格式归一 → 代码生成
 ```
 
-## 关键技术细节
+关闭开关、检索失败、缺少认证或参考撤回都回退原上下文。JSON 格式检查不是授权器；Dify 工具响应使用实际安装版本的 JSON 数组输出契约。离线图工具在 `scripts/workflow/`，部署步骤见 [接线说明](docs/SKILL_STAGE1_WIRING.md)。导出图不能替代完整可导入 DSL，更新草稿不等于发布。
 
-- jwave 0.2.1 正确 API（非 LLM 编造）: `TimeAxis.from_medium()`, `.to_array()`, `FourierSeries(data, domain)`, `Sources(positions, signals, dt, domain)`
-- 代码自动修正: `.max()` → `jnp.max(jnp.abs())`, `.params[0]` → `.params`, `plt.savefig('/tmp/result.png')` → `plt.savefig('result.png')`
-- Executor 沙箱: read_only rootfs, cap_drop ALL, no-new-privileges, pids_limit 256, mem_limit 4g, tmpfs /tmp
+## 存储与目录
 
-## 协作开发
+SQLite 数据卷持久化以下文件：`execution_history.db`、`error_cache.db`、`skill_store.db`。技能库当前 schema17，迁移原子执行，审计和执行关联只追加。
 
-仓库：`github.com/MWXrookie/dify-mcp-server`（公开，分支 `main`）
+| 目录 | 内容 |
+| --- | --- |
+| `app/` | 网关、物理门、技能接纳/检索/执行关联 |
+| `executor/` | 固定 jwave 0.2.1 沙箱 |
+| `scripts/validation/` | 运行时物理验证、固定配方与来源契约 |
+| `scripts/skill_library/` | 人工基础技能准备与复用 CLI |
+| `scripts/workflow/` | 可重复使用的离线工作流工具 |
+| `scripts/archive/` | 历史一次性工作流补丁，保留供追溯 |
+| `host_observer/` | 可选跨主机观察与签名辅助 |
+| `tests/` | 隔离单测、集成测试及固定测试夹具 |
+| `docs/` | 当前计划、验收、历史交接与架构事实 |
 
-- **代码真正运行在 VM**（`~/dify-mcp-server`），GitHub 只是代码中转：合并后需在 VM 上 `git pull` → `docker compose up -d --build` 才生效
-- 提交信息/分支/PR 规范见 **`docs/COMMIT_CONVENTION.md`**（**每次提交前必读**：提交格式 + 密钥红线/可移植性/验证要求检查清单）
-- 红线：`.env` 及 `.env.bak.*` 密钥备份、`*.log`、`jwave-env.tar.gz`（268MB）、`__pycache__/` 一律不提交
-- 环境变量：`cp .env.example .env` 起步，真实密钥由 Owner 私发
-- 项目约束（jwave 0.2.1 锁定、沙箱安全限制不可削弱等）见 `docs/AGENTS.md` 第 4 节
+运行日志、生产快照、临时数据库、密钥、本机镜像和本机部署覆盖文件保留在操作者环境，不提交。清理规则见 [脚本说明](scripts/README.md)。
+
+## 验证与开发
+
+`scripts/tests/run_unit_tests.sh` 可构建独立测试镜像；批量 Dify 测试会使用模型并产生费用，运行前确认范围。技能验证应使用临时 SQLite，不写生产库；固定配方检查不允许放宽 1% 误差或删除失败样本。
+
+最近技能执行关联相关回归 343 项通过；不是全库或最终产品验收。此次 GitHub 整理对 87 个单测文件完整分批验证：1334 项及 10 个子测试通过，依赖警告按批记录；见 CHANGELOG。原窄界面算例的完整波形失败记录保留，加宽算例是独立新配置。
+
+项目借鉴技能库/检索/反馈学习方向，结合事务、来源留证、声学解析基准及 jwave 源码进行工程实现，不宣称原创求解算法，不引入 Open Interpreter 或向量数据库。开发约束见 [AGENTS](AGENTS.md)、[提交规范](docs/COMMIT_CONVENTION.md)。

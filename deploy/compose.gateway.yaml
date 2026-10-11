@@ -1,0 +1,3 @@
+services:
+  dify-mcp:
+    image: ${DIFY_MCP_IMAGE:?Set DIFY_MCP_IMAGE to a verified gateway image}

@@ -3,3 +3,11 @@ __pycache__/
 *.log
 executor/jwave-env.tar.gz
 auxiliary/
+.git/
+.env
+.env.*
+host_observer/
+tests/
+.pytest_cache/
+deploy/
+docs/dify_workflow_backup/*.local.json
