@@ -45,6 +45,9 @@ def _capsule_checked(capsule):
     if spec["scope"]==PROFILE:
         _safe_trace(canonical(decoded).decode(),"")
         numeric=validate_plane_wave(_json(raw))
+    elif spec["scope"] in catalog.PERIODIC_RECIPES:
+        from scripts.validation.periodic_eigenmodes import validate
+        numeric=validate(decoded)
     else:
         from scripts.validation.interface_waveform import validate_wide
         numeric=validate_wide(raw)

@@ -1,5 +1,7 @@
 # AcouAgent 开发规划 v3.0
 
+> 2026-10-12 阶段一出口已通过：17 项精确清单、30 题、独立 Luna 68 项合同/周期回归；公开冻结材料见 [阶段一基线](validation/stage1/README.md)。180 次 A/B 未执行，真实模型采用与整体验收仍待后续阶段。本次只更新 GitHub，不部署或发布。
+
 > 2026-10-07 起草。**取代 v2.1**（全文归档于 `docs/archive/DEVELOPMENT_PLAN_v2.1.md`，历史进度与证据不丢）。
 > 本版按用户确认的终点重构目标与架构；**完整保留历史进度、证据链与时间台账**（见 §5）。
 > 验收依据另见 `docs/SKILL_LIBRARY_ACCEPTANCE.md`。

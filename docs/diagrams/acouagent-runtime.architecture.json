@@ -351,6 +351,35 @@
       "operator_cli_packaged": true,
       "interface_design": "deferred",
       "new_environment_dependency_install": "not_run"
+    },
+    "fifteen_skill_checkpoint": {
+      "date": "2026-10-12",
+      "active_profiles": 17,
+      "new_fixed_profiles": 15,
+      "families": 5,
+      "media": 3,
+      "boundary": "homogeneous_lossless_periodic_2d",
+      "actual_physics_runs_passed": 15,
+      "production_intakes_passed": 15,
+      "actual_reference_executions_passed": 15,
+      "authenticated_mcp_cases_passed": 15,
+      "model_adoption_authenticated": false,
+      "automatic_learning": false,
+      "dify_published": false,
+      "html_visual_check_deferred": true
+    },
+    "stage1_baseline_checkpoint": {
+      "date": "2026-10-12",
+      "inventory_count": 17,
+      "task_count": 30,
+      "independent_positive_configurations": 15,
+      "positive_tasks": 20,
+      "negative_tasks": 10,
+      "independent_tests_passed": 68,
+      "executed_ab_runs": 0,
+      "stage2_started": false,
+      "formal_product_acceptance": false,
+      "public_artifacts": "docs/validation/stage1"
     }
   },
   "components": [

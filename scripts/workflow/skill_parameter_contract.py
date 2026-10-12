@@ -1,6 +1,12 @@
 """Offline extraction contract; declared parameters never authenticate a run."""
 import copy
 
+PERIODIC_CONTRACT = """
+周期模态技能：只有用户明确提交完整配置JSON时才逐字段保留其SI规范参数；
+scenario_type=initial_pressure_2d，source_type=modal_initial_pressure，boundary_condition=periodic。
+保留模态振幅、波数、网格、时间及探针，不改写成高斯源，不猜测或补齐条件。
+"""
+
 CONTRACT = """
 【技能库参数声明契约 v2：以本段补充原输出约定】
 输出单个严格 JSON 对象。scenario_type 必须显式选自 point_source_2d、point_source_3d、

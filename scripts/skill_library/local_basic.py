@@ -82,7 +82,7 @@ def verify_reuse(profile=local.PROFILE):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action",choices=("init","seed","status","verify-reuse"))
-    parser.add_argument("--profile",choices=(local.catalog.PLANE,local.catalog.INTERFACE),default=local.PROFILE)
+    parser.add_argument("--profile",choices=local.catalog.SCOPES,default=local.PROFILE)
     args=parser.parse_args();action=args.action
     try:
         if action=="init":result=initialize()
