@@ -1,3 +1,11 @@
+## 2026-10-14 · 阶段六启动：GitHub 发行可移植性基线与镜像流水线
+
+从已回读 GitHub 且与 origin 一致的阶段五 SHA 生成隔离 archive，避免使用工作区未提交文件、`.env`、生产数据卷或现有生产镜像。425 个跟踪文件和必需清单完整；网关从该快照构建成功，空数据卷、只读、降权容器 `/health=ok`，阶段五相关 68 passed / 15 warnings / 3.17s，测试资源全部清理。
+
+确认五个发行阻断：默认分支尚未包含 PR #7；根 Compose 强制外部 `docker_default`；门户聊天仍依赖 Dify；浏览器模型设置未贯穿主工作流；executor 全新构建在下载约 93.0/101.8 MB jaxlib 后 120 秒超时。两次直接 GitHub 克隆也分别遇到连接重置和 early EOF，因此网络失败未被写成仓库缺文件。
+
+新增可重复的 `release_snapshot_smoke.sh`，始终对指定 Git ref 做 archive、构建、空卷健康检查和隔离测试，可选构建 executor 并跑 VAL-1，退出时清理自有资源。新增 GitHub Actions 网关/executor linux/amd64 构建、SBOM、provenance 与 GHCR 发布配置；是否真正发布须以后续 Actions 成功和镜像回拉验收为准。公开事实基线见 `docs/validation/stage6/`。
+
 ## 2026-10-13 · 阶段五受质量门控的自动学习闭环验收完成
 
 主执行与重试工具的全部结束路径统一进入学习终结器。精确服务端固定配方先走确定性物理门，合格时接纳或复用 `Q4 active`，同一运行不再写低等级记录；其他生成代码的正常运行最高只形成 `Q2 candidate`，不能被检索、注入或直接复用。自动模式可在首次精确合格运行时初始化缺失技能库，人工模式仍要求显式初始化。run-bound “结果不对”反馈幂等，重复提交不重复增加失败计数。executor 及其安全限制未改。

@@ -1,6 +1,6 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
-> 2026-10-13 当前状态：阶段五受质量门控的自动学习闭环验收通过；精确固定配方可确定性接纳为 Q4 active，普通成功运行最高只形成不可复用的 Q2 candidate，run-bound 负反馈幂等。当前生产学习已开启，17 active + 1 candidate；Luna 772 passed，executor 未变。公开证据见 docs/validation/stage5/；Dify 强耦合和 DeepSeek 模型写死仍列入 docs/KNOWN_GAPS.md。不得把 Q2 候选写成已可复用技能。
+> 2026-10-14 当前状态：阶段五自动学习闭环已通过并提交；阶段六产品化已启动。远端跟踪快照的网关可独立构建、空卷启动且68项相关测试通过，但完整下载即用仍被外部Dify网络、Dify编排、未贯穿主流程的模型选择及弱网executor构建阻断。阶段六先建立远端发行门和GHCR镜像流水线，再迁移本地编排与模型profile。公开基线见 docs/validation/stage6/PORTABILITY_BASELINE.md；不得把网关健康检查写成完整产品可用。
 
 > 本文档面向项目中的所有 AI Agent。Agent 在执行任何任务之前，必须先阅读本文档以获取项目上下文、当前状态和可执行任务。
 

@@ -1,0 +1,35 @@
+{
+  "stage": 6,
+  "slice": "github portability baseline",
+  "date": "2026-10-14",
+  "status": "in_progress",
+  "remote_snapshot": {
+    "ref": "origin/feat/acouagent-evidence-gates-20261007",
+    "sha": "b00013519623ca4ab5b2568f061357643c2efb00",
+    "tracked_files": 425,
+    "required_files_complete": true
+  },
+  "verified": {
+    "compose_config": true,
+    "gateway_clean_build": true,
+    "gateway_empty_volume_health": true,
+    "focused_tests_passed": 68,
+    "focused_test_warnings": 15,
+    "focused_test_seconds": 3.17,
+    "cleanup_complete": true
+  },
+  "blockers": [
+    "default branch does not yet contain pull request 7",
+    "root compose requires the external docker_default Dify network",
+    "the portal chat path still requires Dify",
+    "browser model settings do not control the full workflow",
+    "a fresh executor build timed out while downloading jaxlib on the audit host"
+  ],
+  "executor_build": {
+    "status": "failed",
+    "layer": "pip scientific stack",
+    "artifact": "jaxlib 0.4.38 wheel",
+    "observed_bytes": "approximately 93.0/101.8 MB",
+    "error": "ReadTimeout after 120 seconds"
+  }
+}
