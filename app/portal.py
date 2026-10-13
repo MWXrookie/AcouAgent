@@ -20,9 +20,12 @@ from app.dashboard import (
 )
 
 
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+
+
 def _serve_html(filename: str) -> HTMLResponse:
     html = (_Path(__file__).resolve().parent / "web" / filename).read_text(encoding="utf-8")
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers=_NO_CACHE)
 
 
 def _extract_report(output) -> str:
@@ -163,15 +166,15 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/", methods=["GET"])
     async def portal(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(CHAT_HTML, headers=_NO_CACHE)
 
     @mcp.custom_route("/portal", methods=["GET"])
     async def portal_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(CHAT_HTML, headers=_NO_CACHE)
 
     @mcp.custom_route("/chat", methods=["GET"])
     async def chat_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(CHAT_HTML, headers=_NO_CACHE)
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:
