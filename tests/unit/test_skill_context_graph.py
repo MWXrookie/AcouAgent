@@ -29,8 +29,11 @@ def test_enabled_routes_strictly_and_errors_preserve_context():
     assert code(nodes["skill-main-gate"],ready=True)=={"route":"use"}
     for role in ["builder","reader"]:
         assert nodes["skill-main-"+role]["data"]["retry_config"]["retry_enabled"] is False
-    invalid=nodes["skill-main-builder"]["data"]["default_value"][0]["value"]
-    assert code(nodes["skill-main-pointer"],result_json=invalid)=={"decision_id":"","generation_run_id":""}
+    defaults={item["key"]:item for item in nodes["skill-main-builder"]["data"]["default_value"]}
+    assert defaults["text"]=={"key":"text","type":"string","value":"{}"}
+    assert defaults["json"]=={"key":"json","type":"array[object]","value":[]}
+    assert code(nodes["skill-main-pointer"],result_json=defaults["json"]["value"])=={
+        "decision_id":"","generation_run_id":""}
     assert code(nodes["skill-main-wire"],original_context="raw",server_context="")=={"generation_context":"raw"}
 
 @pytest.mark.parametrize("fault",["provider","context","partial","drift"])

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "accepted_at": "2026-10-13",
+  "stage": "daily_skill_reuse",
+  "status": "passed",
+  "published_workflow": {
+    "workflow_id": "a6bd14e7-c389-4bf6-b0a9-76a023c2ceff",
+    "graph_sha256": "d4a133a6e971816e1ded7f81f3f734ba8ccb254e9e86eb49055ef8ab1cf69925",
+    "nodes": 63,
+    "edges": 70
+  },
+  "live_batch": {
+    "planned": 30,
+    "valid_traces": 30,
+    "positive_verified": 20,
+    "positive_direct_recipe": 20,
+    "positive_model_nodes_absent": 20,
+    "negative_fallback_semantics_verified": 10,
+    "negative_reference_delivered": 0,
+    "workflows_completed": 29,
+    "workflows_stopped_after_fallback_proof": 1,
+    "active_runs_after": 0
+  },
+  "tests": {
+    "isolated_passed": 293,
+    "groups": [187, 106],
+    "warnings_per_group": 14
+  },
+  "controls": {
+    "retrieval_limit": 3,
+    "main_and_retry_tested": true,
+    "revocation_isolated_only": true,
+    "service_error_isolated_only": true,
+    "exit_zero_is_not_physical_acceptance": true,
+    "learning_enabled": false,
+    "actual_use_authenticated": false,
+    "model_adoption_authenticated": false
+  }
+}

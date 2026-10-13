@@ -39,6 +39,7 @@ async def workflow_events(query, user, api_key):
     task_id = None
     run_id = None
     completed = False
+    skill_notices = []
     stop_status = "not_needed"
     error = None
     yield {"event": "progress", "stage": "正在连接工作流", "request_id": request_id}
@@ -82,6 +83,12 @@ async def workflow_events(query, user, api_key):
                             stage = str(data.get("title") or "处理中")[:80]
                             yield {"event": "progress", "stage": stage, "request_id": request_id,
                                    "workflow_run_id": run_id}
+                        elif event == "node_finished":
+                            from app.skill_usage import reference_notice, execution_node_notice
+                            notice=reference_notice(data) or execution_node_notice(data)
+                            if notice and notice not in skill_notices and len(skill_notices)<6:
+                                skill_notices.append(notice)
+                                yield {"event":"skill_usage","skill_usage":notice,"request_id":request_id}
                         elif event == "workflow_finished":
                             completed = True
                             if data.get("status") != "succeeded":
@@ -95,7 +102,7 @@ async def workflow_events(query, user, api_key):
                                         request_id, run_id)
                             yield {"event": "result", "outputs": outputs, "workflow_status": "succeeded",
                                    "elapsed_time": data.get("elapsed_time"), "request_id": request_id,
-                                   "workflow_run_id": run_id}
+                                   "workflow_run_id": run_id,"skill_usage":skill_notices}
                             return
                         elif event == "error":
                             error = failure_message(item.get("message", ""))
@@ -124,4 +131,4 @@ async def workflow_events(query, user, api_key):
     logger.info("workflow request_id=%s workflow_run_id=%s status=error stop_status=%s",
                 request_id, run_id, stop_status)
     yield {"event": "result", "report": error, "workflow_status": "error",
-           "request_id": request_id, "workflow_run_id": run_id, "stop_status": stop_status}
+           "request_id": request_id, "workflow_run_id": run_id, "stop_status": stop_status,"skill_usage":skill_notices}

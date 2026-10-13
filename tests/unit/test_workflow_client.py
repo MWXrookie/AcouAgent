@@ -92,3 +92,12 @@ def test_no_provider_traceback_for_error_event(monkeypatch):
     assert events[-1]["workflow_status"]=="error"
     assert "secret" not in str(events)
     assert len(calls)==1
+
+def test_verified_skill_feedback_is_streamed_and_retained(monkeypatch):
+ from app import skill_usage
+ notice=dict(stage="reference_delivered",skill_id="id",version=1,name="water axial",message="reference delivered",model_adoption_authenticated=False)
+ monkeypatch.setattr(skill_usage,"reference_notice",lambda data: notice)
+ events,_=run(monkeypatch,[{"event":"node_finished","data":{"node_id":"local-basic-main-reader","inputs":{"secret":"hidden"}}},{"event":"workflow_finished","data":{"status":"succeeded","outputs":{"text":"report"}}}])
+ assert events[-1]["skill_usage"]==[notice]
+ assert any(e["event"]=="skill_usage" for e in events)
+ assert "hidden" not in json.dumps(events)

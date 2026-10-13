@@ -4,7 +4,8 @@ from app import skill_local_catalog as catalog, skill_local_profile as local
 from app import skill_library_service as service
 from scripts.validation.host_forward_signature import canonical
 
-READERS={"local-basic-main-reader","local-basic-retry-reader"}
+READERS={"local-basic-main-reader","local-basic-retry-reader",
+         "local_basic_main_reader","local_basic_retry_reader"}
 RUNNERS={"5655556822808","1786095555004"}
 def _notice(metadata,stage,run_id=""):
     spec=catalog.specification(metadata["scope"])
@@ -38,7 +39,8 @@ def execution_notice(run_id):
         if type(run_id) is not str or len(run_id)!=36:return None
         import uuid
         uuid.UUID(run_id)
-        capsule=local._history(run_id);decoded=local._json(capsule["stdout"])
+        from app.skill_execution_history import checked_daily_history
+        capsule,_,_=checked_daily_history(run_id);decoded=local._json(capsule["stdout"])
         spec=catalog.from_raw(decoded)
         with service.STORE._read_db() as db:
             rows=db.execute("SELECT s.skill_id,(SELECT MAX(version) FROM skill_versions v WHERE v.skill_id=s.skill_id) version FROM simulation_skills s WHERE scenario_type=? AND fingerprint=? LIMIT 2",

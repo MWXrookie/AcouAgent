@@ -7,6 +7,7 @@
 
 | 文件 | 说明 |
 |------|------|
+| `stage2_daily_reuse_published_20261013.json` | 阶段二最终发布图：63 节点/70 边，SHA-256 `d4a133a6e971816e1ded7f81f3f734ba8ccb254e9e86eb49055ef8ab1cf69925`；精确固定配方经物理数值门后直接生成确定性报告，其他输入回退原模型路径 |
 | `app_0592503e_workflows.json` | 该 App 全部 4 个版本（published / draft / 2 个时间戳版本），含 `graph`、`features`、环境变量、会话变量 |
 
 ## 版本说明

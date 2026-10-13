@@ -365,6 +365,34 @@ def _summary(metrics: dict, verdict: str) -> str:
     return "，".join(parts)
 
 
+def _periodic_view(stdout, stderr, exit_code):
+    """Display validated fixed raw evidence without changing its receipt bytes.
+
+    The image is max-abs over three sampled snapshots, never full-time peak.
+    Numeric checks alone grant neither source identity nor reusable status.
+    """
+    try:
+        if exit_code != 0 or stderr or type(stdout) is not str or len(stdout.encode())>500000:
+            return None
+        from scripts.validation.host_forward_signature import unique, reject
+        from scripts.validation.periodic_eigenmodes import validate
+        body=json.loads(stdout,object_pairs_hook=unique,parse_constant=reject)
+        if type(body) is not dict or set(body)!={"raw_evidence"}:return None
+        result=validate(body)
+        if result.get("numeric_pass") is not True:return None
+        raw=body["raw_evidence"];frames=raw["snapshots"]
+        values=[max(abs(frame[i]) for frame in frames) for i in range(4096)]
+        payload={"shape":[64,64],"kind":"validated_sample_snapshots",
+                 "data":[values[i:i+64] for i in range(0,4096,64)]}
+        sensor={"time":raw["time"],"pressure":raw["traces"][0],
+                "sensor_index":raw["configuration"]["sensor_indices"][0]}
+        return payload,sensor,{"profile":raw["profile"],"numeric_pass":True,
+            "checked_metrics":result.get("relative_errors"),
+            "display_basis":"max_abs_of_three_snapshots",
+            "trusted_run":False,"actual_use_authenticated":False}
+    except (ValueError,TypeError,KeyError,IndexError,OverflowError,RecursionError,UnicodeError):
+        return None
+
 def _analyze_impl(
     stdout_text: str,
     stderr_text: str = "",
@@ -397,6 +425,9 @@ def _analyze_impl(
     run_id = source.get("run_id", "")
     payload = _extract_field(stdout_text or "")
     sensor = _extract_sensor(stdout_text or "")
+    fixed_view = _periodic_view(stdout_text, stderr_text, exit_code) if payload is None else None
+    if fixed_view:
+        payload,sensor,_ = fixed_view
     from app.physics_timing import assess_sensor_timing
     timing = assess_sensor_timing(sensor)
     rows, shape = _to_float_matrix(payload["data"]) if payload else (None, None)
@@ -469,6 +500,9 @@ def _analyze_impl(
     result["timing_diagnostic"] = timing
     result["run_id"] = run_id or None
     result["execution_source"] = source
+    if fixed_view:
+        result["fixed_numeric_diagnostic"] = fixed_view[2]
+        result["summary"] += " 图像为三个采样时刻的绝对声压包络，非全时峰值或稳态证明。"
     return result
 
 

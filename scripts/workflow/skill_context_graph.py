@@ -103,6 +103,12 @@ def patch(graph,branches,builder_template,reader_template,*,retrieval_enabled=Fa
                 "scenario_type":{"type":"mixed","value":"{{#"+adapter+".scenario_type#}}"},
                 "parameters_json":{"type":"mixed","value":"{{#"+adapter+".retrieval_parameters_json#}}"}}
         builder=tool(builder_template,"builder",copy.deepcopy(common),"{}")
+        # Dify's default-value error strategy only publishes explicitly declared
+        # output keys.  The pointer reads the MCP JSON output, so declare an empty
+        # JSON array as well as text to keep the deny-and-fallback path reachable
+        # when the builder tool fails before producing its normal outputs.
+        builder["data"]["default_value"].append(
+            {"key":"json","type":"array[object]","value":[]})
         pointer=_code(ids["pointer"],"只提取不可信决定编号",pointer_source,
             [{"variable":"result_json","value_selector":[ids["builder"],"json"]}],
             {"decision_id":"string","generation_run_id":"string"})

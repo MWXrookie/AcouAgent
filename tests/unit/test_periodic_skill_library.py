@@ -62,6 +62,6 @@ def test_self_report_does_not_generate_feedback():
 def test_extraction_adapter_preserves_explicit_periodic_configuration(scope):
  from scripts.workflow.skill_parameter_adapter import main
  spec=catalog.specification(scope);params=dict(spec["parameters"],scenario_type=spec["scene"])
- result=main(canonical(params).decode());assert result["ready"]
+ result=main(canonical(params).decode(),original_query=canonical(spec["parameters"]).decode());assert result["ready"]
  assert local._json(result["retrieval_parameters_json"])==spec["parameters"]
  params["boundary_condition"]="open";assert not main(canonical(params).decode())["ready"]
