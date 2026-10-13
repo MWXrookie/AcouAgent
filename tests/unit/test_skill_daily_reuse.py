@@ -196,3 +196,46 @@ def test_direct_result_route_requires_normal_numeric_analysis_and_skips_llms():
     assert ("daily_main_direct_result","daily_main_result_merge","source") in edges
     assert nodes["1783992518452"]["data"]["outputs"][0]["value_selector"]==[
         "daily_main_result_merge","output"]
+
+
+def ab_graph():
+    return {"nodes":[
+        {"id":"start","data":{"type":"start","variables":[dict(
+            variable="query",required=True,hint="",label="query",placeholder="",
+            options=[],type="text-input",default="")]}},
+        {"id":"stage1_main_gate","data":{"type":"code","variables":[dict(
+            variable="ready",value_selector=["adapter-main","ready"])],"code":"old"}},
+        {"id":"stage1_retry_gate","data":{"type":"code","variables":[dict(
+            variable="ready",value_selector=["adapter-retry","ready"])],"code":"old"}},
+        {"id":"local_basic_main_gate","data":{"type":"code","variables":[dict(
+            variable="ready",value_selector=["adapter-main","ready"])],"code":"old"}},
+        {"id":"local_basic_retry_gate","data":{"type":"code","variables":[dict(
+            variable="ready",value_selector=["adapter-retry","ready"])],"code":"old"}},
+    ],"edges":[]}
+
+
+def test_paired_reuse_control_is_request_scoped_closed_and_idempotent():
+    original=ab_graph();before=copy.deepcopy(original)
+    got=graph.paired_reuse_control(original)
+    assert original==before and graph.paired_reuse_control(got)==got
+    start=got["nodes"][0]["data"]["variables"]
+    control=next(value for value in start if value["variable"]=="skill_reuse_mode")
+    assert control["default"]=="on" and control["options"]==["on","off"]
+    for node in got["nodes"][1:]:
+        ns={};exec(node["data"]["code"],ns)
+        active="use" if node["id"].startswith("local_basic") else "search"
+        assert ns["main"](True,"on")=={"route":active}
+        assert ns["main"](True,"off")=={"route":"skip"}
+        assert ns["main"](True,"invalid")=={"route":"skip"}
+        assert ns["main"](False,"on")=={"route":"skip"}
+        assert ns["main"](True)=={"route":active}
+
+
+@pytest.mark.parametrize("fault",["duplicate_start","missing_gate","changed_input","changed_binding"])
+def test_paired_reuse_control_rejects_ambiguous_graph(fault):
+    candidate=graph.paired_reuse_control(ab_graph())
+    if fault=="duplicate_start":candidate["nodes"].append({"id":"other","data":{"type":"start"}})
+    if fault=="missing_gate":candidate["nodes"]=[n for n in candidate["nodes"] if n["id"]!="stage1_retry_gate"]
+    if fault=="changed_input":candidate["nodes"][0]["data"]["variables"][1]["default"]="off"
+    if fault=="changed_binding":candidate["nodes"][1]["data"]["variables"][1]["value_selector"]=["start","query"]
+    with pytest.raises(ValueError):graph.paired_reuse_control(candidate)

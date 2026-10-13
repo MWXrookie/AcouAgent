@@ -2,6 +2,70 @@
 import copy
 from pathlib import Path
 
+PAIRED_REUSE_INPUT = "skill_reuse_mode"
+PAIRED_REUSE_OPTIONS = ("on", "off")
+PAIRED_REUSE_GATE = """def main(ready, skill_reuse_mode='on'):
+    enabled = skill_reuse_mode == 'on'
+    return {'route': 'search' if ready is True and enabled else 'skip'}
+"""
+PAIRED_REUSE_LOCAL_GATE = """def main(ready, skill_reuse_mode='on'):
+    enabled = skill_reuse_mode == 'on'
+    return {'route': 'use' if ready is True and enabled else 'skip'}
+"""
+
+
+def paired_reuse_control(graph):
+    """Add one request-scoped on/off arm without changing the default route.
+
+    This is an experiment control, not a public trust input.  ``off`` can only
+    bypass retrieval and reference delivery; it cannot enable a skill or grant
+    any trust.  Existing callers omit the input and keep the ``on`` default.
+    """
+    result = copy.deepcopy(graph)
+    index = {node["id"]: node for node in result.get("nodes", [])}
+    if len(index) != len(result.get("nodes", [])):
+        raise ValueError("duplicate_node_id")
+    starts = [node for node in result.get("nodes", [])
+              if node.get("data", {}).get("type") == "start"]
+    if len(starts) != 1:
+        raise ValueError("one_workflow_start_required")
+    variables = starts[0]["data"].setdefault("variables", [])
+    expected = dict(variable=PAIRED_REUSE_INPUT, required=False,
+                    hint="阶段四成对评估控制；普通请求保持 on",
+                    label=PAIRED_REUSE_INPUT, placeholder="",
+                    options=list(PAIRED_REUSE_OPTIONS), type="select", default="on")
+    prior = [value for value in variables
+             if value.get("variable") == PAIRED_REUSE_INPUT]
+    if prior:
+        if len(prior) != 1 or prior[0] != expected:
+            raise ValueError("paired_reuse_input_drift")
+    else:
+        variables.append(expected)
+    selector = [starts[0]["id"], PAIRED_REUSE_INPUT]
+    gates=(("stage1_main_gate",PAIRED_REUSE_GATE),
+           ("stage1_retry_gate",PAIRED_REUSE_GATE),
+           ("local_basic_main_gate",PAIRED_REUSE_LOCAL_GATE),
+           ("local_basic_retry_gate",PAIRED_REUSE_LOCAL_GATE))
+    for node_id,source in gates:
+        node = index.get(node_id)
+        if node is None or node.get("data", {}).get("type") != "code":
+            raise ValueError("paired_reuse_gate_missing")
+        bindings = node["data"].setdefault("variables", [])
+        ready = [value for value in bindings if value.get("variable") == "ready"]
+        if len(ready) != 1:
+            raise ValueError("paired_reuse_ready_binding")
+        mode = [value for value in bindings
+                if value.get("variable") == PAIRED_REUSE_INPUT]
+        expected_binding = dict(variable=PAIRED_REUSE_INPUT,
+                                value_selector=selector)
+        if mode:
+            if len(mode) != 1 or mode[0] != expected_binding:
+                raise ValueError("paired_reuse_gate_binding_drift")
+        else:
+            bindings.append(expected_binding)
+        node["data"]["code"] = source
+    return result
+
 PARAMETER_SUFFIX = """
 【日常复用参数输出 v1】
 完整周期初压配置保留 SI 字段名及所有用户数值，另加 scenario_type=initial_pressure_2d。
