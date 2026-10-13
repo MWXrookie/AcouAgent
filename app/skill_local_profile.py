@@ -116,6 +116,11 @@ def record(run_id):
         spec=catalog.from_raw(_json(capsule["stdout"]))
         params=spec["parameters"];ps=pins.digest(canonical(params).decode())
         store=service.STORE
+        # Automatic learning is allowed to initialize its own SQLite store on
+        # the first exact-profile success. Manual intake keeps the existing
+        # explicit initialization requirement.
+        if config.SKILL_LIBRARY_ENABLED is True and config.SKILL_LEARNING_ENABLED is True:
+            store.migrate()
         with store._db_existing_write() as db:
             decisions._budget(db);db.execute("BEGIN IMMEDIATE")
             prior=db.execute("SELECT skill_id,capsule_sha256 FROM skill_local_sources WHERE source_run_id=?",(run_id,)).fetchone()

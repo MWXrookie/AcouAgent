@@ -1,0 +1,109 @@
+{
+  "stage": 5,
+  "name": "quality-gated automatic learning loop",
+  "date": "2026-10-13",
+  "status": "passed",
+  "implementation": {
+    "unified_finalizer": true,
+    "main_execution_path": true,
+    "retry_execution_path": true,
+    "exact_profile_max_quality": "Q4",
+    "generic_run_max_quality": "Q2",
+    "q2_retrievable": false,
+    "feedback_run_bound": true,
+    "duplicate_feedback_idempotent": true
+  },
+  "tests": {
+    "focused": {
+      "passed": 68,
+      "warnings": 15,
+      "duration_seconds": 3.31
+    },
+    "luna_skill_regression": {
+      "thread_id": "01a12fed-a22d-7560-8989-ac8f88a636fb",
+      "collected": 772,
+      "passed": 772,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 16,
+      "duration_seconds": 73.3,
+      "exit_code": 0
+    }
+  },
+  "live_exact": {
+    "workflow_run_id": "b873e836-682c-4220-9ec8-1c3b5c9b2fa5",
+    "outcome": "completed",
+    "reference_delivered": true,
+    "generated_executed_code_match": true,
+    "physical_checks_passed": 12,
+    "physical_checks_total": 12,
+    "maximum_observed_error": 0.00000190630387930657
+  },
+  "live_generic": {
+    "workflow_run_id": "4580692c-8f35-4b93-8b2f-2414b63b8274",
+    "status": "succeeded",
+    "sse_events": 95,
+    "skill_id": "985595c9-b417-4762-b6b3-4c3f4e6dfd23",
+    "skill_status": "candidate",
+    "quality_level": "Q2",
+    "immutable_versions": 2,
+    "success_count": 2,
+    "retrieval_match_count": 0,
+    "retrieval_fallback": true,
+    "retrieval_reason": "no_applicable_skill"
+  },
+  "feedback": {
+    "failure_count_after_first": 1,
+    "duplicate_response": true,
+    "failure_count_after_duplicate": 1,
+    "rows": 1
+  },
+  "production": {
+    "learning_enabled": true,
+    "schema_version": 17,
+    "before_skill_count": 17,
+    "after_skill_count": 18,
+    "active_count": 17,
+    "candidate_count": 1,
+    "existing_skills_unchanged": true,
+    "existing_versions_unchanged": true,
+    "integrity_check": "ok",
+    "active_workflow_runs": 0,
+    "http_status": {
+      "health": 200,
+      "portal": 200,
+      "skills": 200,
+      "dashboard": 200
+    },
+    "executor_unchanged": true
+  },
+  "architecture": {
+    "validate_score": "9/9",
+    "errors": 0,
+    "warnings": 0,
+    "deliver": "passed",
+    "visual_check": "passed",
+    "viewports": [
+      "1440x900",
+      "1600x1000",
+      "1920x1080",
+      "2048x1320"
+    ],
+    "spec_sha256": "b74b2d3ad5a2b8c9bd1ea9e2d1b7a4e8216a727742c852bd472c6331b882d566",
+    "html_sha256": "f42090cfa7d3c69cfd62bc112f8acbf4c8b18ab241c5afc67520a1a64dd71145"
+  },
+  "evidence_sha256": {
+    "live_exact_record": "6ddd9e55c9b25a0a158c093eb52d236a3afc9382cdbf0be1d76fed7c467cd260",
+    "live_generic_summary": "e2e973ccbda3be36d7a725f13231a65c2a958405b6b1d8b6f969f03bf3b24065",
+    "negative_feedback": "0a700a7547011caa70be85254e5f8e7e0cf5f9f57069a15bf2fc71313033dffb",
+    "negative_feedback_duplicate": "6e7a140068fa49c2591e01dfb6f38cb29db8c7fc4b5006fd84d47b7bbd3892ab",
+    "skill_store_before": "02e2ab215c034f08dbec5baff5732bc63ffbdf45b1be8371417364fbe1a19559",
+    "skill_store_after": "14845278d3fc856c22fbb5b8ae4dbca934ef881e1eb0a8e7f0fc5775ec797417"
+  },
+  "boundaries": [
+    "Only exact fixed profiles can be admitted automatically as Q4 active.",
+    "Generic successful runs remain Q2 candidates and cannot be retrieved or injected.",
+    "The distribution example keeps automatic learning disabled by default.",
+    "Dify runtime coupling and the fixed DeepSeek backend remain open issues."
+  ]
+}

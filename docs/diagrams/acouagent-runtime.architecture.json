@@ -33,7 +33,7 @@
           "deepseek_api",
           "state_store"
         ],
-        "note": "固定配方仍由原沙箱重新执行；退出码0只是必要条件。SQLite决策、当前技能版本、执行回执、完整原始数值和Dify原生节点共同复核，自动学习保持关闭。"
+        "note": "阶段五已启用受质量门控制的自动学习：精确固定配方必须通过确定性物理校验才以 Q4 active 接纳；其他正常运行最多写入 Q2 candidate，不能参与检索或注入。"
       },
       {
         "id": "isolation-boundary",
@@ -47,13 +47,13 @@
       },
       {
         "id": "fixed-reference-offline",
-        "label": "技能复用与 A/B",
+        "label": "复用收益与自动学习",
         "focus": [
           "mcp_gateway",
           "state_store",
           "dify_workflow"
         ],
-        "note": "阶段四在同一63节点/70边发布图上完成30题×off/on×3次。on组60/60正例通过独立物理门，30/30负例不交付参考；自动学习保持关闭。"
+        "note": "阶段四完成30题×off/on×3次收益验收；阶段五随后开启自动学习。每轮执行按 run_id 留痕，固定 Q4 与通用 Q2 分流，低等级记录不会覆盖高等级接纳。"
       },
       {
         "id": "skill-workbench",
@@ -148,7 +148,7 @@
       "id": "simulation_pipeline",
       "type": "backend",
       "label": "仿真执行闭环",
-      "sublabel": "检索 / 沙箱执行 / 物理门 / 回退",
+      "sublabel": "检索 / 沙箱执行 / Q2-Q4 门 / 回退",
       "pos": [
         840,
         280
@@ -163,7 +163,7 @@
       "id": "state_store",
       "type": "database",
       "label": "本地数据卷",
-      "sublabel": "技能 / 版本 / 决策 / 执行回执",
+      "sublabel": "技能 / 版本 / 学习 / 反馈 / 回执",
       "pos": [
         840,
         520
@@ -172,7 +172,7 @@
         170,
         64
       ],
-      "tag": "SQLite"
+      "tag": "SQLite · 学习已启用"
     },
     {
       "id": "jwave_sandbox",
@@ -286,7 +286,7 @@
       "id": "pipeline-to-state",
       "from": "simulation_pipeline",
       "to": "state_store",
-      "label": "历史 + 技能执行证据",
+      "label": "执行历史 + 分级学习 + 反馈",
       "labelDy": 24
     }
   ],
@@ -306,19 +306,19 @@
       "title": "执行与物理质量门",
       "items": [
         "阶段四 180 次配对运行：on 正例物理通过 60/60",
-        "固定配方仍由原 jwave 沙箱重新执行",
-        "退出码 0 不代表物理正确",
-        "技能版本、决策、执行回执、原始数值和原生节点共同核验"
+        "阶段五主执行与重试路径统一经过学习终结器",
+        "固定配方须过确定性物理门才能成为 Q4 active",
+        "普通正常运行最多写 Q2 candidate，不能检索或注入"
       ]
     },
     {
       "dot": "rose",
       "title": "回退与信任边界",
       "items": [
-        "负例错误参考交付 0；失败和取消保留在分母",
-        "自动学习关闭；旧发布版本保留",
-        "运行时仍依赖 Dify，DeepSeek 内核当前固定",
-        "任意配置泛化、模型后端修订与随机 seed 未认证"
+        "结果不对按 run_id 绑定，重复反馈幂等并保留审计",
+        "当前部署学习开启；发行示例仍默认关闭以便先验收环境",
+        "executor 沙箱及资源限制未改",
+        "Dify 强依赖与 DeepSeek 内核固定仍列为后续问题"
       ]
     }
   ]

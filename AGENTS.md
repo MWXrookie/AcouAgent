@@ -1,6 +1,6 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
-> 2026-10-13 当前状态：阶段四技能复用收益 A/B 验收通过；30 题 × off/on × 3 次共 180 次，on 组正例物理通过 60/60、负例错误参考 0，正例平均耗时降低 67.5%、成功模型节点均值降低 73.9%。自动学习关闭，executor 未变。公开证据见 docs/validation/stage4/；Dify 强耦合和 DeepSeek 模型写死列入 docs/KNOWN_GAPS.md。不得把固定配方执行写成任意配置泛化或已完成自动学习。
+> 2026-10-13 当前状态：阶段五受质量门控的自动学习闭环验收通过；精确固定配方可确定性接纳为 Q4 active，普通成功运行最高只形成不可复用的 Q2 candidate，run-bound 负反馈幂等。当前生产学习已开启，17 active + 1 candidate；Luna 772 passed，executor 未变。公开证据见 docs/validation/stage5/；Dify 强耦合和 DeepSeek 模型写死仍列入 docs/KNOWN_GAPS.md。不得把 Q2 候选写成已可复用技能。
 
 > 本文档面向项目中的所有 AI Agent。Agent 在执行任何任务之前，必须先阅读本文档以获取项目上下文、当前状态和可执行任务。
 

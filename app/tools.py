@@ -30,6 +30,52 @@ def _record_dispatch_completion(result: dict[str, Any], run_id: str) -> None:
     usage["completion"] = runtime_registry_service.record_dispatch_completion(usage, nonce, run_id)
 
 
+def _finalize_skill_learning(result: dict[str, Any], run_id: str,
+                             candidate_context: dict[str, Any] | None) -> None:
+    """Finalize one recorded execution through the internal learning gates.
+
+    Exact server-owned profiles get the deterministic Q4 path first. Generic
+    generated code can only become a Q2 candidate. The two paths are ordered so
+    a successful Q4 admission is never followed by a lower-grade write for the
+    same run. Optional storage failures never change the execution result.
+    """
+    learning_enabled = (config.SKILL_LIBRARY_ENABLED is True
+                        and config.SKILL_LEARNING_ENABLED is True)
+    fixed = None
+    if config.fixed_intake_enabled():
+        from app import skill_local_profile
+        fixed = skill_local_profile.record(run_id)
+        result["local_skill_intake"] = fixed
+        if fixed.get("recorded") and (fixed.get("admitted") or fixed.get("duplicate")):
+            if learning_enabled:
+                result["skill_learning"] = {
+                    "recorded": True,
+                    "skill_id": fixed.get("skill_id"),
+                    "status": "active",
+                    "quality_level": fixed.get("quality_level", "Q4"),
+                    "reason": fixed.get("reason"),
+                }
+            return
+    if candidate_context is not None:
+        candidate = candidate_intake.complete(run_id)
+        result["candidate_accumulation"] = candidate
+        result["skill_learning"] = {
+            "recorded": candidate.get("recorded") is True,
+            "skill_id": candidate.get("skill_id"),
+            "status": "candidate" if candidate.get("recorded") is True else None,
+            "quality_level": "Q2" if candidate.get("recorded") is True else None,
+            "reason": candidate.get("reason"),
+        }
+    elif fixed is not None and learning_enabled:
+        result["skill_learning"] = {
+            "recorded": False,
+            "skill_id": None,
+            "status": None,
+            "quality_level": None,
+            "reason": fixed.get("reason", "learning_not_applicable"),
+        }
+
+
 def register(mcp) -> None:
     """向 FastMCP 实例注册本模块的全部工具。"""
 
@@ -143,11 +189,7 @@ def register(mcp) -> None:
             candidate_context=candidate_context,
         )
         result["run_id"] = run_id
-        if config.fixed_intake_enabled():
-            from app import skill_local_profile
-            result["local_skill_intake"] = skill_local_profile.record(run_id)
-        if candidate_context is not None:
-            result["candidate_accumulation"] = candidate_intake.complete(run_id)
+        _finalize_skill_learning(result, run_id, candidate_context)
         return result
 
     @mcp.tool
@@ -235,8 +277,7 @@ def register(mcp) -> None:
                     execution_evidence=result.get("execution_evidence"),
                     candidate_context=candidate_context,
                 )
-                if candidate_context is not None:
-                    result["candidate_accumulation"] = candidate_intake.complete(run_id)
+                _finalize_skill_learning(result, run_id, candidate_context)
                 return result
 
             # 已达最大重试次数
@@ -266,8 +307,7 @@ def register(mcp) -> None:
                     execution_evidence=result.get("execution_evidence"),
                     candidate_context=candidate_context,
                 )
-                if candidate_context is not None:
-                    result["candidate_accumulation"] = candidate_intake.complete(run_id)
+                _finalize_skill_learning(result, run_id, candidate_context)
                 return result
 
             # 调用 LLM 修正
