@@ -994,6 +994,9 @@ async function ask() {
   if (!message) return;
   input.value = '';
   hint.textContent = '';
+  var skillFeedback = document.getElementById('skill-usage-feedback');
+  if (skillFeedback) skillFeedback.textContent = '技能库：本次尚未确认参考调用';
+  window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:[],final:true}}));
 
   conversation.push({role: 'user', content: message});
   renderChat();
@@ -1024,6 +1027,11 @@ async function ask() {
           if (event.event === 'progress') {
             conversation[loadingIdx] = {role: 'assistant', content: '当前步骤：' + event.stage + '。请稍候...'};
             renderChat();
+          } else if (event.event === 'skill_usage') {
+            if (skillFeedback) skillFeedback.textContent = event.skill_usage.message + ' · v' + event.skill_usage.version;
+            window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:[event.skill_usage],final:false}}));
+            conversation[loadingIdx] = {role: 'assistant', content: event.skill_usage.message};
+            renderChat();
           } else if (event.event === 'result') { data = event; }
         }
         if (chunk.done) break;
@@ -1032,6 +1040,11 @@ async function ask() {
     } else { data = await resp.json(); }
 
     var report = data.report || '';
+    if (skillFeedback) skillFeedback.textContent = Array.isArray(data.skill_usage) && data.skill_usage.length ? data.skill_usage.map(function(s) { return s.message + ' · v' + s.version; }).join('；') : '本次未确认交付经过核验的技能参考';
+    window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:Array.isArray(data.skill_usage)?data.skill_usage:[],final:true}}));
+    if (Array.isArray(data.skill_usage) && data.skill_usage.length) {
+      report += '\n\n**技能库调用反馈**\n' + data.skill_usage.map(function(s) { return '- ' + s.message + '（v' + s.version + '，编号 ' + s.skill_id + '）'; }).join('\n');
+    }
     if (data.workflow_status === 'error' && data.request_id) report += '\n\n请求编号：' + data.request_id;
     currentRequirement = data.requirement || '';
     conversation[loadingIdx] = {role: 'assistant', content: report || '未获取到结果'};
@@ -1050,6 +1063,8 @@ function resetChat() {
   conversation = [];
   currentRequirement = '';
   document.getElementById('merge-hint').textContent = '';
+  var feedback = document.getElementById('skill-usage-feedback');
+  if (feedback) feedback.textContent = '';
   renderChat();
   document.getElementById('query-input').focus();
 }
@@ -1569,6 +1584,7 @@ body{background:var(--bg)!important;color:var(--text)!important}
     <button id="ask-btn" onclick="ask()">发送</button>
   </div>
   <div class="merge-hint" id="merge-hint"></div>
+  <div class="merge-hint" id="skill-usage-feedback" role="status" aria-live="polite"></div>
 </div>
 
 <script>
@@ -1682,11 +1698,15 @@ async function ask() {
   if (!message) return;
   input.value = '';
   hint.textContent = '';
+  var skillFeedback = document.getElementById('skill-usage-feedback');
+  if (skillFeedback) skillFeedback.textContent = '技能库：本次尚未确认参考调用';
+  window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:[],final:true}}));
 
   conversation.push({role: 'user', content: message});
   renderChat();
   btn.disabled = true;
   btn.textContent = '运行中...';
+  window.dispatchEvent(new CustomEvent('acouagent-progress',{detail:'请求已提交 · 等待工作流返回进度'}));
 
   var loadingIdx = conversation.length;
   conversation.push({role: 'assistant', content: '正在执行仿真（生成代码 → 沙箱计算 → 物理分析），通常需要 30~90 秒，请耐心等待...'});
@@ -1710,7 +1730,13 @@ async function ask() {
           if (!line.trim()) continue;
           var event = JSON.parse(line);
           if (event.event === 'progress') {
+            window.dispatchEvent(new CustomEvent('acouagent-progress',{detail:'当前步骤：'+event.stage}));
             conversation[loadingIdx] = {role: 'assistant', content: '当前步骤：' + event.stage + '。请稍候...'};
+            renderChat();
+          } else if (event.event === 'skill_usage') {
+            if (skillFeedback) skillFeedback.textContent = event.skill_usage.message + ' · v' + event.skill_usage.version;
+            window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:[event.skill_usage],final:false}}));
+            conversation[loadingIdx] = {role: 'assistant', content: event.skill_usage.message};
             renderChat();
           } else if (event.event === 'result') { data = event; }
         }
@@ -1720,6 +1746,11 @@ async function ask() {
     } else { data = await resp.json(); }
 
     var report = data.report || '';
+    if (skillFeedback) skillFeedback.textContent = Array.isArray(data.skill_usage) && data.skill_usage.length ? data.skill_usage.map(function(s) { return s.message + ' · v' + s.version; }).join('；') : '本次未确认交付经过核验的技能参考';
+    window.dispatchEvent(new CustomEvent('acouagent-skill-usage',{detail:{items:Array.isArray(data.skill_usage)?data.skill_usage:[],final:true}}));
+    if (Array.isArray(data.skill_usage) && data.skill_usage.length) {
+      report += '\n\n**技能库调用反馈**\n' + data.skill_usage.map(function(s) { return '- ' + s.message + '（v' + s.version + '，编号 ' + s.skill_id + '）'; }).join('\n');
+    }
     if (data.workflow_status === 'error' && data.request_id) report += '\n\n请求编号：' + data.request_id;
     currentRequirement = data.requirement || '';
     conversation[loadingIdx] = {role: 'assistant', content: report || '未获取到结果'};
@@ -1732,12 +1763,16 @@ async function ask() {
   renderChat();
   btn.disabled = false;
   btn.textContent = '发送';
+  window.dispatchEvent(new CustomEvent('acouagent-progress',{detail:'本次请求已结束 · 以报告中的成功或失败状态为准'}));
 }
 
 function resetChat() {
+  window.dispatchEvent(new CustomEvent('acouagent-progress',{detail:'等待提交需求 · 进度将随真实工作流更新'}));
   conversation = [];
   currentRequirement = '';
   document.getElementById('merge-hint').textContent = '';
+  var feedback = document.getElementById('skill-usage-feedback');
+  if (feedback) feedback.textContent = '';
   renderChat();
   document.getElementById('query-input').focus();
 }

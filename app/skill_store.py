@@ -930,6 +930,58 @@ class SkillStore:
         except (sqlite3.Error, OSError, ValueError, TypeError):
             return {"available": False, "items": [], "trust_verified": False}
 
+    def read_execution_links(self, run_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Return bounded, execution-backed links for the dashboard.
+
+        A link proves only that the stored fixed reference completed verification.
+        It does not authenticate a human user or model adoption. Ambiguous rows
+        fail closed and are omitted.
+        """
+        if not isinstance(run_ids, (list, tuple)) or len(run_ids) > 500:
+            raise ValueError("invalid_execution_link_request")
+        unique = []
+        for run_id in run_ids:
+            if not isinstance(run_id, str) or not 1 <= len(run_id) <= 128:
+                raise ValueError("invalid_execution_run_id")
+            if run_id not in unique:
+                unique.append(run_id)
+        if not unique:
+            return {}
+        placeholders = ",".join("?" for _ in unique)
+        try:
+            with self._read_db() as db:
+                rows = db.execute(f"""SELECT d.run_id,d.skill_id,d.version
+                    FROM skill_local_reference_dispatches d
+                    JOIN skill_local_reference_completions c ON c.run_id=d.run_id
+                    WHERE c.outcome='verified' AND d.run_id IN ({placeholders})
+                    UNION ALL
+                    SELECT d.run_id,d.skill_id,d.version
+                    FROM skill_reference_dispatches d
+                    JOIN skill_reference_executions e ON e.run_id=d.run_id
+                    WHERE d.run_id IN ({placeholders})""", (*unique, *unique)).fetchall()
+            grouped: dict[str, set[tuple[str, int]]] = {}
+            for row in rows:
+                if (not isinstance(row["skill_id"], str) or not 1 <= len(row["skill_id"]) <= 128
+                        or type(row["version"]) is not int or row["version"] < 1):
+                    continue
+                grouped.setdefault(row["run_id"], set()).add((row["skill_id"], row["version"]))
+            result = {}
+            for run_id, identities in grouped.items():
+                if len(identities) != 1:
+                    continue
+                skill_id, version = identities.pop()
+                result[run_id] = {
+                    "skill_id": skill_id,
+                    "version": version,
+                    "stage": "recipe_execution_verified",
+                    "execution_reuse_verified": True,
+                    "actual_use_authenticated": False,
+                    "model_adoption_authenticated": False,
+                }
+            return result
+        except (sqlite3.Error, OSError, ValueError, TypeError):
+            return {}
+
     def read_feedback_state(self, skill_id: str, run_id: str) -> dict[str, Any]:
         """Bounded read-only declaration status, without reasons or identities."""
         if any(not isinstance(v, str) or not 1 <= len(v) <= 128 for v in (skill_id, run_id)):

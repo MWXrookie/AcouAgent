@@ -145,3 +145,23 @@ def test_replace_cannot_overwrite_a_different_run_with_same_generation_or_nonce(
             with pytest.raises(sqlite3.IntegrityError):
                 db.execute("INSERT OR REPLACE INTO skill_local_reference_dispatches VALUES (?,?,?,?,?,?,?,?,?,?)",values)
         assert db.execute("SELECT run_id FROM skill_local_reference_dispatches").fetchone()[0]==run
+
+
+def test_verified_execution_is_linked_to_exact_skill_version_for_workbench(ready,monkeypatch):
+    store,source=ready;admitted=local.record(source);assert admitted["admitted"]
+    monkeypatch.setattr(execution,"_execute_code",lambda code,timeout,request_nonce:response(store,source,code,timeout,request_nonce))
+    result=runner.execute_reference(**args())
+    assert result["execution_reuse_verified"]
+    link=store.read_execution_links([result["run_id"]])[result["run_id"]]
+    assert link=={"skill_id":admitted["skill_id"],"version":1,
+        "stage":"recipe_execution_verified","execution_reuse_verified":True,
+        "actual_use_authenticated":False,"model_adoption_authenticated":False}
+    assert store.read_execution_links(["missing-run"])=={}
+    with pytest.raises(ValueError):store.read_execution_links(["x"]*501)
+
+def test_failed_execution_is_not_exposed_as_verified_workbench_evidence(ready,monkeypatch):
+    store,source=ready;assert local.record(source)["admitted"]
+    monkeypatch.setattr(execution,"_execute_code",lambda *a,**k:(_ for _ in ()).throw(httpx.ConnectError("offline")))
+    result=runner.execute_reference(**args())
+    assert result["recorded"] and not result["execution_reuse_verified"]
+    assert store.read_execution_links([result["run_id"]])=={}

@@ -12,7 +12,8 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
-from app import cache_store, config, execution
+from app import cache_store, config, execution, skill_library_service
+from app.ui_chrome import render_page
 from app.workflow_client import workflow_events
 from app.dashboard import (
     CHAT_HTML,
@@ -28,7 +29,7 @@ from app.network_security import UnsafeOutboundUrl, validate_public_https_url
 
 def _serve_html(filename: str) -> HTMLResponse:
     html = (_Path(__file__).resolve().parent / "web" / filename).read_text(encoding="utf-8")
-    return HTMLResponse(html)
+    return HTMLResponse(render_page(html))
 
 
 def _extract_report(output) -> str:
@@ -169,15 +170,15 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/", methods=["GET"])
     async def portal(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(render_page(CHAT_HTML))
 
     @mcp.custom_route("/portal", methods=["GET"])
     async def portal_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(render_page(CHAT_HTML))
 
     @mcp.custom_route("/chat", methods=["GET"])
     async def chat_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(CHAT_HTML)
+        return HTMLResponse(render_page(CHAT_HTML))
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:
@@ -187,11 +188,16 @@ def register(mcp) -> None:
     async def dashboard_api(request: Request) -> PlainTextResponse:
         since = int(request.query_params.get("since", "0"))
         limit = min(int(request.query_params.get("limit", "100")), 500)
+        executions = get_executions(limit=limit, since_id=since)
+        if config.SKILL_LIBRARY_ENABLED is True:
+            links = skill_library_service.STORE.read_execution_links([
+                row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
+            ])
+            for row in executions:
+                if row.get("run_id") in links:
+                    row["skill_reference"] = links[row["run_id"]]
         return PlainTextResponse(
-            json.dumps({
-                "executions": get_executions(limit=limit, since_id=since),
-                "stats": get_stats(),
-            }, ensure_ascii=False),
+            json.dumps({"executions": executions, "stats": get_stats()}, ensure_ascii=False),
             media_type="application/json",
         )
 

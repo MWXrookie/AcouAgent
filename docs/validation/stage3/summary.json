@@ -1,0 +1,37 @@
+{
+  "stage": 3,
+  "name": "visual_skill_library_workbench",
+  "accepted": true,
+  "date": "2026-10-13",
+  "skills_observed": 17,
+  "dashboard_rows_checked": 100,
+  "verified_skill_links": 16,
+  "responsive_widths": [390, 768, 1440],
+  "ui_states": ["loading", "empty", "error", "permission_denied"],
+  "usage_stages": ["retrieval_hit", "reference_delivered", "execution_verified"],
+  "tests": {
+    "parent_impacted": {"passed": 61, "warnings": 2},
+    "parent_post_fix": {"passed": 18, "warnings": 1},
+    "luna_skill_suite": {"passed": 714, "failed": 0, "errors": 0, "warnings": 15, "seconds": 48.21},
+    "luna_post_fix": {"passed": 2}
+  },
+  "archify": {
+    "showcase_checks": 9,
+    "errors": 0,
+    "warnings": 0,
+    "json_sha256": "956ee832b84ae07abc2ae7b4f202dcfcffb95ba86733222b4f2be519f8fb36d7",
+    "html_sha256": "186a1577d992b63d03c647382aedbb800b2e493933330f3fbfc4698a6a989577"
+  },
+  "deployment": {
+    "gateway_image": "local/dify-mcp:stage3-skill-workbench-20261013",
+    "backup_stamp_utc": "20261013T045142Z",
+    "skill_library_enabled": true,
+    "skill_learning_enabled": false,
+    "executor_unchanged": true
+  },
+  "claims": {
+    "actual_use_authenticated": false,
+    "model_adoption_authenticated": false,
+    "generalization_verified": false
+  }
+}
