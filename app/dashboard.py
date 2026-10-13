@@ -1179,7 +1179,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh;
+    margin: 0; height: 100vh; overflow: hidden;
     background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     display: flex; flex-direction: column;
@@ -1198,7 +1198,19 @@ CHAT_HTML = r"""<!DOCTYPE html>
   }
   .app-sidebar .side-link:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--border-strong); }
   .app-sidebar .side-link.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .session-section { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1; overflow: hidden; border-top: 1px solid var(--border); padding-top: 12px; }
+  .session-head { font-size: 11px; color: var(--muted); letter-spacing: .05em; padding: 0 8px 6px; }
+  .session-group { font-size: 11px; color: var(--muted); padding: 10px 8px 3px; }
+  .session-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .session-item { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 7px; font-size: 13px; color: var(--muted); cursor: pointer; border: 1px solid transparent; }
+  .session-item:hover { background: var(--accent-soft); color: var(--accent); }
+  .session-item.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .session-item .session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-item .session-del { flex-shrink: 0; opacity: 0; font-size: 15px; line-height: 1; padding: 0 2px; }
+  .session-item:hover .session-del { opacity: .7; }
+  .session-item .session-del:hover { opacity: 1; }
   .header {
+    flex-shrink: 0;
     display: flex; align-items: center; gap: 14px;
     padding: 14px 24px; border-bottom: 1px solid var(--border);
     background: var(--surface);
@@ -1226,7 +1238,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   .modal-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 
   .chat-log {
-    flex: 1; overflow-y: auto; padding: 24px;
+    flex: 1; overflow-y: auto; min-height: 0; padding: 24px;
     display: flex; flex-direction: column; gap: 14px;
     max-width: 900px; width: 100%; margin: 0 auto;
   }
@@ -1245,7 +1257,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   .msg.assistant code { background: var(--surface-2); color: var(--text); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
   .msg.assistant pre { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 12px; }
 
-  .input-bar { border-top: 1px solid var(--border); background: var(--surface); padding: 14px 24px; }
+  .input-bar { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--surface); padding: 14px 24px; }
   .input-wrap { max-width: 900px; margin: 0 auto; display: flex; gap: 10px; }
   .input-wrap input {
     flex: 1; padding: 12px 16px; border-radius: 10px;
@@ -1295,6 +1307,10 @@ CHAT_HTML = r"""<!DOCTYPE html>
   <a class="side-link active" href="/">声学仿真</a>
   <a class="side-link" href="/dashboard">执行看板</a>
   <a class="side-link" href="/cache">纠错缓存</a>
+  <div class="session-section">
+    <div class="session-head">历史会话</div>
+    <div class="session-list" id="session-list"></div>
+  </div>
 </aside>
 <div class="header">
 <style>
@@ -1429,14 +1445,106 @@ function saveModelSettings() {
   closeModelSettings();
 }
 
-// 会话隔离：浏览器 localStorage 持久化 session_id，随请求发给后端（Dify user 按会话区分）
-function getSessionId() {
-  var sid = localStorage.getItem('acouagent_session');
-  if (!sid) {
-    sid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem('acouagent_session', sid);
+// 会话管理：localStorage 持久化多个会话，侧边栏可切换/删除历史对话
+var currentSessionId = null;
+
+function loadSessions() {
+  try { return JSON.parse(localStorage.getItem('acouagent_sessions') || '[]'); } catch(e) { return []; }
+}
+function saveSessions(list) {
+  localStorage.setItem('acouagent_sessions', JSON.stringify(list));
+}
+function newSessionId() {
+  return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+function getSessionId() { return currentSessionId; }
+
+function persistCurrent(updateTime) {
+  var list = loadSessions();
+  var cur = null;
+  for (var i = 0; i < list.length; i++) { if (list[i].id === currentSessionId) { cur = list[i]; break; } }
+  if (!cur) return;
+  cur.messages = conversation;
+  cur.requirement = currentRequirement;
+  if (updateTime) {
+    cur.updatedAt = Date.now();
   }
-  return sid;
+  if ((cur.title === '新对话' || !cur.title) && conversation.length > 0) {
+    for (var j = 0; j < conversation.length; j++) {
+      if (conversation[j].role === 'user') { cur.title = conversation[j].content.slice(0, 20); break; }
+    }
+  }
+  saveSessions(list);
+}
+
+function sessionGroupLabel(ts) {
+  var d = new Date(ts);
+  var now = new Date();
+  var days30 = 30 * 24 * 3600 * 1000;
+  if (now - d < days30) return '30天内';
+  var m = d.getMonth() + 1;
+  return d.getFullYear() + '-' + (m < 10 ? '0' + m : m);
+}
+
+function renderSessionList() {
+  var list = loadSessions();
+  list.sort(function(a, b) { return b.updatedAt - a.updatedAt; });
+  var box = document.getElementById('session-list');
+  var html = '';
+  var lastGroup = '';
+  list.forEach(function(s) {
+    var g = sessionGroupLabel(s.updatedAt);
+    if (g !== lastGroup) {
+      html += '<div class="session-group">' + g + '</div>';
+      lastGroup = g;
+    }
+    var active = s.id === currentSessionId ? ' active' : '';
+    html += '<div class="session-item' + active + '" onclick="switchSession(\'' + s.id + '\')" title="' + esc(s.title) + '">'
+      + '<span class="session-title">' + esc(s.title || '新对话') + '</span>'
+      + '<span class="session-del" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')" title="删除">×</span>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+}
+
+function switchSession(id) {
+  if (id === currentSessionId) return;
+  persistCurrent(false);
+  var list = loadSessions();
+  var cur = null;
+  for (var i = 0; i < list.length; i++) { if (list[i].id === id) { cur = list[i]; break; } }
+  if (!cur) return;
+  localStorage.setItem('acouagent_current', id);
+  currentSessionId = id;
+  conversation = cur.messages || [];
+  currentRequirement = cur.requirement || '';
+  document.getElementById('merge-hint').textContent = '';
+  renderChat();
+  renderSessionList();
+  document.getElementById('query-input').focus();
+}
+
+function deleteSession(id) {
+  if (!confirm('删除这个对话？此操作不可撤销。')) return;
+  var list = loadSessions().filter(function(s) { return s.id !== id; });
+  if (id === currentSessionId) {
+    if (list.length) {
+      localStorage.setItem('acouagent_current', list[0].id);
+      currentSessionId = list[0].id;
+      conversation = list[0].messages || [];
+      currentRequirement = list[0].requirement || '';
+    } else {
+      var fresh = { id: newSessionId(), title: '新对话', messages: [], requirement: '', updatedAt: Date.now() };
+      list = [fresh];
+      localStorage.setItem('acouagent_current', fresh.id);
+      currentSessionId = fresh.id;
+      conversation = [];
+      currentRequirement = '';
+    }
+  }
+  saveSessions(list);
+  renderChat();
+  renderSessionList();
 }
 
 function renderChat() {
@@ -1487,20 +1595,48 @@ async function ask() {
   } catch(e) {
     conversation[loadingIdx] = {role: 'assistant', content: '请求失败：' + esc(String(e))};
   }
+  persistCurrent(true);
+  renderSessionList();
   renderChat();
   btn.disabled = false;
   btn.textContent = '发送';
 }
 
 function resetChat() {
-  conversation = [];
+  persistCurrent(false);
+  var fresh = { id: newSessionId(), title: '新对话', messages: [], requirement: '', updatedAt: Date.now() };
+  var list = loadSessions();
+  list.unshift(fresh);
+  saveSessions(list);
+  localStorage.setItem('acouagent_current', fresh.id);
+  currentSessionId = fresh.id;
+  conversation = fresh.messages;
   currentRequirement = '';
   document.getElementById('merge-hint').textContent = '';
   renderChat();
+  renderSessionList();
   document.getElementById('query-input').focus();
 }
 
-renderChat();
+function initChat() {
+  var list = loadSessions();
+  var curId = localStorage.getItem('acouagent_current');
+  var cur = null;
+  for (var i = 0; i < list.length; i++) { if (list[i].id === curId) { cur = list[i]; break; } }
+  if (!cur) {
+    cur = { id: newSessionId(), title: '新对话', messages: [], requirement: '', updatedAt: Date.now() };
+    list.unshift(cur);
+    saveSessions(list);
+    localStorage.setItem('acouagent_current', cur.id);
+  }
+  currentSessionId = cur.id;
+  conversation = cur.messages || [];
+  currentRequirement = cur.requirement || '';
+  renderChat();
+  renderSessionList();
+}
+
+initChat();
 </script>
 </body>
 </html>
