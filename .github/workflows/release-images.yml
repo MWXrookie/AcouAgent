@@ -12,6 +12,30 @@ permissions:
   packages: write
 
 jobs:
+  release-manifest:
+    name: Build release manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate deterministic Git snapshot manifest
+        run: |
+          python3 scripts/validation/release_manifest.py \
+            --ref HEAD \
+            --output release-manifest.json
+          python3 scripts/validation/release_manifest.py \
+            --verify release-manifest.json
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ github.sha }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
   build:
     name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
