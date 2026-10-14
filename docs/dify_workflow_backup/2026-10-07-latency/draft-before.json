@@ -1,0 +1,2410 @@
+{
+  "nodes": [
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783990934733",
+      "positionAbsolute": {
+        "x": 58.46997602878599,
+        "y": 261
+      },
+      "data": {
+        "type": "start",
+        "title": "用户输入",
+        "variables": [
+          {
+            "variable": "query",
+            "required": true,
+            "hint": "",
+            "label": "query",
+            "placeholder": "",
+            "options": [],
+            "type": "text-input",
+            "default": ""
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "y": 261,
+        "x": 58.46997602878599
+      },
+      "type": "custom",
+      "height": 108,
+      "selected": false,
+      "width": 242
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783990970058",
+      "positionAbsolute": {
+        "x": 382,
+        "y": 282
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "15d9e831-d7da-410d-a2dd-c45dd75d796c",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "6527c4e3-d31e-4fb2-ae19-6979c1a78730",
+            "role": "user",
+            "text": "你是一个声学仿真需求分析师。\n\n阅读用户输入，提取并整理仿真需求。如果用户没提，根据常识合理推测。\n\n用户输入：{{#1783990934733.query#}}\n\n请整理以下信息并输出一段通顺的仿真需求描述：\n1. 仿真维度（2D 还是 3D）？\n2. 介质类型和参数（声速、密度）？\n3. 声源类型、频率、位置？\n4. 仿真区域大小？\n5. 期望输出什么结果？\n\n注意：\n- 超声波仿真（MHz 级）需要 dx < 0.5mm 的分辨率\n- 3D 仿真计算量大，如无特殊需要默认为 2D\n- 生物组织声速通常在 1500-1600 m/s"
+          }
+        ],
+        "context": {
+          "enabled": true,
+          "variable_selector": [
+            "1783990934733",
+            "query"
+          ]
+        },
+        "title": "LLM",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.7
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "y": 282,
+        "x": 382
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783990977543",
+      "positionAbsolute": {
+        "x": 609,
+        "y": 552
+      },
+      "data": {
+        "query_attachment_selector": [],
+        "query_variable_selector": [
+          "1783990934733",
+          "query"
+        ],
+        "retrieval_mode": "multiple",
+        "title": "知识检索",
+        "type": "knowledge-retrieval",
+        "multiple_retrieval_config": {
+          "top_k": 4,
+          "reranking_enable": true,
+          "reranking_model": {
+            "model": "qwen3-rerank",
+            "provider": "langgenius/tongyi/tongyi"
+          },
+          "weights": null,
+          "score_threshold": null,
+          "reranking_mode": "reranking_model"
+        },
+        "dataset_ids": [
+          "bc9aeb94-de93-4210-8e7d-5b932a731252"
+        ],
+        "selected": false
+      },
+      "position": {
+        "y": 552,
+        "x": 609
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783990989034",
+      "positionAbsolute": {
+        "x": 908.2588988734078,
+        "y": 552
+      },
+      "data": {
+        "type": "template-transform",
+        "title": "模板转换",
+        "template": "{% for item in arg1 %}\r\n{{ item.content }}\r\n{% endfor %}\r\n",
+        "variables": [
+          {
+            "value_selector": [
+              "1783990977543",
+              "result"
+            ],
+            "value_type": "array[object]",
+            "variable": "arg1"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "y": 552,
+        "x": 908.2588988734078
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783991048409",
+      "positionAbsolute": {
+        "x": 1165.1614897520058,
+        "y": 282
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "34a28900-fed5-4647-a9ac-8f3e72ac49c7",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "2207227c-adc1-4894-ba3e-34c701909807",
+            "role": "user",
+            "text": "你是 jwave 声学仿真参数提取器。\n\n根据用户需求和知识库内容，确定以下仿真参数。请按 JSON 格式输出。\n\n用户需求：{{#1783990934733.query#}}\n知识库参考：{{#1783990989034.output#}}\n\n输出 JSON 格式：\n{\n  \"sound_speed\": 1500.0,\n  \"density\": 1000.0,\n  \"source_frequency\": 2000000.0,\n  \"domain_N\": [128, 128],\n  \"domain_dx\": [0.0001, 0.0001],\n  \"t_end\": 0.000005,\n  \"cfl\": 0.3,\n  \"description\": \"仿真描述文字\"\n}\n\n参数说明：\n- sound_speed: 介质声速 (m/s)，如 1500(水), 1540(软组织), 343(空气)\n- density: 介质密度 (kg/m³)，如 1000(水), 1050(软组织), 1.2(空气)\n- source_frequency: 声源频率 (Hz)，如 2000000(2MHz 超声)\n- domain_N: 网格点数 [Nx, Ny] 或 [Nx, Ny, Nz]\n- domain_dx: 网格间距 [dx, dy] 或 [dx, dy, dz] (米)\n- t_end: 仿真总时长 (秒)\n- cfl: CFL 数，默认 0.3\n- description: 一句话描述仿真场景\n\n严格的 JSON 输出要求：\n1. 只输出合法的 JSON 对象，不要有任何额外文字\n2. 所有数值使用数字类型，不要用字符串\n3. 缺失的值用 null"
+          }
+        ],
+        "context": {
+          "enabled": true,
+          "variable_selector": [
+            "1783990989034",
+            "output"
+          ]
+        },
+        "title": "参数提取",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.7
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "y": 282,
+        "x": 1165.1614897520058
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783991079665",
+      "positionAbsolute": {
+        "x": 1550.4773256211458,
+        "y": 282
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "961f94cd-f0ed-4ca0-ab49-7d797d67f6a6",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "1562435c-7ca5-40fb-8e7d-fa8b2c5496e6",
+            "role": "user",
+            "text": "你是 jwave Python 代码生成器。\n\n# 输出规则（最高优先级）\n你的输出就是最终要执行的Python代码。没有JSON包裹，没有markdown标记，没有任何其他文字。\n输出的第一个字符必须是 import 或 # （注释）。\n输出的每一行都是有效的Python代码。\n\n你会收到：\n- 用户需求：{{#1783990934733.query#}}\n- 仿真参数：{{#1783991048409.text#}}\n\n# jwave 0.2.1 API 参考（已验证，必须严格遵守！）\n\nimport jax\nimport jax.numpy as jnp\nfrom jwave import FourierSeries\nfrom jwave.geometry import Domain, Medium, TimeAxis, Sources\nfrom jwave.acoustics import simulate_wave_propagation\n\n## Domain\ndomain = Domain(N=(Nx, Ny), dx=(dx, dx))\n\n## Medium\nmedium = Medium(domain=domain, sound_speed=1540.0, density=1050.0)\n\n## TimeAxis\ntime_axis = TimeAxis.from_medium(medium, cfl=0.3, t_end=5e-6)\nt = time_axis.to_array()  # 1D array, shape (Nt,)\n\n## Sources —— 4个位置参数，不能用关键字\npositions = (jnp.array([cx]), jnp.array([cy]))\nsignals = jnp.expand_dims(jnp.sin(2*jnp.pi*freq*t), 0)  # 2D (1,Nt)\nsources = Sources(positions, signals, time_axis.dt, domain)\n\n## simulate_wave_propagation\np = simulate_wave_propagation(medium, time_axis, sources=sources)\npressure = p.params\n\nprint(f\"压力场形状: {pressure.shape}\")\nprint(f\"最大压力: {float(pressure.max()):.6f}\")\n\n# 场数据输出（必须！最后输出压力场 JSON 供分析，注意大网格自适应降采样防超限）\n仿真完成后，将\"全时最大绝对压力场\"按以下标记格式打印到 stdout，用于结果分析/热力图：\n__ACOU_FIELD_START__\n{\"shape\": [...], \"kind\": \"field\", \"downsample\": 1, \"max_pressure\": 0.0, \"data\": [[...]]}\n__ACOU_FIELD_END__\n参考实现（在仿真代码末尾追加；网格过大时自动降采样，保证 JSON 不超过 40 万字符）：\nimport json as __json\nimport jax.numpy as __jnp\n__field = __jnp.max(__jnp.abs(p.params), axis=0)[..., 0]\n__maxp = float(__jnp.max(__field))\n__step = 1\nwhile __field.size / (__step * __step) > 40000:\n    __step += 1\n__field_out = __field[::__step, ::__step] if __step > 1 else __field\nprint(\"__ACOU_FIELD_START__\")\nprint(__json.dumps({\"shape\": list(__field_out.shape), \"kind\": \"field\",\n                    \"downsample\": __step, \"max_pressure\": __maxp,\n                    \"data\": __field_out.tolist()}))\nprint(\"__ACOU_FIELD_END__\")\nprint(f\"最大压力: {__maxp:.6f}\")\n\n## p0 初始压力（需求含\"初始压力/高斯脉冲/环形/椭圆压力\"时必须用 p0 参数！）\n- simulate_wave_propagation 接受的关键字是 p0（不存在 initial_pressure= 之类的参数！）\n- 构造：p0 = FourierSeries(p0_grid, domain)，p0_grid 形状 (Nx, Ny)\n- 调用：p = simulate_wave_propagation(medium, time_axis, p0=p0)（不要再传 sources）\n\n网格坐标（必须用 meshgrid, indexing='ij'）：\nx = jnp.linspace(0, Nx*dx, Nx); y = jnp.linspace(0, Ny*dx, Ny)\nXX, YY = jnp.meshgrid(x, y, indexing='ij')\n\n高斯初始压力：\np0_grid = A * jnp.exp(-((XX-cx)**2 + (YY-cy)**2) / (2*sigma**2))\np0 = FourierSeries(p0_grid, domain)\n\n环形初始压力（R0 = 环半径，须小于域半宽）：\nr = jnp.sqrt((XX-cx)**2 + (YY-cy)**2)\np0_grid = A * jnp.exp(-((r-R0)**2) / (2*sigma**2))\np0 = FourierSeries(p0_grid, domain)\n\n椭圆初始压力（a、b = 长短半轴）：\np0_grid = A * jnp.exp(-(((XX-cx)/a)**2 + ((YY-cy)/b)**2) / 2)\np0 = FourierSeries(p0_grid, domain)\n\n## 结果输出契约（必须遵守）\n- `Sources.positions` 是整数网格索引，不是米制坐标。中心点示例：\n  `positions = (jnp.array([64], dtype=jnp.int32), jnp.array([64], dtype=jnp.int32))`。\n- 不要用 matplotlib、`imshow`、`plot` 或 `savefig` 自己作图。网关统一根据下述数据生成图像，避免初始帧黑图和中文字体告警。\n- 稳态/峰值声压场必须取完整时间序列的逐点最大绝对值：\n  `field = jnp.max(jnp.abs(p.params), axis=0)[..., 0]`。\n  禁止使用 `p.params[0]`、`pressure[0, ...]` 或 t=0 帧作热力图；也不要只用某个任意末帧冒充稳态场。\n- 按已有 `__ACOU_FIELD_START__` / `__ACOU_FIELD_END__` 模板输出二维 field JSON。\n- 需求包含点传感器时，距离先换算为整数网格偏移，例如 `offset = int(round(distance_m / dx))`；\n  从完整压力序列读取 `sensor_pressure = p.params[:, sensor_x, sensor_y, 0]`，并额外输出：\n  `__ACOU_SENSOR_START__`\n  `{\"time\": [...], \"pressure\": [...], \"sensor_index\": [x, y], \"sensor_position_m\": [x_m, y_m]}`\n  `__ACOU_SENSOR_END__`\n  单传感器的 `time` 与 `pressure` 必须是一维等长数组。网关会据此生成真正的时域声压曲线。\n"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "代码生成",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.7
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "y": 282,
+        "x": 1550.4773256211458
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1783992518452",
+      "positionAbsolute": {
+        "x": 3467.486983549969,
+        "y": 282
+      },
+      "data": {
+        "type": "end",
+        "title": "输出",
+        "outputs": [
+          {
+            "value_selector": [
+              "1786278074940",
+              "result"
+            ],
+            "value_type": "string",
+            "variable": "text"
+          }
+        ],
+        "selected": true
+      },
+      "position": {
+        "y": 282,
+        "x": 3467.486983549969
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": true,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "id": "1786278074940",
+      "positionAbsolute": {
+        "x": 2866.5280145407464,
+        "y": 282
+      },
+      "data": {
+        "code": "import json\nimport re\n\n\ndef _strip_think(text):\n    if not text:\n        return \"\"\n    return re.sub(r\"<think>.*?</think>\", \"\", str(text), flags=re.DOTALL).strip()\n\n\ndef _find_analyze(analyze_json):\n    \"\"\"从 Dify json 变量提取 analyze 返回 dict（兼容嵌套 list/dict/data 包裹）。\"\"\"\n    if analyze_json is None:\n        return {}\n    an = analyze_json\n    if isinstance(an, str):\n        try:\n            an = json.loads(an)\n        except Exception:\n            return {}\n    if isinstance(an, list):\n        if not an:\n            return {}\n        an = an[0]\n    if isinstance(an, dict) and isinstance(an.get(\"data\"), list) and an[\"data\"]:\n        an = an[\"data\"][0]\n    return an if isinstance(an, dict) else {}\n\n\ndef _analysis_images_md(analyze_json):\n    an = _find_analyze(analyze_json)\n    parts = []\n    heatmap = an.get(\"heatmap_png_base64\")\n    waveform = an.get(\"waveform_png_base64\")\n    if heatmap:\n        parts.append(f\"\\n\\n![稳态声压场热力图](data:image/png;base64,{heatmap})\")\n    if waveform:\n        label = \"点传感器时域声压曲线\" if an.get(\"waveform_kind\") == \"sensor_time\" else \"声压空间剖面\"\n        parts.append(f\"\\n\\n![{label}](data:image/png;base64,{waveform})\")\n    return \"\".join(parts)\n\n\ndef main(mcp_json, review_text, explanation, analyze_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"result\": str(data)}\n    if not isinstance(data, dict):\n        return {\"result\": str(data)}\n\n    report = data.get(\"report\", \"\")\n    parts = []\n    if report:\n        parts.append(report)\n\n    verdict = _strip_think(review_text).lower()\n    if verdict and verdict != \"pass\":\n        parts.append(f\"\\n\\n> ⚠️ **审查结论：{verdict}**（结果疑似异常，建议检查参数后重试）\")\n\n    expl = _strip_think(explanation)\n    if expl:\n        parts.append(f\"\\n\\n---\\n\\n## 🧠 物理解读\\n\\n{expl}\")\n\n    result = \"\\n\".join(p for p in parts if p)\n    result += _analysis_images_md(analyze_json)\n    if result:\n        return {\"result\": result}\n    return {\"result\": json.dumps(data, ensure_ascii=False, indent=2)}",
+        "code_language": "python3",
+        "title": "代码执行",
+        "outputs": {
+          "result": {
+            "type": "string",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "5655556822808",
+              "json"
+            ],
+            "value_type": "array[object]"
+          },
+          {
+            "variable": "review_text",
+            "value_selector": [
+              "1786091111003",
+              "text"
+            ],
+            "value_type": "string"
+          },
+          {
+            "variable": "explanation",
+            "value_selector": [
+              "1786091111004",
+              "text"
+            ],
+            "value_type": "string"
+          },
+          {
+            "variable": "analyze_json",
+            "value_selector": [
+              "1786091111002",
+              "json"
+            ],
+            "value_type": "string"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "y": 282,
+        "x": 2866.5280145407464
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "5655556822808",
+      "positionAbsolute": {
+        "x": 1955.8853043051467,
+        "y": 282
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "max_retries": "",
+          "code": "",
+          "timeout_seconds": ""
+        },
+        "tool_description": "Run Python code and auto-fix errors using DeepSeek LLM. Returns final_code, history, and execution results.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "run_jwave_code_with_retry",
+        "tool_parameters": {
+          "max_retries": {
+            "value": 7,
+            "type": "constant"
+          },
+          "code": {
+            "value": "{{#1783991079665.text#}}",
+            "type": "mixed"
+          },
+          "timeout_seconds": {
+            "value": null,
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "run_jwave_code_with_retry",
+        "paramSchemas": [
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "code",
+            "label": {
+              "ja_JP": "code",
+              "en_US": "code",
+              "pt_BR": "code",
+              "zh_Hans": "code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "timeout_seconds",
+            "label": {
+              "ja_JP": "timeout_seconds",
+              "en_US": "timeout_seconds",
+              "pt_BR": "timeout_seconds",
+              "zh_Hans": "timeout_seconds"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "max_retries",
+            "label": {
+              "ja_JP": "max_retries",
+              "en_US": "max_retries",
+              "pt_BR": "max_retries",
+              "zh_Hans": "max_retries"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "run_jwave_code_with_retry",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "y": 282,
+        "x": 1955.8853043051467
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786091111001",
+      "positionAbsolute": {
+        "x": 2140,
+        "y": 200
+      },
+      "data": {
+        "code": "import json\n\ndef main(mcp_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    if not isinstance(data, dict):\n        return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    ec = data.get(\"exit_code\")\n    if ec is None:\n        ec = 1\n    return {\n        \"stdout\": data.get(\"stdout\", \"\") or \"\",\n        \"stderr\": data.get(\"stderr\", \"\") or \"\",\n        \"exit_code\": ec,\n    }",
+        "code_language": "python3",
+        "title": "解包仿真结果",
+        "outputs": {
+          "stdout": {
+            "type": "string",
+            "children": null
+          },
+          "stderr": {
+            "type": "string",
+            "children": null
+          },
+          "exit_code": {
+            "type": "number",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "5655556822808",
+              "json"
+            ],
+            "value_type": "array[object]"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 2140,
+        "y": 200
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786091111002",
+      "positionAbsolute": {
+        "x": 2320,
+        "y": 200
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "stdout_text": "",
+          "stderr_text": "",
+          "exit_code": "",
+          "params_json": ""
+        },
+        "tool_description": "Analyze a jwave simulation output: physics summary + heatmap/waveform + verdict.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "analyze_simulation_result",
+        "tool_parameters": {
+          "stdout_text": {
+            "value": "{{#1786091111001.stdout#}}",
+            "type": "mixed"
+          },
+          "stderr_text": {
+            "value": "{{#1786091111001.stderr#}}",
+            "type": "mixed"
+          },
+          "exit_code": {
+            "value": "{{#1786091111001.exit_code#}}",
+            "type": "mixed"
+          },
+          "params_json": {
+            "value": "{}",
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "analyze_simulation_result",
+        "paramSchemas": [
+          {
+            "llm_description": "仿真 stdout 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stdout_text",
+            "label": {
+              "ja_JP": "stdout_text",
+              "en_US": "stdout_text",
+              "pt_BR": "stdout_text",
+              "zh_Hans": "stdout_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真 stderr 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stderr_text",
+            "label": {
+              "ja_JP": "stderr_text",
+              "en_US": "stderr_text",
+              "pt_BR": "stderr_text",
+              "zh_Hans": "stderr_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "退出码",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "exit_code",
+            "label": {
+              "ja_JP": "exit_code",
+              "en_US": "exit_code",
+              "pt_BR": "exit_code",
+              "zh_Hans": "exit_code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真参数 JSON",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "params_json",
+            "label": {
+              "ja_JP": "params_json",
+              "en_US": "params_json",
+              "pt_BR": "params_json",
+              "zh_Hans": "params_json"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "analyze_simulation_result",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "x": 2320,
+        "y": 200
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786091111003",
+      "positionAbsolute": {
+        "x": 2500,
+        "y": 200
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "8e8ac448-4906-4c4f-9875-f3803a19203b",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "90ed184d-d4ac-4527-a3f0-36b00c492931",
+            "role": "user",
+            "text": "你是声学仿真结果审查员。根据分析结果判断这次仿真是否通过。\n\n仿真分析结果（JSON）：\n{{#1786091111002.json#}}\n\n判定规则：\n- verdict 字段为 normal 且 max_pressure > 0 → 输出 pass\n- verdict 字段为 zero_field（全场压力为零）→ 输出 retry\n- verdict 字段为 abnormal 或执行失败 → 输出 fail\n\n输出格式（严格二选一）：\n- 通过：pass\n- 需重试：retry\n- 彻底失败：fail\n只输出这三个词之一，不要输出任何其他文字。\n\n# 量级合理性（重要）\n注意核对分析 JSON 中的 max_pressure 数值：若 max_pressure 极小（如 < 0.001 Pa）或量级明显异常（超声仿真通常应在 Pa~kPa 量级），即使 verdict 为 normal，也应输出 retry（可能网格/频率分辨率不足导致场几乎全零）。"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "结果审查",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.3
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 2500,
+        "y": 200
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786091111004",
+      "positionAbsolute": {
+        "x": 2680,
+        "y": 200
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "b33e35bd-14d4-4a0e-b489-19461f9f0f5e",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "31f19713-94d8-4580-aae1-734dfbdddb8f",
+            "role": "user",
+            "text": "你是声学仿真讲解员。根据仿真分析结果，用 3 句以上自然语言向用户解读这次仿真，\n包含具体数值和物理直觉（例如波峰位置、传播距离、几何衰减是否符合预期）。\n\n仿真分析结果（JSON）：\n{{#1786091111002.json#}}\n\n请直接输出解读内容，不要输出 JSON 或代码。"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "结果解释",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.3
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 2680,
+        "y": 200
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555001",
+      "positionAbsolute": {
+        "x": 2680,
+        "y": 320
+      },
+      "data": {
+        "type": "if-else",
+        "title": "审查结果分支",
+        "cases": [
+          {
+            "case_id": "pass",
+            "logical_operator": "and",
+            "conditions": [
+              {
+                "variable_selector": [
+                  "1786091111003",
+                  "text"
+                ],
+                "comparison_operator": "contains",
+                "value": "pass"
+              }
+            ]
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 2680,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555002",
+      "positionAbsolute": {
+        "x": 2880,
+        "y": 320
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "fecec22e-e5a2-44c7-9f20-9423b85e324f",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "27b8d3eb-de64-490e-8a13-84328bb4ddc0",
+            "role": "user",
+            "text": "你是 jwave 声学仿真参数提取器。\n\n根据用户需求和知识库内容，确定以下仿真参数。请按 JSON 格式输出。\n\n用户需求：{{#1783990934733.query#}}\n知识库参考：{{#1783990989034.output#}}\n\n输出 JSON 格式：\n{\n  \"sound_speed\": 1500.0,\n  \"density\": 1000.0,\n  \"source_frequency\": 2000000.0,\n  \"domain_N\": [128, 128],\n  \"domain_dx\": [0.0001, 0.0001],\n  \"t_end\": 0.000005,\n  \"cfl\": 0.3,\n  \"description\": \"仿真描述文字\"\n}\n\n参数说明：\n- sound_speed: 介质声速 (m/s)，如 1500(水), 1540(软组织), 343(空气)\n- density: 介质密度 (kg/m³)，如 1000(水), 1050(软组织), 1.2(空气)\n- source_frequency: 声源频率 (Hz)，如 2000000(2MHz 超声)\n- domain_N: 网格点数 [Nx, Ny] 或 [Nx, Ny, Nz]\n- domain_dx: 网格间距 [dx, dy] 或 [dx, dy, dz] (米)\n- t_end: 仿真总时长 (秒)\n- cfl: CFL 数，默认 0.3\n- description: 一句话描述仿真场景\n\n严格的 JSON 输出要求：\n1. 只输出合法的 JSON 对象，不要有任何额外文字\n2. 所有数值使用数字类型，不要用字符串\n3. 缺失的值用 null\n\n# 重要：上一轮仿真结果未通过审查\n上一轮审查结论：{{#1786091111003.text#}}\n如果问题出在参数（如网格过小、频率-分辨率不匹配、时间不足等），请根据审查建议修正参数后重新提取；参数合理则保持原参数。"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "参数提取(重试)",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.3
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 2880,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555003",
+      "positionAbsolute": {
+        "x": 3060,
+        "y": 320
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "82637aa3-3ba1-4646-9207-890de8be0ab0",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "df9ef304-00cb-4410-9aba-075fb52c49cf",
+            "role": "user",
+            "text": "你是 jwave Python 代码生成器。\n\n# 输出规则（最高优先级）\n你的输出就是最终要执行的Python代码。没有JSON包裹，没有markdown标记，没有任何其他文字。\n输出的第一个字符必须是 import 或 # （注释）。\n输出的每一行都是有效的Python代码。\n\n你会收到：\n- 用户需求：{{#1783990934733.query#}}\n- 仿真参数：{{#1783991048409.text#}}\n\n# jwave 0.2.1 API 参考（已验证，必须严格遵守！）\n\nimport jax\nimport jax.numpy as jnp\nfrom jwave import FourierSeries\nfrom jwave.geometry import Domain, Medium, TimeAxis, Sources\nfrom jwave.acoustics import simulate_wave_propagation\n\n## Domain\ndomain = Domain(N=(Nx, Ny), dx=(dx, dx))\n\n## Medium\nmedium = Medium(domain=domain, sound_speed=1540.0, density=1050.0)\n\n## TimeAxis\ntime_axis = TimeAxis.from_medium(medium, cfl=0.3, t_end=5e-6)\nt = time_axis.to_array()  # 1D array, shape (Nt,)\n\n## Sources —— 4个位置参数，不能用关键字\npositions = (jnp.array([cx]), jnp.array([cy]))\nsignals = jnp.expand_dims(jnp.sin(2*jnp.pi*freq*t), 0)  # 2D (1,Nt)\nsources = Sources(positions, signals, time_axis.dt, domain)\n\n## simulate_wave_propagation\np = simulate_wave_propagation(medium, time_axis, sources=sources)\npressure = p.params[0]\n\nprint(f\"压力场形状: {pressure.shape}\")\nprint(f\"最大压力: {float(pressure.max()):.6f}\")\n\n# 场数据输出（必须！最后输出压力场 JSON 供分析，注意大网格自适应降采样防超限）\n仿真完成后，将\"全时最大绝对压力场\"按以下标记格式打印到 stdout，用于结果分析/热力图：\n__ACOU_FIELD_START__\n{\"shape\": [...], \"kind\": \"field\", \"downsample\": 1, \"max_pressure\": 0.0, \"data\": [[...]]}\n__ACOU_FIELD_END__\n参考实现（在仿真代码末尾追加；网格过大时自动降采样，保证 JSON 不超过 40 万字符）：\nimport json as __json\nimport jax.numpy as __jnp\n__field = __jnp.max(__jnp.abs(p.params), axis=0)[..., 0]\n__maxp = float(__jnp.max(__field))\n__step = 1\nwhile __field.size / (__step * __step) > 40000:\n    __step += 1\n__field_out = __field[::__step, ::__step] if __step > 1 else __field\nprint(\"__ACOU_FIELD_START__\")\nprint(__json.dumps({\"shape\": list(__field_out.shape), \"kind\": \"field\",\n                    \"downsample\": __step, \"max_pressure\": __maxp,\n                    \"data\": __field_out.tolist()}))\nprint(\"__ACOU_FIELD_END__\")\nprint(f\"最大压力: {__maxp:.6f}\")\n"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "代码生成(重试)",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.7
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 3060,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555004",
+      "positionAbsolute": {
+        "x": 3240,
+        "y": 320
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "max_retries": "",
+          "code": "",
+          "timeout_seconds": ""
+        },
+        "tool_description": "Run Python code and auto-fix errors using DeepSeek LLM. Returns final_code, history, and execution results.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "run_jwave_code_with_retry",
+        "tool_parameters": {
+          "max_retries": {
+            "value": 7,
+            "type": "constant"
+          },
+          "code": {
+            "value": "{{#1786095555003.text#}}",
+            "type": "mixed"
+          },
+          "timeout_seconds": {
+            "value": null,
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "run_jwave_code_with_retry(重试)",
+        "paramSchemas": [
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "code",
+            "label": {
+              "ja_JP": "code",
+              "en_US": "code",
+              "pt_BR": "code",
+              "zh_Hans": "code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "timeout_seconds",
+            "label": {
+              "ja_JP": "timeout_seconds",
+              "en_US": "timeout_seconds",
+              "pt_BR": "timeout_seconds",
+              "zh_Hans": "timeout_seconds"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "max_retries",
+            "label": {
+              "ja_JP": "max_retries",
+              "en_US": "max_retries",
+              "pt_BR": "max_retries",
+              "zh_Hans": "max_retries"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "run_jwave_code_with_retry(重试)",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "x": 3240,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555005",
+      "positionAbsolute": {
+        "x": 3420,
+        "y": 320
+      },
+      "data": {
+        "code": "import json\n\ndef main(mcp_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    if not isinstance(data, dict):\n        return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    ec = data.get(\"exit_code\")\n    if ec is None:\n        ec = 1\n    return {\n        \"stdout\": data.get(\"stdout\", \"\") or \"\",\n        \"stderr\": data.get(\"stderr\", \"\") or \"\",\n        \"exit_code\": ec,\n    }",
+        "code_language": "python3",
+        "title": "解包仿真结果(重试)",
+        "outputs": {
+          "stdout": {
+            "type": "string",
+            "children": null
+          },
+          "stderr": {
+            "type": "string",
+            "children": null
+          },
+          "exit_code": {
+            "type": "number",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "1786095555004",
+              "json"
+            ],
+            "value_type": "array[object]"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3420,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555006",
+      "positionAbsolute": {
+        "x": 3600,
+        "y": 320
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "stdout_text": "",
+          "stderr_text": "",
+          "exit_code": "",
+          "params_json": ""
+        },
+        "tool_description": "Analyze a jwave simulation output: physics summary + heatmap/waveform + verdict.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "analyze_simulation_result",
+        "tool_parameters": {
+          "stdout_text": {
+            "value": "{{#1786095555005.stdout#}}",
+            "type": "mixed"
+          },
+          "stderr_text": {
+            "value": "{{#1786095555005.stderr#}}",
+            "type": "mixed"
+          },
+          "exit_code": {
+            "value": "{{#1786095555005.exit_code#}}",
+            "type": "mixed"
+          },
+          "params_json": {
+            "value": "{}",
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "analyze_simulation_result(重试)",
+        "paramSchemas": [
+          {
+            "llm_description": "仿真 stdout 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stdout_text",
+            "label": {
+              "ja_JP": "stdout_text",
+              "en_US": "stdout_text",
+              "pt_BR": "stdout_text",
+              "zh_Hans": "stdout_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真 stderr 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stderr_text",
+            "label": {
+              "ja_JP": "stderr_text",
+              "en_US": "stderr_text",
+              "pt_BR": "stderr_text",
+              "zh_Hans": "stderr_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "退出码",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "exit_code",
+            "label": {
+              "ja_JP": "exit_code",
+              "en_US": "exit_code",
+              "pt_BR": "exit_code",
+              "zh_Hans": "exit_code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真参数 JSON",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "params_json",
+            "label": {
+              "ja_JP": "params_json",
+              "en_US": "params_json",
+              "pt_BR": "params_json",
+              "zh_Hans": "params_json"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "analyze_simulation_result(重试)",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "x": 3600,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555007",
+      "positionAbsolute": {
+        "x": 3780,
+        "y": 320
+      },
+      "data": {
+        "code": "import json\nimport re\n\n\ndef _strip_think(text):\n    if not text:\n        return \"\"\n    return re.sub(r\"<think>.*?</think>\", \"\", str(text), flags=re.DOTALL).strip()\n\n\ndef _find_analyze(analyze_json):\n    \"\"\"从 Dify json 变量提取 analyze 返回 dict（兼容嵌套 list/dict/data 包裹）。\"\"\"\n    if analyze_json is None:\n        return {}\n    an = analyze_json\n    if isinstance(an, str):\n        try:\n            an = json.loads(an)\n        except Exception:\n            return {}\n    if isinstance(an, list):\n        if not an:\n            return {}\n        an = an[0]\n    if isinstance(an, dict) and isinstance(an.get(\"data\"), list) and an[\"data\"]:\n        an = an[\"data\"][0]\n    return an if isinstance(an, dict) else {}\n\n\ndef _analysis_images_md(analyze_json):\n    an = _find_analyze(analyze_json)\n    parts = []\n    heatmap = an.get(\"heatmap_png_base64\")\n    waveform = an.get(\"waveform_png_base64\")\n    if heatmap:\n        parts.append(f\"\\n\\n![稳态声压场热力图](data:image/png;base64,{heatmap})\")\n    if waveform:\n        label = \"点传感器时域声压曲线\" if an.get(\"waveform_kind\") == \"sensor_time\" else \"声压空间剖面\"\n        parts.append(f\"\\n\\n![{label}](data:image/png;base64,{waveform})\")\n    return \"\".join(parts)\n\n\ndef main(mcp_json, analyze_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"result\": str(data)}\n    if not isinstance(data, dict):\n        return {\"result\": str(data)}\n\n    report = data.get(\"report\", \"\")\n    parts = []\n    if report:\n        parts.append(report)\n\n    parts.append(\"\\n\\n---\\n\\n> 🔁 **已自动重试一次**（首次结果未通过物理审查）\")\n\n    an = _find_analyze(analyze_json)\n    if an:\n        parts.append(f\"\\n\\n## 🧠 重试后解读\\n\\n{an.get('summary', '')}\")\n\n    result = \"\\n\".join(p for p in parts if p)\n    result += _analysis_images_md(analyze_json)\n    if result:\n        return {\"result\": result}\n    return {\"result\": json.dumps(data, ensure_ascii=False, indent=2)}",
+        "code_language": "python3",
+        "title": "合并输出(重试)",
+        "outputs": {
+          "result": {
+            "type": "string",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "1786095555004",
+              "json"
+            ],
+            "value_type": "array[object]"
+          },
+          {
+            "variable": "analyze_json",
+            "value_selector": [
+              "1786095555006",
+              "json"
+            ],
+            "value_type": "string"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3780,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555008",
+      "positionAbsolute": {
+        "x": 3960,
+        "y": 320
+      },
+      "data": {
+        "type": "end",
+        "title": "输出(重试)",
+        "outputs": [
+          {
+            "value_selector": [
+              "1786095555007",
+              "result"
+            ],
+            "value_type": "string",
+            "variable": "text"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3960,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555001",
+      "positionAbsolute": {
+        "x": 2680,
+        "y": 320
+      },
+      "data": {
+        "type": "if-else",
+        "title": "审查结果分支",
+        "cases": [
+          {
+            "case_id": "pass",
+            "logical_operator": "and",
+            "conditions": [
+              {
+                "variable_selector": [
+                  "1786091111003",
+                  "text"
+                ],
+                "comparison_operator": "contains",
+                "value": "pass"
+              }
+            ]
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 2680,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555002",
+      "positionAbsolute": {
+        "x": 2880,
+        "y": 320
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "d3d11c96-a1dd-483e-b5b3-b93d7ac1e289",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "a80d82eb-cc49-4f0e-9379-063114b49754",
+            "role": "user",
+            "text": "你是 jwave 声学仿真参数提取器。\n\n根据用户需求和知识库内容，确定以下仿真参数。请按 JSON 格式输出。\n\n用户需求：{{#1783990934733.query#}}\n知识库参考：{{#1783990989034.output#}}\n\n输出 JSON 格式：\n{\n  \"sound_speed\": 1500.0,\n  \"density\": 1000.0,\n  \"source_frequency\": 2000000.0,\n  \"domain_N\": [128, 128],\n  \"domain_dx\": [0.0001, 0.0001],\n  \"t_end\": 0.000005,\n  \"cfl\": 0.3,\n  \"description\": \"仿真描述文字\"\n}\n\n参数说明：\n- sound_speed: 介质声速 (m/s)，如 1500(水), 1540(软组织), 343(空气)\n- density: 介质密度 (kg/m³)，如 1000(水), 1050(软组织), 1.2(空气)\n- source_frequency: 声源频率 (Hz)，如 2000000(2MHz 超声)\n- domain_N: 网格点数 [Nx, Ny] 或 [Nx, Ny, Nz]\n- domain_dx: 网格间距 [dx, dy] 或 [dx, dy, dz] (米)\n- t_end: 仿真总时长 (秒)\n- cfl: CFL 数，默认 0.3\n- description: 一句话描述仿真场景\n\n严格的 JSON 输出要求：\n1. 只输出合法的 JSON 对象，不要有任何额外文字\n2. 所有数值使用数字类型，不要用字符串\n3. 缺失的值用 null\n\n# 重要：上一轮仿真结果未通过审查\n上一轮审查结论：{{#1786091111003.text#}}\n如果问题出在参数（如网格过小、频率-分辨率不匹配、时间不足等），请根据审查建议修正参数后重新提取；参数合理则保持原参数。"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "参数提取(重试)",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.3
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 2880,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555003",
+      "positionAbsolute": {
+        "x": 3060,
+        "y": 320
+      },
+      "data": {
+        "prompt_template": [
+          {
+            "id": "8abc6abc-a0df-46ac-b0f2-95bd67b2483f",
+            "role": "system",
+            "text": ""
+          },
+          {
+            "id": "2e1106f3-a290-41d3-b3fc-8ec2d1db0eaa",
+            "role": "user",
+            "text": "你是 jwave Python 代码生成器。\n\n# 输出规则（最高优先级）\n你的输出就是最终要执行的Python代码。没有JSON包裹，没有markdown标记，没有任何其他文字。\n输出的第一个字符必须是 import 或 # （注释）。\n输出的每一行都是有效的Python代码。\n\n你会收到：\n- 用户需求：{{#1783990934733.query#}}\n- 仿真参数：{{#1783991048409.text#}}\n\n# jwave 0.2.1 API 参考（已验证，必须严格遵守！）\n\nimport jax\nimport jax.numpy as jnp\nfrom jwave import FourierSeries\nfrom jwave.geometry import Domain, Medium, TimeAxis, Sources\nfrom jwave.acoustics import simulate_wave_propagation\n\n## Domain\ndomain = Domain(N=(Nx, Ny), dx=(dx, dx))\n\n## Medium\nmedium = Medium(domain=domain, sound_speed=1540.0, density=1050.0)\n\n## TimeAxis\ntime_axis = TimeAxis.from_medium(medium, cfl=0.3, t_end=5e-6)\nt = time_axis.to_array()  # 1D array, shape (Nt,)\n\n## Sources —— 4个位置参数，不能用关键字\npositions = (jnp.array([cx]), jnp.array([cy]))\nsignals = jnp.expand_dims(jnp.sin(2*jnp.pi*freq*t), 0)  # 2D (1,Nt)\nsources = Sources(positions, signals, time_axis.dt, domain)\n\n## simulate_wave_propagation\np = simulate_wave_propagation(medium, time_axis, sources=sources)\npressure = p.params[0]\n\nprint(f\"压力场形状: {pressure.shape}\")\nprint(f\"最大压力: {float(pressure.max()):.6f}\")\n\n# 场数据输出（必须！最后输出压力场 JSON 供分析，注意大网格自适应降采样防超限）\n仿真完成后，将\"全时最大绝对压力场\"按以下标记格式打印到 stdout，用于结果分析/热力图：\n__ACOU_FIELD_START__\n{\"shape\": [...], \"kind\": \"field\", \"downsample\": 1, \"max_pressure\": 0.0, \"data\": [[...]]}\n__ACOU_FIELD_END__\n参考实现（在仿真代码末尾追加；网格过大时自动降采样，保证 JSON 不超过 40 万字符）：\nimport json as __json\nimport jax.numpy as __jnp\n__field = __jnp.max(__jnp.abs(p.params), axis=0)[..., 0]\n__maxp = float(__jnp.max(__field))\n__step = 1\nwhile __field.size / (__step * __step) > 40000:\n    __step += 1\n__field_out = __field[::__step, ::__step] if __step > 1 else __field\nprint(\"__ACOU_FIELD_START__\")\nprint(__json.dumps({\"shape\": list(__field_out.shape), \"kind\": \"field\",\n                    \"downsample\": __step, \"max_pressure\": __maxp,\n                    \"data\": __field_out.tolist()}))\nprint(\"__ACOU_FIELD_END__\")\nprint(f\"最大压力: {__maxp:.6f}\")\n"
+          }
+        ],
+        "context": {
+          "enabled": false,
+          "variable_selector": []
+        },
+        "structured_output_enabled": false,
+        "title": "代码生成(重试)",
+        "type": "llm",
+        "vision": {
+          "enabled": false
+        },
+        "model": {
+          "name": "deepseek-v4-flash",
+          "provider": "langgenius/deepseek/deepseek",
+          "completion_params": {
+            "temperature": 0.7
+          },
+          "mode": "chat"
+        },
+        "selected": false
+      },
+      "position": {
+        "x": 3060,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555004",
+      "positionAbsolute": {
+        "x": 3240,
+        "y": 320
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "max_retries": "",
+          "code": "",
+          "timeout_seconds": ""
+        },
+        "tool_description": "Run Python code and auto-fix errors using DeepSeek LLM. Returns final_code, history, and execution results.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "run_jwave_code_with_retry",
+        "tool_parameters": {
+          "max_retries": {
+            "value": 7,
+            "type": "constant"
+          },
+          "code": {
+            "value": "{{#1786095555003.text#}}",
+            "type": "mixed"
+          },
+          "timeout_seconds": {
+            "value": null,
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "run_jwave_code_with_retry(重试)",
+        "paramSchemas": [
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "code",
+            "label": {
+              "ja_JP": "code",
+              "en_US": "code",
+              "pt_BR": "code",
+              "zh_Hans": "code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "timeout_seconds",
+            "label": {
+              "ja_JP": "timeout_seconds",
+              "en_US": "timeout_seconds",
+              "pt_BR": "timeout_seconds",
+              "zh_Hans": "timeout_seconds"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "max_retries",
+            "label": {
+              "ja_JP": "max_retries",
+              "en_US": "max_retries",
+              "pt_BR": "max_retries",
+              "zh_Hans": "max_retries"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "run_jwave_code_with_retry(重试)",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "x": 3240,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555005",
+      "positionAbsolute": {
+        "x": 3420,
+        "y": 320
+      },
+      "data": {
+        "code": "import json\n\ndef main(mcp_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    if not isinstance(data, dict):\n        return {\"stdout\": \"\", \"stderr\": \"\", \"exit_code\": 1}\n    ec = data.get(\"exit_code\")\n    if ec is None:\n        ec = 1\n    return {\n        \"stdout\": data.get(\"stdout\", \"\") or \"\",\n        \"stderr\": data.get(\"stderr\", \"\") or \"\",\n        \"exit_code\": ec,\n    }",
+        "code_language": "python3",
+        "title": "解包仿真结果(重试)",
+        "outputs": {
+          "stdout": {
+            "type": "string",
+            "children": null
+          },
+          "stderr": {
+            "type": "string",
+            "children": null
+          },
+          "exit_code": {
+            "type": "number",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "1786095555004",
+              "json"
+            ],
+            "value_type": "array[object]"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3420,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555006",
+      "positionAbsolute": {
+        "x": 3600,
+        "y": 320
+      },
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "tool_node_version": "2",
+        "tool_configurations": {},
+        "provider_icon": {
+          "background": "#6366F1",
+          "content": "🔗"
+        },
+        "provider_show_name": "jwave-mcp",
+        "params": {
+          "stdout_text": "",
+          "stderr_text": "",
+          "exit_code": "",
+          "params_json": ""
+        },
+        "tool_description": "Analyze a jwave simulation output: physics summary + heatmap/waveform + verdict.",
+        "provider_name": "jwave-mcp",
+        "tool_name": "analyze_simulation_result",
+        "tool_parameters": {
+          "stdout_text": {
+            "value": "{{#1786095555005.stdout#}}",
+            "type": "mixed"
+          },
+          "stderr_text": {
+            "value": "{{#1786095555005.stderr#}}",
+            "type": "mixed"
+          },
+          "exit_code": {
+            "value": "{{#1786095555005.exit_code#}}",
+            "type": "mixed"
+          },
+          "params_json": {
+            "value": "{}",
+            "type": "constant"
+          }
+        },
+        "is_team_authorization": true,
+        "meta": null,
+        "plugin_unique_identifier": "",
+        "provider_type": "mcp",
+        "provider_id": "jwave-mcp",
+        "title": "analyze_simulation_result(重试)",
+        "paramSchemas": [
+          {
+            "llm_description": "仿真 stdout 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stdout_text",
+            "label": {
+              "ja_JP": "stdout_text",
+              "en_US": "stdout_text",
+              "pt_BR": "stdout_text",
+              "zh_Hans": "stdout_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": true,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真 stderr 文本",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "stderr_text",
+            "label": {
+              "ja_JP": "stderr_text",
+              "en_US": "stderr_text",
+              "pt_BR": "stderr_text",
+              "zh_Hans": "stderr_text"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "退出码",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "exit_code",
+            "label": {
+              "ja_JP": "exit_code",
+              "en_US": "exit_code",
+              "pt_BR": "exit_code",
+              "zh_Hans": "exit_code"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "number",
+            "max": null,
+            "precision": null
+          },
+          {
+            "llm_description": "仿真参数 JSON",
+            "human_description": {
+              "ja_JP": "",
+              "en_US": "",
+              "pt_BR": "",
+              "zh_Hans": ""
+            },
+            "form": "llm",
+            "multiple": false,
+            "template": null,
+            "scope": null,
+            "name": "params_json",
+            "label": {
+              "ja_JP": "params_json",
+              "en_US": "params_json",
+              "pt_BR": "params_json",
+              "zh_Hans": "params_json"
+            },
+            "placeholder": null,
+            "options": [],
+            "min": null,
+            "default": null,
+            "auto_generate": null,
+            "required": false,
+            "input_schema": null,
+            "type": "string",
+            "max": null,
+            "precision": null
+          }
+        ],
+        "plugin_id": "",
+        "provider_icon_dark": null,
+        "tool_label": "analyze_simulation_result(重试)",
+        "type": "tool",
+        "selected": false
+      },
+      "position": {
+        "x": 3600,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 83,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555007",
+      "positionAbsolute": {
+        "x": 3780,
+        "y": 320
+      },
+      "data": {
+        "code": "import json\nimport re\n\n\ndef _strip_think(text):\n    if not text:\n        return \"\"\n    return re.sub(r\"<think>.*?</think>\", \"\", str(text), flags=re.DOTALL).strip()\n\n\ndef _find_analyze(analyze_json):\n    \"\"\"从 Dify json 变量提取 analyze 返回 dict（兼容嵌套 list/dict/data 包裹）。\"\"\"\n    if analyze_json is None:\n        return {}\n    an = analyze_json\n    if isinstance(an, str):\n        try:\n            an = json.loads(an)\n        except Exception:\n            return {}\n    if isinstance(an, list):\n        if not an:\n            return {}\n        an = an[0]\n    if isinstance(an, dict) and isinstance(an.get(\"data\"), list) and an[\"data\"]:\n        an = an[\"data\"][0]\n    return an if isinstance(an, dict) else {}\n\n\ndef _analysis_images_md(analyze_json):\n    an = _find_analyze(analyze_json)\n    parts = []\n    heatmap = an.get(\"heatmap_png_base64\")\n    waveform = an.get(\"waveform_png_base64\")\n    if heatmap:\n        parts.append(f\"\\n\\n![稳态声压场热力图](data:image/png;base64,{heatmap})\")\n    if waveform:\n        label = \"点传感器时域声压曲线\" if an.get(\"waveform_kind\") == \"sensor_time\" else \"声压空间剖面\"\n        parts.append(f\"\\n\\n![{label}](data:image/png;base64,{waveform})\")\n    return \"\".join(parts)\n\n\ndef main(mcp_json, analyze_json):\n    data = mcp_json\n    if isinstance(data, list) and len(data) > 0:\n        data = data[0]\n    if isinstance(data, str):\n        try:\n            data = json.loads(data)\n        except Exception:\n            return {\"result\": str(data)}\n    if not isinstance(data, dict):\n        return {\"result\": str(data)}\n\n    report = data.get(\"report\", \"\")\n    parts = []\n    if report:\n        parts.append(report)\n\n    parts.append(\"\\n\\n---\\n\\n> 🔁 **已自动重试一次**（首次结果未通过物理审查）\")\n\n    an = _find_analyze(analyze_json)\n    if an:\n        parts.append(f\"\\n\\n## 🧠 重试后解读\\n\\n{an.get('summary', '')}\")\n\n    result = \"\\n\".join(p for p in parts if p)\n    result += _analysis_images_md(analyze_json)\n    if result:\n        return {\"result\": result}\n    return {\"result\": json.dumps(data, ensure_ascii=False, indent=2)}",
+        "code_language": "python3",
+        "title": "合并输出(重试)",
+        "outputs": {
+          "result": {
+            "type": "string",
+            "children": null
+          }
+        },
+        "type": "code",
+        "variables": [
+          {
+            "variable": "mcp_json",
+            "value_selector": [
+              "1786095555004",
+              "json"
+            ],
+            "value_type": "array[object]"
+          },
+          {
+            "variable": "analyze_json",
+            "value_selector": [
+              "1786095555006",
+              "json"
+            ],
+            "value_type": "string"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3780,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 51,
+      "selected": false,
+      "width": 241
+    },
+    {
+      "sourcePosition": "right",
+      "targetPosition": "left",
+      "zIndex": 0,
+      "id": "1786095555008",
+      "positionAbsolute": {
+        "x": 3960,
+        "y": 320
+      },
+      "data": {
+        "type": "end",
+        "title": "输出(重试)",
+        "outputs": [
+          {
+            "value_selector": [
+              "1786095555007",
+              "result"
+            ],
+            "value_type": "string",
+            "variable": "text"
+          }
+        ],
+        "selected": false
+      },
+      "position": {
+        "x": 3960,
+        "y": 320
+      },
+      "type": "custom",
+      "height": 87,
+      "selected": false,
+      "width": 241
+    }
+  ],
+  "edges": [
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783990934733-source-1783990970058-target",
+      "target": "1783990970058",
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "sourceType": "start",
+        "targetType": "llm",
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783990934733",
+      "type": "custom",
+      "selected": false
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783990970058-source-1783990977543-target",
+      "target": "1783990977543",
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "sourceType": "llm",
+        "targetType": "knowledge-retrieval",
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783990970058",
+      "type": "custom",
+      "selected": false
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783990970058-source-1783991048409-target",
+      "target": "1783991048409",
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "sourceType": "llm",
+        "targetType": "llm",
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783990970058",
+      "selected": false,
+      "type": "custom"
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783990977543-source-1783990989034-target",
+      "target": "1783990989034",
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "sourceType": "knowledge-retrieval",
+        "targetType": "template-transform",
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783990977543",
+      "type": "custom",
+      "selected": false
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783990989034-source-1783991048409-target",
+      "target": "1783991048409",
+      "data": {
+        "sourceType": "template-transform",
+        "isInLoop": false,
+        "targetType": "llm",
+        "isInIteration": false,
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783990989034",
+      "type": "custom",
+      "selected": false
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1783991048409-source-1783991079665-target",
+      "target": "1783991079665",
+      "data": {
+        "isInIteration": false,
+        "isInLoop": false,
+        "sourceType": "llm",
+        "targetType": "llm",
+        "iteration_id": null,
+        "loop_id": null
+      },
+      "targetHandle": "target",
+      "source": "1783991048409",
+      "type": "custom",
+      "selected": false
+    },
+    {
+      "zIndex": 0,
+      "sourceHandle": "source",
+      "id": "1786278074940-source-1783992518452-target",
+      "target": "1783992518452",
+      "type": "custom",
+      "targetHandle": "target",
+      "source": "1786278074940",
+      "data": {
+        "sourceType": "code",
+        "targetType": "end",
+        "isInIteration": false,
+        "isInLoop": false,
+        "iteration_id": null,
+        "loop_id": null
+      }
+    },
+    {
+      "id": "505ca3e7-41ab-41be-b38a-97f34f6779c9",
+      "source": "1783991079665",
+      "target": "5655556822808",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "270485ba-cfb2-4053-8dfe-ca45a5702d6a",
+      "source": "5655556822808",
+      "target": "1786091111001",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "3a10a7f0-5efb-4169-8299-090fee04c1bc",
+      "source": "1786091111001",
+      "target": "1786091111002",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "1bdd4878-ce92-4a24-abd2-61e7083364ac",
+      "source": "1786091111002",
+      "target": "1786091111003",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "39b171a6-55d4-4d80-981d-eebd34a1d7ab",
+      "source": "1786091111004",
+      "target": "1786278074940",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "01ca5add-705b-4ed4-bd58-d9c19151c9cb",
+      "source": "1786091111003",
+      "target": "1786095555001",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "a28dd155-ef20-4c39-8c4b-2d1843dd4ece",
+      "source": "1786095555001",
+      "target": "1786091111004",
+      "sourceHandle": "pass",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "a429c6af-42c7-4f78-89a1-7d061984d996",
+      "source": "1786095555001",
+      "target": "1786095555002",
+      "sourceHandle": "false",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "2c7b655b-f100-4397-a51b-c9ebefbd906c",
+      "source": "1786095555002",
+      "target": "1786095555003",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "935c1905-cf0b-441e-8d93-9f23b744151e",
+      "source": "1786095555003",
+      "target": "1786095555004",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "adc34e51-6700-41a6-9aed-2a25024e3f26",
+      "source": "1786095555004",
+      "target": "1786095555005",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "c25d324b-c907-4969-8021-8570f999be7f",
+      "source": "1786095555005",
+      "target": "1786095555006",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "bc5684e4-595a-4b72-a688-cefa38615c47",
+      "source": "1786095555006",
+      "target": "1786095555007",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "2d07e86e-f4dd-4697-9e50-fa29d21f5902",
+      "source": "1786095555007",
+      "target": "1786095555008",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "d89c9d99-8378-4be6-b857-afb3666446a3",
+      "source": "1786091111003",
+      "target": "1786095555001",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "f060cd0b-ae7c-46de-86db-d3394c5fffb6",
+      "source": "1786095555001",
+      "target": "1786091111004",
+      "sourceHandle": "pass",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "998d2970-e62c-4491-b411-1cec5c546057",
+      "source": "1786095555001",
+      "target": "1786095555002",
+      "sourceHandle": "false",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "aad4356b-7772-4d7c-9d9f-cc255f4605c9",
+      "source": "1786095555002",
+      "target": "1786095555003",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "b36d9531-a26a-4997-9d59-2677b500ca72",
+      "source": "1786095555003",
+      "target": "1786095555004",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "7e2d958d-c3db-4beb-af7e-e5631b990cae",
+      "source": "1786095555004",
+      "target": "1786095555005",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "ccb13ce1-e081-45d4-9776-747117c6aaf9",
+      "source": "1786095555005",
+      "target": "1786095555006",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "0d03524f-7883-4e9d-9faa-b43cf75363b5",
+      "source": "1786095555006",
+      "target": "1786095555007",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    },
+    {
+      "id": "8a4c185e-d9d1-469c-9ca1-567512450064",
+      "source": "1786095555007",
+      "target": "1786095555008",
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "type": "default"
+    }
+  ],
+  "viewport": {
+    "x": -1021.2620448142957,
+    "y": 262.81789582355555,
+    "zoom": 0.43527528164806273
+  }
+}

@@ -14,9 +14,15 @@ RUN pip install --no-cache-dir --timeout 120 --retries 10 \
     -r /app/requirements.lock.txt
 
 COPY app/ /app/app/
+# Server-owned fixed VAL-1 recipe/validator; no caller-selected code assets.
+COPY scripts/validation/ /app/scripts/validation/
+# Explicit operator preparation/status/reuse CLI; learning remains opt-in.
+COPY scripts/skill_library/ /app/scripts/skill_library/
 COPY docs/ /app/docs/
-USER 10001:10001
-
 ARG APP_MODULE=app.server_safe
 ENV APP_MODULE=${APP_MODULE}
+ARG INSTALL_DEV=false
+COPY requirements.dev.lock.txt /app/requirements.dev.lock.txt
+RUN if [ "$INSTALL_DEV" = "true" ]; then pip install --no-cache-dir -r /app/requirements.dev.lock.txt; fi
+USER 10001:10001
 CMD ["/bin/sh", "-c", "exec python -m ${APP_MODULE}"]

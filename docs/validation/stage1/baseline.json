@@ -1,0 +1,1137 @@
+{
+  "version": 1,
+  "kind": "stage1_public_projection",
+  "observed_at": "2026-10-12T11:43:40.422922+00:00",
+  "original_frozen_baseline_sha256": "56abf0e4917a73c4f3089f9d9d2590272f4380bc8e7ed0de7f4238e574a04516",
+  "original_observation_head": "45bb25496ea29150f96f00330f171d5e22f39f19",
+  "source_sha256": {
+    "app/skill_local_catalog.py": "63a9feb0863fe13a6d1f0f0b1bfa61c93ef51e14c69cee0552714a73af929a6c",
+    "app/skill_local_profile.py": "0e2e9a3bb4925601ac57a8871c97e6ec71f812c007e7a0bbb2343e3ab144a26a",
+    "app/skill_usage.py": "48c2823ef8552c036c93cfaeb338ef7ccae940b1867339c8c027c24c0bfe042d",
+    "scripts/skill_library/local_basic.py": "771aa3e14f0a251b56cbcf4e286479eb4d196a013afc0d83674e63ea30d38936",
+    "scripts/workflow/skill_handoff_wire.py": "8313340bd8a4143294eb8950ce538ec344ff512f8014381708fd48c2ee2d6494",
+    "scripts/workflow/skill_parameter_adapter.py": "cfab886fbf569348c489c49c91cffa5b76955e2865904e176520dc580f552ee3",
+    "scripts/workflow/skill_parameter_contract.py": "0c6306fd2295ec255c91501aa0a20c0a563b95daee51ea8fb0fa3c6113a3c790",
+    "scripts/validation/periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+    "scripts/validation/skill_inventory_snapshot.py": "cbbc7eae8eb238905d13433baecfe21b635abe26d68246c899c5a10d81606402",
+    "scripts/validation/skill_stage1_baseline.py": "35745c0027831e8972a39f8f9487f995e51eca812eaca7229910ddec513b05d0",
+    "tests/unit/test_periodic_skill_library.py": "84206c58c9bacc41d8584c7df607af8408ef0c9bcf21b1228ad55ffbd42175e1",
+    "tests/unit/test_skill_stage1_baseline.py": "16cdd8ab543bf5192a62e5952850267d1a569c34c6975ff476c2cecd8717e4c6",
+    "scripts/validation/recipes/periodic-air-axial.py": "c2d9fca8f31491b59fe0a3e322a0e8e0f3f84be29c08599b0ec7d35a2140c0e8",
+    "scripts/validation/recipes/periodic-air-beating.py": "7ca2b630e16d7ba94cdc7ece98d29d1d82624ef645d4877f57734e3a5abb5c24",
+    "scripts/validation/recipes/periodic-air-crossed.py": "2ac616518e0321237784ab0a6362ab70e1871b0f360501c9c88edbce70f904bc",
+    "scripts/validation/recipes/periodic-air-harmonic.py": "755a4ece97b0ecf2d4ce029dc34c5fa3acaf850d0bc71a1a1268f71989cf446a",
+    "scripts/validation/recipes/periodic-air-oblique.py": "e88acaffefd19d82c5fc5c9b03ebee44d5479504a40232432cf3684b867429a3",
+    "scripts/validation/recipes/periodic-soft_tissue-axial.py": "2b4faaaeeb807b0f82f04f81dd4429dd6af62a70bfd1a5476a235998779cdaa1",
+    "scripts/validation/recipes/periodic-soft_tissue-beating.py": "0738526d2ab21b97afb108e8cf325cafb84eb15ae1df72f69cc4678cbfeb697a",
+    "scripts/validation/recipes/periodic-soft_tissue-crossed.py": "0a6a9644b2912d690dd3f7c4f0ef4fe369aae0e0575bfbcc272ce7133d4f136d",
+    "scripts/validation/recipes/periodic-soft_tissue-harmonic.py": "7c0a5c7a6b180ea711c40c8be0428800bba0a84fd9d6c2998feeebce4e3c67bd",
+    "scripts/validation/recipes/periodic-soft_tissue-oblique.py": "781f16eb7ab251dd512f264e1d0abb8f58c29d08662a0fe0ad9cb07d667ddef5",
+    "scripts/validation/recipes/periodic-water-axial.py": "55e20ab3693e1bb13d703f9c16d0200005cf4a46f3bc93c51e98615b10da08b1",
+    "scripts/validation/recipes/periodic-water-beating.py": "d2e7e599797edc1543bcdbb15c19d2fef3857a9d75a427542a51f51f15bed260",
+    "scripts/validation/recipes/periodic-water-crossed.py": "f1ac8f288c7d449996db0a3556c81ed9a9224c412cef417ab686701dddb0dfb8",
+    "scripts/validation/recipes/periodic-water-harmonic.py": "e2da69124ea88d6de681d9a7495633cd46336875a7adb32ba48d4ac73f33bc48",
+    "scripts/validation/recipes/periodic-water-oblique.py": "daac287be74bab46fba8b4ce6b00943a7f361fd996ac9a598c22138eb12a2c11"
+  },
+  "source_manifest_scope": "only the 27 stage-one code and test files in this commit",
+  "inventory": [
+    {
+      "scope": "managed-local-interface-wide.v1",
+      "name": "本机受控执行器；固定两均匀半空间法向入射，宽横向域",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "cfl": 0.1,
+        "density_kg_m3": [
+          1000.0,
+          2000.0
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.00025,
+          0.0005
+        ],
+        "grid_shape": [
+          384,
+          320
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_sigma_m": 0.0025,
+        "initial_velocity": "zero",
+        "interface_position_m": 0.047875,
+        "medium_type": "lossless_two_halfspaces",
+        "pml_size": 20,
+        "secondary_sound_speed_m_s": 2500.0,
+        "sensor_indices": [
+          [
+            160,
+            160
+          ],
+          [
+            224,
+            160
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "planar_x_uniform_y",
+        "source_index": [
+          128,
+          160
+        ],
+        "source_type": "gaussian_initial_pressure",
+        "t_end_s": 2.4e-05
+      },
+      "scenario_type": "interface_2d",
+      "code_sha256": "d28fb8bee0b0dfdd98a5833797b1e43cf80214aacf2cf3a1a3c0a553498a4df3",
+      "validator_sha256": "b9405a15c8a9df871f0094cb2516b31e6a02b0ec1c9d8b0a7ce80f8b57502e4c",
+      "recipe_path": "scripts/validation/recipes/val1_interface_wide_v2.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "interface_waveform.py": "b9405a15c8a9df871f0094cb2516b31e6a02b0ec1c9d8b0a7ce80f8b57502e4c",
+        "interface_evidence.py": "d77a8b146340c48001ea218d8ecce761132502d18c3079bbd74ef9dfdd882971",
+        "cylindrical_evidence.py": "30c7e88a5e4f9d55297e5b63b7696c55add8450e3670308ac66d3b4af1ee79ce"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-air-axial.v1",
+      "name": "空气：轴向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1.225,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 343.0,
+        "source_geometry": "managed-local-periodic-air-axial.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 9.329446064139942e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "f6ad4216b55f8ef985a7529b573ed8df60a34be7d306594268a98b34c23517c6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-air-axial.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-air-beating.v1",
+      "name": "空气：双斜向模态拍频；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1.225,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 343.0,
+        "source_geometry": "managed-local-periodic-air-beating.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 9.329446064139942e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "0a922df1099ec77f9bad3598a0e72c94ea067fb8d8cf7ccf776da955fcf6c553",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-air-beating.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-air-crossed.v1",
+      "name": "空气：正交双波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1.225,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 343.0,
+        "source_geometry": "managed-local-periodic-air-crossed.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 9.329446064139942e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "5bd6b556745bb6fd44d0ffdfcdba5c183d7acbdb2f7018d62db4eb71fbdcf128",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-air-crossed.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-air-harmonic.v1",
+      "name": "空气：基频与三次谐波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1.225,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 343.0,
+        "source_geometry": "managed-local-periodic-air-harmonic.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 9.329446064139942e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "94dc79d46bddbb9a5d1e87beb89b8d26052b0f8c4b589a37df2f34f09a6401bc",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-air-harmonic.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-air-oblique.v1",
+      "name": "空气：45度斜向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1.225,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 343.0,
+        "source_geometry": "managed-local-periodic-air-oblique.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 9.329446064139942e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "f89a630216af4a89c84042f0c198a9193184b17f1cb407b2abc2399d2df378ef",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-air-oblique.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-soft_tissue-axial.v1",
+      "name": "软组织参数：轴向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1050.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1540.0,
+        "source_geometry": "managed-local-periodic-soft_tissue-axial.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.077922077922078e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "8f6e54b2efabcc5fe156bf4dcf9e8c1befd0e7d5bd2c3fca2a38c441f0bca824",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-soft_tissue-axial.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-soft_tissue-beating.v1",
+      "name": "软组织参数：双斜向模态拍频；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1050.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1540.0,
+        "source_geometry": "managed-local-periodic-soft_tissue-beating.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.077922077922078e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "37ad1b8e38a26330f6554a2e7fd9b2d69721d153992f9ac95a9e8d845efcedc1",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-soft_tissue-beating.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-soft_tissue-crossed.v1",
+      "name": "软组织参数：正交双波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1050.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1540.0,
+        "source_geometry": "managed-local-periodic-soft_tissue-crossed.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.077922077922078e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "27e6dc1800ffd1f5e67994c4b629781671e217b2d7f223be8aa942d0900242b9",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-soft_tissue-crossed.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-soft_tissue-harmonic.v1",
+      "name": "软组织参数：基频与三次谐波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1050.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1540.0,
+        "source_geometry": "managed-local-periodic-soft_tissue-harmonic.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.077922077922078e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "76d117863eb14881df55325157359f31884f15cbc26f2e1912c144c88755560a",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-soft_tissue-harmonic.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-soft_tissue-oblique.v1",
+      "name": "软组织参数：45度斜向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1050.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1540.0,
+        "source_geometry": "managed-local-periodic-soft_tissue-oblique.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.077922077922078e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "5f9fcd2a6ad9d332a0cf9011d84f1a48e9091c54c1fd1b3ddaa07992e52c31a6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-soft_tissue-oblique.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-water-axial.v1",
+      "name": "水：轴向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "managed-local-periodic-water-axial.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.1333333333333335e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "1127686cc15179eb22637dc419d831abb83984fb0f607be1493d43f9e6f8d6e0",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-water-axial.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-water-beating.v1",
+      "name": "水：双斜向模态拍频；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "managed-local-periodic-water-beating.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.1333333333333335e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "5e25f010233d59368dacfdad19860a31a3531d7473851fc594a184c46b399d48",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-water-beating.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-water-crossed.v1",
+      "name": "水：正交双波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "managed-local-periodic-water-crossed.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.1333333333333335e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "29a993deeb3eee35a6ec20f9a6d7ecffad374b3209f540368d5235e14b004ca5",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-water-crossed.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-water-harmonic.v1",
+      "name": "水：基频与三次谐波叠加；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "managed-local-periodic-water-harmonic.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.1333333333333335e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "8e068c63fbf5e5a69c2834ea961a1fdfa2b994537ab6361b0f9d51b51923dac6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-water-harmonic.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-periodic-water-oblique.v1",
+      "name": "水：45度斜向驻波；二维周期边界，均匀无损、固定初压模态",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "boundary_condition": "periodic",
+        "cfl": 0.05,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "grid_shape": [
+          64,
+          64
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_lossless",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "pml_size": 0,
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "managed-local-periodic-water-oblique.v1",
+        "source_type": "modal_initial_pressure",
+        "t_end_s": 2.1333333333333335e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "d8cc1f074744599c428571909414dfa3ca7a6ae436cf42187f65c7b22b9402f1",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "recipe_path": "scripts/validation/recipes/periodic-water-oblique.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "periodic_eigenmodes.py": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034"
+      }
+    },
+    {
+      "scope": "managed-local-plane-wave.v1",
+      "name": "本机受控执行器；固定均匀水介质高斯初压",
+      "version": 1,
+      "status": "active",
+      "quality_level": "Q4",
+      "parameters": {
+        "cfl": 0.1,
+        "density_kg_m3": 1000.0,
+        "dimensions": 2,
+        "dx_m": [
+          0.00025,
+          0.00025
+        ],
+        "grid_shape": [
+          384,
+          384
+        ],
+        "initial_pressure_pa": 1.0,
+        "initial_sigma_m": 0.003,
+        "initial_velocity": "zero",
+        "medium_type": "homogeneous_water",
+        "pml_size": 20,
+        "sensor_indices": [
+          [
+            224,
+            192
+          ],
+          [
+            304,
+            192
+          ]
+        ],
+        "smooth_initial": false,
+        "solver_mode": "time_domain",
+        "sound_speed_m_s": 1500.0,
+        "source_geometry": "planar_x_uniform_y",
+        "source_index": [
+          160,
+          192
+        ],
+        "source_type": "gaussian_initial_pressure",
+        "t_end_s": 3.4e-05
+      },
+      "scenario_type": "initial_pressure_2d",
+      "code_sha256": "4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2b",
+      "validator_sha256": "a50a04db1d11c2681f9126971b5359dba4cebfa386688cc5bfdf6762c5528f7f",
+      "recipe_path": "scripts/validation/recipes/val1_plane_wave_v2.py",
+      "applicable_boundary": "exact parameters only",
+      "validator_pins": {
+        "plane_wave_evidence.py": "a50a04db1d11c2681f9126971b5359dba4cebfa386688cc5bfdf6762c5528f7f"
+      }
+    }
+  ],
+  "inventory_count": 17,
+  "task_plan_sha256": "aba45d8b99ab4aa018de0a50de8855622b6f266a0d26c6cf4ebb2a239f7265de",
+  "stage1_only": true,
+  "learning_enabled": false,
+  "production_mutations": 0,
+  "executed_ab_runs": 0,
+  "model_adoption_authenticated": false,
+  "formal_product_acceptance": false,
+  "notice": "Historical deployment observation; not a portable authorization or database seed. Live evidence remains local.",
+  "sha256": "3914bb339990ba88904c3f8a9a9648de5c666736c1845a7ec29f10f07cba1b27"
+}

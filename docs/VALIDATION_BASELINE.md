@@ -20,6 +20,90 @@
 
 可一键重跑脚本：`executor/validation_baseline.py`（已同步至 VM `~/dify-mcp-server/executor/`，并在 executor 容器内实测通过）。
 
+### 2026-09-28 受限复测回执
+
+在现有 `jwave-executor` 容器中，经 stdin 运行仓库脚本，并设置 300 秒外部超时；未调用模型、未写入生产数据库或技能库。
+
+```bash
+timeout 300 docker exec -i -e JAX_PLATFORMS=cpu \
+  -e XLA_PYTHON_CLIENT_PREALLOCATE=false -e HOME=/tmp \
+  jwave-executor python - < executor/validation_baseline.py
+```
+
+| 场景 | 本次最大相对误差 | 结果 |
+|---|---:|---|
+| 平面波峰值与振幅比 | 0.000161% | PASS |
+| 2D 圆柱波扩散比 | 0.797600% | PASS；源点位置检查通过 |
+| 平界面反射与透射 | 0.003321% | PASS |
+| 3D 球面波扩散比 | 0.008950% | PASS |
+| 频域 Helmholtz 衰减比 | 0.093436% | PASS |
+
+脚本汇总为 `5/5 PASS`、`VALIDATION_DONE`，进程退出码 0。结果与上方已记录的理论/实测口径一致。本回执只验证固定基准设置下的 jwave 数值行为；任意生成仿真仍须提供独立、完整的场景证据，不能从本次 PASS 推出 Q3/Q4 或自动学习资格。
+
+---
+
+### 2026-10-02 平面波原始序列与离线复算（P1-3 前置，未授予Q3/Q4）
+
+`case1_plane_wave_conservation()` 现在导出原始时间轴和两条带符号压力序列。
+固定 profile `val1-plane-wave-v1` 仅代表本文件用例1：384×256、dx=0.25mm、
+c=1500m/s、rho=1000kg/m³、PML=20、CFL=0.1、t_end=34us、A=1Pa、
+x0=160、sigma=12、零初始速度、smooth_initial=False、探针(224,128)/(304,128)。
+该profile不是任意生成仿真的适用声明；来源必须在后续由受信运行记录核对代码与配置。
+
+新增可重复使用的 `scripts/validation/plane_wave_evidence.py`，独立按d'Alembert解
+p(x,t)=[p0(x-ct)+p0(x+ct)]/2复算，忽略生成方的theory/err_pct/PASS/Q4。
+校验原始单位s/Pa、样本完整性、非有限值、时间采样、半幅峰值、振幅比、到达时间
+（两采样间隔内）和到达±3sigma窗口内波形（以0.5Pa归一，误差<1%）。
+波形检查是新增诊断要求，不把旧峰值门禁的PASS改写为完整波形通过。
+
+本轮隔离jwave 0.2.1真实运行14.382秒：峰值与比值最大误差0.000161%，
+第一探针波形误差0.5055%，第二探针10.4426%，故 `numeric_pass=false`。
+最坏点t=30us，实测-0.04665845Pa，解析+0.00555450Pa；峰值本身通过。
+有限横向孔径/PML影响是待验证假设，不能凭此认定根因或放宽容差。
+
+证据：`auxiliary/reference/val1-plane-wave-2026-10-02/` 中raw-envelope.json、raw.json、
+run.json、numeric-check.json、diagnosis.json；包含操作者收集的run_id、源文件/实际stdin/
+原始输出SHA-256与隔离镜像ID。安装镜像与运行中服务镜像ID不同；本轮只证明隔离
+jwave 0.2.1行为，不宣称生产镜像等价。第一次测试镜像无pytest、一次挂载权限失败和
+运行服务旧镜像已无法新建容器的失败均已诊断，没有改权限或服务。
+
+复算：`python3 scripts/validation/plane_wave_evidence.py < auxiliary/reference/val1-plane-wave-2026-10-02/raw.json`
+当前预期退出1（物理波形检查失败），不能用随后cat或git命令的退出码掩盖它。
+`trusted_run=false` 固定保留；哈希只绑定文件，不提供防伪认证。该校验器尚未接入
+app/physics_gate.py或SkillStore，不授予Q3/Q4、不自动学习。下一步唯一动作是定位
+第二探针尾部负信号并验证固定场景的适用窗口/孔径；保持准入封闭。
+
+---
+
+### 2026-10-02 05:44 · 横向域对照与profile v2（数值通过，来源仍未认证）
+
+保持Nx、dx、PML、初始波前、探针x偏移、±3sigma窗口与1%容差不变，只把Ny从256增到384，
+第二探针波形误差降至0.5055%。仅把CFL从0.1减到0.05而保留Ny=256，误差仍10.3659%；
+第一探针采样误差由0.5055%降至0.2527%。证据支持主要污染来自横向域/边界，而非时间采样。
+这不能单独区分孔径衍射和PML具体实现，不把推断写成已证明的唯一机理。
+[k-Wave官方PML说明](https://www.k-wave.org/documentation/example_na_controlling_the_pml.php)
+要求避免初始压力与传感器位于PML；此处高斯波前沿y均匀延展至边界，较宽域仅使
+既定中心探针/时间窗内的边界污染降至容差内，不能宣称整个域或所有时刻均符合无限平面解析解。
+
+默认用例1改为384×384（96×96mm），其余四个用例未改；profile升级
+`val1-plane-wave-v2`，包含实际网格、单位、媒介、PML、CFL、初值、探针与smooth_initial配置。
+离线validator v2核对固定完整配置并拒绝缺失/错网格/PML/布尔冒充数值；仍不认证这些调用方字段。
+旧v1数据保留复算能力：其窗口波形继续失败，禁止把它改标为通过。
+
+新源真实独立复跑12.002秒：两探针波形误差0.505468%/0.505490%，峰值/比值最大误差
+0.0000358%，到达误差一采样间隔内，`numeric_pass=true`、CLI退出0；全部58个单测通过，
+14条依赖弃用警告。只复跑了平面波，不能宣称本轮VAL-1五类全通过或F02完成。
+
+证据：`auxiliary/reference/val1-plane-wave-controls-2026-10-02/`，包含两个单因素对照、
+新源复跑、原始序列、run/测试/哈希回执与可复现说明、旧新源及校验器文本证据。
+source v2 SHA-256=f1c7fc573df9ee5bc48527310214476aae1294a27f69d52a8aac80ab3e11268f；
+validator v2 SHA-256=a50a04db1d11c2681f9126971b5359dba4cebfa386688cc5bfdf6762c5528f7f；
+raw v2 SHA-256=c7ce6a88c156c45a8152ecbdaf0b4d2dac6b60d804c4592e76bb8931d0005465。
+无网络、只读、降权和4GB/2CPU/256pids/120s资源限额均保留。`trusted_run=false`，
+生产run_id/代码/参数与受信证据尚未绑定，Q3/Q4准入继续关闭，无自动学习。
+下一项唯一动作：实现受信来源运行记录与代码/参数/validator绑定及伪造/断链负例，
+不能把离线数值PASS和操作者文件哈希当成生产Q3/Q4凭据。
+
 ---
 
 ## 1. 用例 1 · 平面波无损耗传播（振幅守恒）
@@ -179,7 +263,7 @@ docker exec -e JAX_PLATFORMS=cpu -e XLA_PYTHON_CLIENT_PREALLOCATE=false -e HOME=
 - 零模型费用：不调用 DeepSeek/Dify。
 
 ### 环境
-- jwave 0.2.1（executor 容器 `/opt/jwave/lib/python3.12/site-packages/jwave`）
+- jwave 0.2.1（executor 容器 `/usr/local/lib/python3.11/site-packages/jwave`）
 - numpy 2.5.1 / jax CPU / matplotlib 3.11.1（T-007 热力图已就绪）
 - 容器限制：read_only rootfs（脚本经 stdin 写入 /tmp tmpfs）、无 30 s 上限（docker exec 直跑）
 
@@ -209,3 +293,9 @@ docker exec -e JAX_PLATFORMS=cpu -e XLA_PYTHON_CLIENT_PREALLOCATE=false -e HOME=
   - 均匀介质无衰减：传播前后峰值压力守恒（±0.1%），明显下降/增长即 abnormal；
   - 多介质界面：R/T 应满足阻抗公式，作为分层介质仿真的合理性校验。
 - 基准脚本结构（每用例 = 场景 → 理论公式 → 实测 → 误差 → 判定）可直接扩展新用例。
+
+## 2026-10-02 固定单场景代码契约（离线前置）
+
+固定配方 scripts/validation/recipes/val1_plane_wave_v2.py 仅执行平面波v2，函数AST与本基准一致；代码strip后SHA-256=4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2b，校验器固定a50a04db1d11c2681f9126971b5359dba4cebfa386688cc5bfdf6762c5528f7f。现有代码清理保持配方不变。检查器用模块方式运行：`python -m scripts.validation.plane_wave_run_binding --database <history> --run-id <id>`；只读唯一服务器记录并独立复算，不接受调用方回执或参数哈希。
+
+真实隔离配方运行12.114s，波形0.505468%/0.505490%，门槛不变；完整93/93单测。证据 auxiliary/reference/plane-wave-code-contract-2026-10-02/。隔离DB绑定仅为集成测试，非生产网关来源；CLI退出0也只有离线前置含义。未验证生产AST/HTTP通道或完整五类基准；执行器身份/实际参数可信绑定尚缺，trusted_run=false、parameters_bound=false、Q3/Q4关闭。代码固定契约不能替代受信执行环境，生产路径接通时必须同步Archify资产。

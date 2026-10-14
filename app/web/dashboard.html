@@ -296,6 +296,10 @@ function renderRow(r) {
   var actions = '<button class="action-btn" onclick="event.stopPropagation();copyCode(' + r.id + ')" title="复制代码">复制</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();downloadRecord(' + r.id + ')" title="导出 JSON">导出</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();rerunExecution(' + r.id + ')" title="重新运行">重跑</button>';
+  if (r.skill_reference && typeof r.skill_reference.skill_id === 'string' && Number.isSafeInteger(r.skill_reference.version)) {
+    var skillHref = '/skills?skill_id=' + encodeURIComponent(r.skill_reference.skill_id) + '&version=' + encodeURIComponent(r.skill_reference.version);
+    actions += '<a class="action-btn skill-evidence-link" href="' + skillHref + '" onclick="event.stopPropagation()" title="查看本次已验证固定配方的技能证据">技能证据 v' + r.skill_reference.version + '</a>';
+  }
   // 无代码工具（analyze_simulation_result 等）显示占位说明，不再空白
   var codeSummary = r.code ? esc(summary) : '<span class="code-empty">（结果分析 · 无代码）</span>';
   var codeDetail = r.code

@@ -1,36 +1,13 @@
-# Development and test scripts
+# 脚本目录
 
-These scripts are intentionally kept outside the runtime image. They are useful
-for local workflow construction and regression testing, but are not copied by
-the gateway `Dockerfile`.
+## 运行时
+- `validation/`：服务端固定配方、物理验证及来源契约。被 app 导入，随网关镜像交付；改动固定代码或 validator 会使旧 pin 失效，不能随意整理或重命名。
+- `skill_library/local_basic.py`：显式初始化、准备、状态、实际参考执行 CLI，随镜像交付；仅服务端固定目录，不启用自动学习。
 
-## workflow
+## 开发与历史
+- `workflow/`：重复使用的离线图组合/契约更新，默认只生成审查副本；不随运行镜像交付。
+- `tests/`：回归/性能工具，部分调用付费模型，必须先确认范围。
+- `archive/workflow/`：历史一次性提示词补丁，不再从日常工具入口使用。
+- 已移除一次性报告再生成脚本 `_regenerate_t012_report.py`；原版本可从 Git 历史恢复。
 
-Utilities that used to construct or patch the exported Dify workflow JSON.
-They operate on a graph file passed as an argument.
-
-```bash
-python scripts/workflow/_build_graph.py draft_graph.json > new_graph.json
-python scripts/workflow/_build_t009.py published_graph.json > expanded_graph.json
-python scripts/workflow/_apply_heatmap.py workflow_graph.json > patched_graph.json
-```
-
-These are historical tooling and do not affect the MCP server runtime.
-
-## tests
-
-End-to-end regression and stability scripts. They require a running gateway and
-the appropriate API keys/URLs.
-
-```bash
-python scripts/tests/run_50_tests_new.py
-python scripts/tests/run_t012_multiturn.py
-python scripts/tests/test_multiturn_stability.py
-```
-
-Most of these tests still call the legacy Dify workflow API. Keep them only if
-that workflow is part of the current environment; otherwise use the direct MCP
-tools for runtime testing.
-
-# 统一场数据与点传感器输出契约
-python scripts/workflow/_apply_result_contract.py workflow_graph.json > patched_graph.json
+单次脚本经 stdin 或临时目录运行，用完清理。生成的 `__pycache__`、pytest 缓存可删除；运行证据、原失败日志、生产库、卷、镜像和凭据备份不删。运行证据留本机 `auxiliary/reference/`，现有外部参考示例继续保留。

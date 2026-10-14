@@ -1,12 +1,19 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-14 当前状态：阶段五自动学习闭环已通过并提交；阶段六已完成发行冷启动第一道门。根 Compose 默认拉取 GHCR 镜像、不再强制外部 Dify 网络，新数据卷通过原 executor 与物理门幂等自举17项 Q4 固定技能，自动学习默认关闭。自然语言聊天仍依赖可选 Dify 覆盖，本地编排与服务端模型 profile 尚未完成。公开核对见 docs/validation/stage6/ARCHITECTURE_AUDIT.md；不得把技能库冷启动通过写成完整产品可用。
+
 > 本文档面向项目中的所有 AI Agent。Agent 在执行任何任务之前，必须先阅读本文档以获取项目上下文、当前状态和可执行任务。
 
 > 👥 **新成员/新 Agent 上手第一步**：先读 `docs/CHANGELOG.md`（按时间倒序的完整工作记录：动机/做法/验证/变更文件），再回来看本文件的任务队列，即可快速接上最新进度；想了解系统设计再看 `docs/ARCHITECTURE.md`。
 
 > 📏 **每次提交前必读**：`docs/COMMIT_CONVENTION.md`（提交信息格式 + 检查清单：密钥红线/可移植性/验证要求）。不遵守规范 = 提交被拒。
 
+> 2026-10-11 当前代码范围：schema17、9工具、两项精确本机基础技能；人工接纳/实际参考执行可用，学习默认关闭、Dify草稿未发布、整体合同未通过。最新使用以根 README 和验收矩阵为准。
+
 ---
+
+> ⚠️ **2026-10-07 起**：开发规划以 **`docs/DEVELOPMENT_PLAN.md` v3.0** 为准（终点＝"下载即用"的本地技能库系统），验收依据见 `docs/SKILL_LIBRARY_ACCEPTANCE.md`。
+> 本文档第 2 节「当前状态」与第 3 节「任务队列」是 **2026-08 的历史快照，已过期**（如"34 次测试 76%""8 节点 draft""5 个 MCP 工具"），仅作历史参考；v2.1 规划全文已归档于 `docs/archive/DEVELOPMENT_PLAN_v2.1.md`。
 
 ## 0. 项目记忆
 
@@ -235,7 +242,7 @@ Agent 应**按编号顺序**领取任务。每完成一个任务，在 `docs/CHA
 | 验收 | 使用标准点源模板代码执行，max_pressure > 0 |
 
 **执行步骤**：
-1. 在 executor 容器中直接执行 jwave 源码检查：`docker exec jwave-executor /opt/jwave/bin/python -c "from jwave.geometry import Sources; help(Sources.__init__)"`
+1. 在 executor 容器中直接执行 jwave 源码检查：`docker exec jwave-executor python -c "from jwave.geometry import Sources; help(Sources.__init__)"`
 2. 读 jwave 源码中 `Sources.on_grid()` 的实现，确认 source term 如何注入 time stepping
 3. 写一个最小复现脚本，对比 Sources 方式 vs p0 方式的差异
 4. 如果 Sources 本身有问题，输出 workaround 方案；如果是用法问题，更新知识库

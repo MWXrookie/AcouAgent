@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AcouAgent · 技能库</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#e6edf3;--muted:#9da7b3;--blue:#79c0ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,sans-serif}
+main{max-width:1160px;margin:auto;padding:24px}a{color:var(--blue)}h1{margin-bottom:4px}h2{font-size:21px}h3{font-size:17px}
+.muted{color:var(--muted)}.notice{border-left:3px solid #d29922;padding:12px 16px;background:var(--panel)}
+.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:20px;margin-top:20px}
+section,.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:12px}
+button,input,select,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px;min-height:44px;max-width:100%}
+button{cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px}label{display:block;margin:12px 0 6px}
+input,textarea{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:12px;max-height:360px;overflow:auto;font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.skill{display:block;width:100%;text-align:left;margin:8px 0}.badge{color:#e3b341;font-size:14px}
+#message{min-height:28px;color:#e3b341}.event{border-top:1px solid var(--line);padding:12px 0}
+@media(max-width:720px){main{padding:16px}.layout{grid-template-columns:1fr}}
+</style>
+<main>
+<a href="/portal">返回仿真门户</a><h1>技能库</h1>
+<p class="muted">查看已积累的仿真方案、适用范围和变更记录。</p>
+<p class="notice">本机基础技能须经受控执行与独立物理检查。候选记录仅供查看；每次复用仍重核适用范围、证据和撤回状态。技能代码仅经受限执行器运行。</p>
+<div class="workbench-controls" aria-label="技能筛选">
+<label for="skill-search">搜索当前列表<input id="skill-search" type="search" placeholder="名称、场景或状态"></label>
+<label for="scenario-filter">场景<select id="scenario-filter"><option value="">全部场景</option></select></label>
+<label for="status-filter">生命周期<select id="status-filter"><option value="">全部状态</option><option value="active">可用</option><option value="candidate">候选</option><option value="questioned">待复核</option><option value="retired">已退役</option></select></label>
+<label class="check-label"><input id="archived" type="checkbox" style="width:auto"> 包含归档</label><button id="refresh">刷新列表</button>
+</div>
+<p id="message" role="status" aria-live="polite"></p>
+<div class="layout">
+<section aria-labelledby="list-title"><h2 id="list-title">已记录技能</h2><p id="scope" class="muted"></p><div id="list-state" class="state-panel" data-kind="loading"><strong>正在读取技能</strong><span>仅加载当前最多 50 条记录。</span></div><div id="list" aria-live="polite"></div></section>
+<section aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">技能详情</h2><p id="empty" class="muted">选择左侧技能查看详情。</p>
+<div id="detail" hidden>
+<p id="summary"></p><p id="trust" class="notice"></p>
+<div class="evidence-grid" aria-label="验证证据摘要"><div><span>记录等级</span><strong id="evidence-grade">—</strong></div><div><span>来源运行</span><strong id="evidence-run">—</strong></div><div><span>调用规则</span><strong>每次服务端重核</strong></div></div>
+<h3>适用边界</h3><pre id="bounds"></pre>
+<label for="version">历史版本号（留空查看最新）</label><div class="row"><input id="version" type="number" min="1" max="2147483647" style="width:160px"><button id="load-version">查看版本</button></div>
+<p id="source" class="muted"></p><h3>规范化参数</h3><pre id="params"></pre>
+<p id="references"></p>
+<button id="copy-request">复制此技能测试请求</button><p class="muted">复制完整参数供 Dify 草稿预览使用；调用时仍重核版本、证据和撤回。</p>
+<details><summary>查看代码与哈希</summary><pre id="code"></pre><p id="hash" class="muted"></p></details>
+<p id="stats" class="muted"></p>
+<h3>管理与反馈</h3><p class="permission-state"><strong>当前为只读浏览。</strong> 管理操作需要本机管理员令牌；令牌仅用于本次请求，不保存在浏览器中。</p><p class="muted">反馈绑定下方所填运行；确认仅是声明，不证明真人身份或物理正确。</p>
+<label for="admin">管理员令牌</label><input id="admin" type="password" autocomplete="off">
+<label for="reason">操作原因（最多 256 字）</label><textarea id="reason" maxlength="256" rows="2"></textarea>
+<label for="run">反馈来源运行 ID</label><input id="run" maxlength="128">
+<div class="row"><button id="archive">归档</button><button id="negative">标记结果不对</button><button id="confirm">确认结果可用</button><button id="withdraw">撤回确认</button><button id="revalidate" hidden>请求重新验证</button></div>
+<p id="feedback-state" role="status" aria-live="polite">尚未读取声明状态。</p><button id="read-feedback">读取声明状态</button>
+<h3>变更记录</h3><div id="events"></div><button id="more" hidden>加载更多记录</button>
+</div></section></div>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id), pretty=x=>JSON.stringify(x,null,2);
+const scenarioLabels={plane_wave_2d:'二维平面波',point_source_2d:'二维点声源',point_source_3d:'三维点声源',initial_pressure_2d:'二维初始压力',interface_2d:'介质界面',attenuation_helmholtz_2d:'频域衰减',heterogeneous_2d:'二维异质介质'};
+const statusLabels={candidate:'候选，待验证',active:'可用，调用时重核证据',questioned:'待复核',retired:'已退役'};
+const scenarioLabel=x=>scenarioLabels[x]||x,statusLabel=x=>statusLabels[x]||x;
+let current=null, selectedId=null, cursor=0, auditUntil=null, generation=0;
+$('copy-request').addEventListener('click',async()=>{
+ if(!current || !current.selected_version)return;
+ const params={...current.selected_version.normalized_params,scenario_type:current.scenario_type};
+ const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(params);
+ try{await navigator.clipboard.writeText(request);message('测试请求已复制。请在 Dify 草稿预览中粘贴；未发布流程可能不会检索技能。')}catch(e){message('无法复制，请手动复制规范化参数，并添加 scenario_type。')}
+});
+function message(s,kind='status'){$('message').textContent=s;$('message').dataset.kind=kind;$('message').setAttribute('role',kind==='error'?'alert':'status')}
+function listState(kind,title,detail,hidden=false){const box=$('list-state');box.dataset.kind=kind;box.hidden=hidden;box.replaceChildren();const strong=document.createElement('strong');strong.textContent=title;const span=document.createElement('span');span.textContent=detail;box.append(strong,span)}
+async function api(path,options={}){
+ const response=await fetch(path,{cache:'no-store',...options});
+ if(!response.ok)throw Error(response.status===403?'管理员认证失败。':response.status===400?'请求无效或记录已变化，请刷新后重试。':response.status===404?'技能库尚未开启。':'服务暂不可用，请稍后重试。');
+ return response.json();
+}
+async function loadList(){
+ $('list').setAttribute('aria-busy','true');listState('loading','正在读取技能','仅加载当前最多 50 条记录。');
+ try{
+  message('正在读取技能列表…');
+  const data=await api('/skills/api?limit=50&archived='+$('archived').checked);
+  $('list').replaceChildren();
+  if(!data.available){message('技能库尚未准备好，或记录暂不可读取。','error');listState('error','技能列表不可用','请检查服务状态后刷新。');return false}
+  $('scope').textContent='本次显示最近 '+data.items.length+' 条记录（上限 50 条），不代表全库统计。';
+  const groups=new Map();
+  for(const item of data.items){
+   if(!groups.has(item.scenario_type))groups.set(item.scenario_type,[]);
+   groups.get(item.scenario_type).push(item);
+  }
+  for(const [scenario,items] of groups){
+   const title=document.createElement('h3');title.textContent=scenarioLabel(scenario)+' · '+items.length+' 条';
+   $('list').append(title);
+   for(const item of items){
+    const button=document.createElement('button');button.className='skill';button.dataset.scenario=item.scenario_type;button.dataset.status=item.status;button.dataset.archived=String(item.archived);button.dataset.skillId=item.skill_id;
+    const name=document.createElement('strong');name.textContent=typeof item.state_text==='string'?item.state_text.split('；')[0]:scenarioLabel(item.scenario_type);
+    const meta=document.createElement('small');meta.className='skill-meta';meta.textContent=item.quality_level+' · '+statusLabel(item.status)+(item.archived?' · 已归档':'');
+    button.append(name,meta);
+    button.addEventListener('click',()=>select(item.skill_id));$('list').append(button);
+   }
+  }
+  const scenarios=[...new Set(data.items.map(x=>x.scenario_type))].sort();const selected=$('scenario-filter').value;$('scenario-filter').replaceChildren(new Option('全部场景',''),...scenarios.map(x=>new Option(scenarioLabel(x),x)));$('scenario-filter').value=scenarios.includes(selected)?selected:'';
+  listState('empty','暂无匹配技能','调整筛选条件，或等待通过门控的技能记录。',data.items.length>0);
+  message(data.items.length?'列表已更新。':'尚无可显示技能。');window.dispatchEvent(new Event('acouagent-skill-filter'));return true;
+ }catch(e){message(e.message,'error');listState('error','技能列表读取失败','请稍后刷新；仿真流程仍可独立运行。');return false}
+ finally{$('list').setAttribute('aria-busy','false')}
+}
+async function select(id,version=null){
+ const epoch=++generation; selectedId=id;current=null;$('admin').value='';$('feedback-state').textContent='尚未读取声明状态。';$('detail').hidden=true;message('正在读取详情…');
+ try{
+  const data=await api('/skills/api/'+encodeURIComponent(id)+(version===null?'':'?version='+encodeURIComponent(version)));
+  if(epoch!==generation)return;
+  if(!data.available||!data.item){message('该技能或版本不可读取，请刷新列表。');return}
+  current=data.item;const v=current.selected_version;
+  $('empty').hidden=true;$('detail').hidden=false;$('summary').textContent=(typeof current.state_text==='string'?current.state_text+' · ':'')+scenarioLabel(current.scenario_type)+' · '+statusLabel(current.status)+' · 记录等级 '+current.quality_level+(current.archived?' · 已归档':'');
+  $('trust').textContent=current.trust_explanation;$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
+  $('source').textContent='版本 '+v.version+' · 来源运行 '+v.source_run_id+' · 校验器 '+v.validator_version;$('evidence-grade').textContent=current.quality_level;$('evidence-run').textContent=v.source_run_id;
+  $('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');
+  $('code').textContent=v.code_template;$('hash').textContent='SHA256 '+v.code_hash;$('stats').textContent=current.statistics_explanation;
+  $('run').value=v.source_run_id;$('archive').textContent=current.archived?'恢复':'归档';
+  $('revalidate').hidden=current.status!=='questioned'||current.archived;
+  $('revalidate').disabled=!Number.isSafeInteger(current.audit_revision)||current.audit_revision<1;
+  cursor=0;auditUntil=null;$('events').replaceChildren();$('more').hidden=true;
+  await events(epoch);await feedbackState(epoch);if(epoch!==generation)return;message('详情已读取。');$('detail-title').focus();
+ }catch(e){if(epoch===generation)message(e.message,'error')}
+}
+async function events(epoch=generation){
+ const id=selectedId;const data=await api('/skills/api/'+encodeURIComponent(id)+'/events?limit=20&after='+cursor+(auditUntil===null?'':'&until='+auditUntil));
+ if(epoch!==generation)return;
+ if(!data.available)throw Error('变更记录暂不可读取。');
+ for(const event of data.items){
+  const element=document.createElement('div');element.className='event';
+  element.textContent=event.content_hidden?'记录 #'+event.id+'：内容因格式、大小或敏感信息限制被隐藏。':
+    '#'+event.id+' · '+event.event_type+' · '+event.created_at+' '+pretty(event.detail);
+  $('events').append(element);
+ }
+ cursor=data.next_after;auditUntil=data.snapshot_until;$('more').hidden=!data.has_more;
+}
+async function feedbackState(epoch=generation){
+ const id=selectedId,run=$('run').value.trim();
+ if(!id||!run)return;
+ const data=await api('/skills/api/'+encodeURIComponent(id)+'/feedback?run_id='+encodeURIComponent(run));
+ if(epoch!==generation||id!==selectedId||run!==$('run').value.trim())return;
+ $('feedback-state').textContent=!data.available?'声明状态暂不可读取。':data.confirmed?
+ '当前运行已记录确认声明；身份未认证，不授予物理信任。':'当前运行没有有效确认声明。';
+}
+async function mutate(action){
+ if(!current)return;
+ const epoch=generation,id=selectedId, token=$('admin').value, reason=$('reason').value.trim();
+ $('admin').value='';
+ if(!token||!reason){message('请填写管理员令牌和操作原因。');return}
+ const feedbackAction=action==='confirm_feedback'||action==='withdraw_feedback';
+ const run=$('run').value.trim();
+ const body=feedbackAction?{action,run_id:run,request_id:crypto.randomUUID(),reason}:
+ action==='negative_feedback'?{action,run_id:run,reason}:
+ action==='request_revalidation'?{action,expected_updated_at:current.updated_at,expected_event_id:current.audit_revision,reason}:
+ {action,expected_updated_at:current.updated_at,reason};
+ for(const key of ['archive','negative','confirm','withdraw','revalidate'])$(key).disabled=true;
+ try{
+  await api('/skills/api/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':token},body:JSON.stringify(body)});
+  await loadList();if(epoch===generation){await select(id);if(feedbackAction){$('run').value=run;await feedbackState();}message(feedbackAction?'确认或撤回声明已记录，不改变物理信任。':action==='negative_feedback'?'负反馈已记录，并绑定所填运行。':action==='request_revalidation'?'已退回 Q2 候选，必须取得新的独立运行与物理证据才能重新核验。':action==='restore'?'技能已恢复，仍需按当前质量状态核验。':'技能已归档，历史记录仍保留。')}
+ }catch(e){if(epoch===generation)message(e.message,e.message.includes('认证')?'error':'error')}
+ finally{for(const key of ['archive','negative','confirm','withdraw','revalidate'])$(key).disabled=false}
+}
+$('refresh').onclick=loadList;$('archived').onchange=loadList;
+$('load-version').onclick=()=>{if(selectedId)select(selectedId,$('version').value||null)};
+$('more').onclick=async()=>{try{$('more').disabled=true;await events()}catch(e){message(e.message)}finally{$('more').disabled=false}};
+$('archive').onclick=()=>mutate(current&&current.archived?'restore':'archive');
+$('negative').onclick=()=>mutate('negative_feedback');
+$('confirm').onclick=()=>mutate('confirm_feedback');
+$('withdraw').onclick=()=>mutate('withdraw_feedback');
+$('revalidate').onclick=()=>mutate('request_revalidation');
+$('run').oninput=()=>{$('feedback-state').textContent='运行已变化，请重新读取声明状态。';};
+$('read-feedback').onclick=async()=>{try{await feedbackState()}catch(e){message(e.message,'error')}};
+
+(async()=>{
+ const ok=await loadList();if(!ok)return;
+ const query=new URLSearchParams(location.search),id=query.get('skill_id'),raw=query.get('version');
+ if(!id||id.length>128)return;
+ if(raw!==null){
+  const version=/^\d+$/.test(raw)?Number(raw):NaN;
+  if(!Number.isSafeInteger(version)||version<1){message('版本参数无效，未加载最新版本。','error');return}
+  await select(id,version);return;
+ }
+ await select(id);
+})();
+</script>
+</html>

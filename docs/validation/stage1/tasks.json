@@ -1,0 +1,2406 @@
+{
+  "version": 1,
+  "stage": 1,
+  "kind": "frozen_acceptance_tasks",
+  "tasks": [
+    {
+      "task_id": "exact-01",
+      "kind": "exact",
+      "scope": "managed-local-periodic-air-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5ad16a3b4340a964ff39acbd9d6ea2275687bdd3365b0c7028a8dce8a1f00c07",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "f6ad4216b55f8ef985a7529b573ed8df60a34be7d306594268a98b34c23517c6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "exact-02",
+      "kind": "exact",
+      "scope": "managed-local-periodic-air-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5aee9816115981fad27ef93d4d1bedfe3e05d3615340f4050e8cffaa29d48b49",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "0a922df1099ec77f9bad3598a0e72c94ea067fb8d8cf7ccf776da955fcf6c553",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "exact-03",
+      "kind": "exact",
+      "scope": "managed-local-periodic-air-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "ca9ebb154558f3495dc739689c1bd77ee04d259e7fd4799585bec07ad212c13e",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "5bd6b556745bb6fd44d0ffdfcdba5c183d7acbdb2f7018d62db4eb71fbdcf128",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "exact-04",
+      "kind": "exact",
+      "scope": "managed-local-periodic-air-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "1ade4c5befd6a5292cf0c50b0ca9b081ca2cdf04d72428377c9949e468035f29",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "94dc79d46bddbb9a5d1e87beb89b8d26052b0f8c4b589a37df2f34f09a6401bc",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "exact-05",
+      "kind": "exact",
+      "scope": "managed-local-periodic-air-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5fdeddb29d1fd6f427edfcc46148fd4f1995f8074691786d8ac511e7192439df",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "f89a630216af4a89c84042f0c198a9193184b17f1cb407b2abc2399d2df378ef",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "exact-06",
+      "kind": "exact",
+      "scope": "managed-local-periodic-soft_tissue-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "e74e366f487416425ee489fa76e05d0172530be351e2c8e19f5f7d07c1fbb2f0",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "8f6e54b2efabcc5fe156bf4dcf9e8c1befd0e7d5bd2c3fca2a38c441f0bca824",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "exact-07",
+      "kind": "exact",
+      "scope": "managed-local-periodic-soft_tissue-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "a370bd5464ada7160c5eea20885d69ca0159b01e4280e67fc2cce1662561f1e3",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "37ad1b8e38a26330f6554a2e7fd9b2d69721d153992f9ac95a9e8d845efcedc1",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "exact-08",
+      "kind": "exact",
+      "scope": "managed-local-periodic-soft_tissue-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "96a56858dad02c3f53d974e8652caf765bb3c6745c550f379912d9f036be28e3",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "27e6dc1800ffd1f5e67994c4b629781671e217b2d7f223be8aa942d0900242b9",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "exact-09",
+      "kind": "exact",
+      "scope": "managed-local-periodic-soft_tissue-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "2eb3ec3066a5197330264ed7b07a72ad06ecc27e61e81d6ed569d3e1b92c966f",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "76d117863eb14881df55325157359f31884f15cbc26f2e1912c144c88755560a",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "exact-10",
+      "kind": "exact",
+      "scope": "managed-local-periodic-soft_tissue-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "d0764f368e16e51b7886bc5dcf541aaf12ee92cd23a1d12d4a56db2f55075acb",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "5f9fcd2a6ad9d332a0cf9011d84f1a48e9091c54c1fd1b3ddaa07992e52c31a6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "exact-11",
+      "kind": "exact",
+      "scope": "managed-local-periodic-water-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "52d5de4d1270ec2e78c37cc4a31b26a17db5869529e79fd579864c7bf816d856",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "1127686cc15179eb22637dc419d831abb83984fb0f607be1493d43f9e6f8d6e0",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "exact-12",
+      "kind": "exact",
+      "scope": "managed-local-periodic-water-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "109f488ff62727bd1570cdac471a6415f7601320fd3649b1372866f71e09caed",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "5e25f010233d59368dacfdad19860a31a3531d7473851fc594a184c46b399d48",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "exact-13",
+      "kind": "exact",
+      "scope": "managed-local-periodic-water-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "30ccadccfd572be7e18c2588e298e49571bc752538d84de532691987895fac81",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "29a993deeb3eee35a6ec20f9a6d7ecffad374b3209f540368d5235e14b004ca5",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "exact-14",
+      "kind": "exact",
+      "scope": "managed-local-periodic-water-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "8eb1fc8a9c7321ef99a87c4c64e89f7812954d6ae2540299a394fbddb941bcb0",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "8e068c63fbf5e5a69c2834ea961a1fdfa2b994537ab6361b0f9d51b51923dac6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "exact-15",
+      "kind": "exact",
+      "scope": "managed-local-periodic-water-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "3e3c7546aa025c439b45d9df70fde3ff0d4f0084f92179f371989c51e225252f",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "d8cc1f074744599c428571909414dfa3ca7a6ae436cf42187f65c7b22b9402f1",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下完整配置执行二维声学仿真，不改变参数：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "rephrase-01",
+      "kind": "rephrase",
+      "scope": "managed-local-periodic-water-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "52d5de4d1270ec2e78c37cc4a31b26a17db5869529e79fd579864c7bf816d856",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "1127686cc15179eb22637dc419d831abb83984fb0f607be1493d43f9e6f8d6e0",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请模拟这组二维声场的演化并检查结果，保持所列配置：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "rephrase-02",
+      "kind": "rephrase",
+      "scope": "managed-local-periodic-air-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5aee9816115981fad27ef93d4d1bedfe3e05d3615340f4050e8cffaa29d48b49",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "0a922df1099ec77f9bad3598a0e72c94ea067fb8d8cf7ccf776da955fcf6c553",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请模拟这组二维声场的演化并检查结果，保持所列配置：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "rephrase-03",
+      "kind": "rephrase",
+      "scope": "managed-local-periodic-soft_tissue-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "96a56858dad02c3f53d974e8652caf765bb3c6745c550f379912d9f036be28e3",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "27e6dc1800ffd1f5e67994c4b629781671e217b2d7f223be8aa942d0900242b9",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请模拟这组二维声场的演化并检查结果，保持所列配置：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "rephrase-04",
+      "kind": "rephrase",
+      "scope": "managed-local-periodic-water-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "8eb1fc8a9c7321ef99a87c4c64e89f7812954d6ae2540299a394fbddb941bcb0",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "8e068c63fbf5e5a69c2834ea961a1fdfa2b994537ab6361b0f9d51b51923dac6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请模拟这组二维声场的演化并检查结果，保持所列配置：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "rephrase-05",
+      "kind": "rephrase",
+      "scope": "managed-local-periodic-soft_tissue-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "periodic",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "d0764f368e16e51b7886bc5dcf541aaf12ee92cd23a1d12d4a56db2f55075acb",
+      "expected_reference": true,
+      "expected_behavior": "eligible_fixed_reference",
+      "recipe_sha256": "5f9fcd2a6ad9d332a0cf9011d84f1a48e9091c54c1fd1b3ddaa07992e52c31a6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": true,
+        "required_metrics": [
+          "probe-0-maximum",
+          "probe-0-l2",
+          "probe-1-maximum",
+          "probe-1-l2",
+          "probe-2-maximum",
+          "probe-2-l2",
+          "field-0-maximum",
+          "field-0-l2",
+          "field-1-maximum",
+          "field-1-l2",
+          "field-2-maximum",
+          "field-2-l2"
+        ],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请模拟这组二维声场的演化并检查结果，保持所列配置：{\"boundary_condition\": \"periodic\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "outside-01",
+      "kind": "outside",
+      "scope": "managed-local-periodic-water-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "open",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "f12ce6a17ecb677d9c1e5a95bd078edba1fb067e277ae0c98b65ac8c145e2c7f",
+      "expected_reference": false,
+      "expected_behavior": "no_fixed_reference",
+      "recipe_sha256": "1127686cc15179eb22637dc419d831abb83984fb0f607be1493d43f9e6f8d6e0",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下开放边界配置仿真，不要改成周期边界：{\"boundary_condition\": \"open\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "outside-02",
+      "kind": "outside",
+      "scope": "managed-local-periodic-air-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "boundary_condition": "open",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "2e860d6cb49ebb02bce2139e786981bce392e80e4878a38018bb96c45cca7f7a",
+      "expected_reference": false,
+      "expected_behavior": "no_fixed_reference",
+      "recipe_sha256": "0a922df1099ec77f9bad3598a0e72c94ea067fb8d8cf7ccf776da955fcf6c553",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下开放边界配置仿真，不要改成周期边界：{\"boundary_condition\": \"open\", \"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "outside-03",
+      "kind": "outside",
+      "scope": "managed-local-periodic-soft_tissue-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "open",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "3b733bbcb2087eab3a0f328a2bcbfda90b993ffd362f9b34fdd7623692778fb6",
+      "expected_reference": false,
+      "expected_behavior": "no_fixed_reference",
+      "recipe_sha256": "27e6dc1800ffd1f5e67994c4b629781671e217b2d7f223be8aa942d0900242b9",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下开放边界配置仿真，不要改成周期边界：{\"boundary_condition\": \"open\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "outside-04",
+      "kind": "outside",
+      "scope": "managed-local-periodic-water-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "boundary_condition": "open",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "54f5ef65a9d20f4c8ff62cc0d76884e0535f25a4f6b2154765783c4bf36d596e",
+      "expected_reference": false,
+      "expected_behavior": "no_fixed_reference",
+      "recipe_sha256": "8e068c63fbf5e5a69c2834ea961a1fdfa2b994537ab6361b0f9d51b51923dac6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下开放边界配置仿真，不要改成周期边界：{\"boundary_condition\": \"open\", \"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "outside-05",
+      "kind": "outside",
+      "scope": "managed-local-periodic-soft_tissue-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "boundary_condition": "open",
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "a278ec49f123473ee02ffda1e223922b152438f171ca93555cc12fb8e1bf146e",
+      "expected_reference": false,
+      "expected_behavior": "no_fixed_reference",
+      "recipe_sha256": "5f9fcd2a6ad9d332a0cf9011d84f1a48e9091c54c1fd1b3ddaa07992e52c31a6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请按以下开放边界配置仿真，不要改成周期边界：{\"boundary_condition\": \"open\", \"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "missing-01",
+      "kind": "missing",
+      "scope": "managed-local-periodic-water-axial.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-axial.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "42c6c4bab88b40b8b1cf1d168986a54a428880e57212ca3a77c611ac931c473f",
+      "expected_reference": false,
+      "expected_behavior": "clarify_missing_boundary",
+      "recipe_sha256": "1127686cc15179eb22637dc419d831abb83984fb0f607be1493d43f9e6f8d6e0",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请处理以下仿真请求；未给出的边界条件请先向我确认，不要猜测：{\"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-axial.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "missing-02",
+      "kind": "missing",
+      "scope": "managed-local-periodic-air-beating.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 343.0,
+        "density_kg_m3": 1.225,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 9.329446064139942e-05,
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-air-beating.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            392.6990816987241,
+            196.34954084936206
+          ],
+          [
+            589.0486225480862,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5656bf9f5833c86c154d581ae90804e34b35676eb75172d724c201cb6f7aa791",
+      "expected_reference": false,
+      "expected_behavior": "clarify_missing_boundary",
+      "recipe_sha256": "0a922df1099ec77f9bad3598a0e72c94ea067fb8d8cf7ccf776da955fcf6c553",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请处理以下仿真请求；未给出的边界条件请先向我确认，不要猜测：{\"cfl\": 0.05, \"density_kg_m3\": 1.225, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[392.6990816987241, 196.34954084936206], [589.0486225480862, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 343.0, \"source_geometry\": \"managed-local-periodic-air-beating.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 9.329446064139942e-05}"
+    },
+    {
+      "task_id": "missing-03",
+      "kind": "missing",
+      "scope": "managed-local-periodic-soft_tissue-crossed.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-crossed.v1",
+        "modal_amplitudes_pa": [
+          0.5,
+          0.5
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            0.0,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "8020cd49ab128767209a74f1f4184556b99c2f81e6ffddffd30f59c655c8a8ec",
+      "expected_reference": false,
+      "expected_behavior": "clarify_missing_boundary",
+      "recipe_sha256": "27e6dc1800ffd1f5e67994c4b629781671e217b2d7f223be8aa942d0900242b9",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请处理以下仿真请求；未给出的边界条件请先向我确认，不要猜测：{\"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.5, 0.5], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [0.0, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-crossed.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    },
+    {
+      "task_id": "missing-04",
+      "kind": "missing",
+      "scope": "managed-local-periodic-water-harmonic.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1500.0,
+        "density_kg_m3": 1000.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.1333333333333335e-05,
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-water-harmonic.v1",
+        "modal_amplitudes_pa": [
+          0.7,
+          0.3
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            0.0
+          ],
+          [
+            589.0486225480862,
+            0.0
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "2c5523473a1a9c298b95935fde9f95df8f9107213569700c1335ca790e9a9274",
+      "expected_reference": false,
+      "expected_behavior": "clarify_missing_boundary",
+      "recipe_sha256": "8e068c63fbf5e5a69c2834ea961a1fdfa2b994537ab6361b0f9d51b51923dac6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请处理以下仿真请求；未给出的边界条件请先向我确认，不要猜测：{\"cfl\": 0.05, \"density_kg_m3\": 1000.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [0.7, 0.3], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 0.0], [589.0486225480862, 0.0]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1500.0, \"source_geometry\": \"managed-local-periodic-water-harmonic.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.1333333333333335e-05}"
+    },
+    {
+      "task_id": "missing-05",
+      "kind": "missing",
+      "scope": "managed-local-periodic-soft_tissue-oblique.v1",
+      "scenario_type": "initial_pressure_2d",
+      "parameters": {
+        "grid_shape": [
+          64,
+          64
+        ],
+        "dimensions": 2,
+        "dx_m": [
+          0.0005,
+          0.0005
+        ],
+        "sound_speed_m_s": 1540.0,
+        "density_kg_m3": 1050.0,
+        "pml_size": 0,
+        "cfl": 0.05,
+        "t_end_s": 2.077922077922078e-05,
+        "initial_pressure_pa": 1.0,
+        "initial_velocity": "zero",
+        "smooth_initial": false,
+        "source_type": "modal_initial_pressure",
+        "source_geometry": "managed-local-periodic-soft_tissue-oblique.v1",
+        "modal_amplitudes_pa": [
+          1.0
+        ],
+        "modal_wavenumber_rad_per_m": [
+          [
+            196.34954084936206,
+            196.34954084936206
+          ]
+        ],
+        "sensor_indices": [
+          [
+            7,
+            11
+          ],
+          [
+            19,
+            27
+          ],
+          [
+            31,
+            43
+          ]
+        ],
+        "solver_mode": "time_domain",
+        "medium_type": "homogeneous_lossless"
+      },
+      "parameters_sha256": "5a0afee0495bcfaafe1725bf4d5a29650121ec77e4d00521dfeeff8e963b8559",
+      "expected_reference": false,
+      "expected_behavior": "clarify_missing_boundary",
+      "recipe_sha256": "5f9fcd2a6ad9d332a0cf9011d84f1a48e9091c54c1fd1b3ddaa07992e52c31a6",
+      "validator_sha256": "9be4f09e0de1be0e0573ecf71996492130880e3733c1da99c770fa681e314034",
+      "physical_contract": {
+        "applicable": false,
+        "required_metrics": [],
+        "validator": "periodic-eigenmode.v1",
+        "tolerance_exclusive": 0.01,
+        "complete_probe_samples": true,
+        "complete_three_64x64_fields": true,
+        "no_deleted_failed_samples": true
+      },
+      "prompt": "请处理以下仿真请求；未给出的边界条件请先向我确认，不要猜测：{\"cfl\": 0.05, \"density_kg_m3\": 1050.0, \"dimensions\": 2, \"dx_m\": [0.0005, 0.0005], \"grid_shape\": [64, 64], \"initial_pressure_pa\": 1.0, \"initial_velocity\": \"zero\", \"medium_type\": \"homogeneous_lossless\", \"modal_amplitudes_pa\": [1.0], \"modal_wavenumber_rad_per_m\": [[196.34954084936206, 196.34954084936206]], \"pml_size\": 0, \"sensor_indices\": [[7, 11], [19, 27], [31, 43]], \"smooth_initial\": false, \"solver_mode\": \"time_domain\", \"sound_speed_m_s\": 1540.0, \"source_geometry\": \"managed-local-periodic-soft_tissue-oblique.v1\", \"source_type\": \"modal_initial_pressure\", \"t_end_s\": 2.077922077922078e-05}"
+    }
+  ],
+  "task_count": 30,
+  "independent_positive_configurations": 15,
+  "positive_tasks": 20,
+  "negative_tasks": 10,
+  "future_ab_repetitions": 3,
+  "future_ab_arms": [
+    "off",
+    "on"
+  ],
+  "future_ab_runs": 180,
+  "executed_ab_runs": 0,
+  "cost_authorization": "not exercised in stage one",
+  "formal_product_acceptance": false,
+  "sha256": "aba45d8b99ab4aa018de0a50de8855622b6f266a0d26c6cf4ebb2a239f7265de"
+}

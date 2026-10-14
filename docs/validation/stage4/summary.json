@@ -1,0 +1,117 @@
+{
+  "stage": 4,
+  "name": "paired_skill_reuse_benefit",
+  "accepted": true,
+  "date": "2026-10-13",
+  "design": {
+    "tasks": 30,
+    "repetitions": 3,
+    "arms": [
+      "off",
+      "on"
+    ],
+    "runs": 180,
+    "pairs": 90
+  },
+  "outcomes": {
+    "completed": 174,
+    "failed": 5,
+    "cancelled": 1,
+    "timeout": 0
+  },
+  "positive": {
+    "total_per_arm": 60,
+    "off_physics_pass": 0,
+    "on_physics_pass": 60,
+    "on_physics_pass_rate": 1.0,
+    "max_on_physics_error": 2.9864984817384865e-06,
+    "exact_adoption_rate": 1.0
+  },
+  "negative": {
+    "total_per_arm": 30,
+    "reference_delivered": 0
+  },
+  "positive_efficiency": {
+    "off_mean_duration_ms": 27501.279066666666,
+    "on_mean_duration_ms": 8947.2581,
+    "duration_reduction": 0.674660292042756,
+    "off_mean_model_calls": 3.8333333333333335,
+    "on_mean_model_calls": 1.0,
+    "model_call_reduction": 0.7391304347826088,
+    "off_mean_retries": 0.08333333333333333,
+    "on_mean_retries": 0.0,
+    "retry_reduction": 1.0
+  },
+  "integrity": {
+    "unique_run_ids": 180,
+    "unique_workflow_run_ids": 180,
+    "trace_files": 180,
+    "trace_hash_matches": 180,
+    "missing_runs": 0,
+    "control_mismatches": 0,
+    "targets_met": true
+  },
+  "workflow": {
+    "id": "91174137-b669-4065-b565-65a97f47f073",
+    "nodes": 63,
+    "edges": 70,
+    "graph_sha256": "8a530a72281300dd223f6b66cf4b5385271c3aa419167c674b282dc06fb7f64c"
+  },
+  "skills": {
+    "count": 17,
+    "schema": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "inventory_sha256": "00dce182eb8bd74944ca0f160af705ea037483c73b12570a84f53ba604d6a0ba",
+    "learning_enabled": false
+  },
+  "evidence": {
+    "plan_sha256": "e304b2218fd539074aa59a46dff594a6f657a9bc6b7b340b9072b55c589bba72",
+    "controls_sha256": "0044e9d2f08046026222583abb40b14968d52a3dcf2a44cc7b8b95b787ef8e8a",
+    "records_sha256": "bb13d7855b5c31d3ebb6907a0b270e331883def2fca62fa48b0732eebb942c46",
+    "records_jsonl_sha256": "6e34b4fd96dd41c7f31ee7cc7a7d6040fa1142099174d3dd31023121d2c42a9c",
+    "report_sha256": "820945c0822dc7ba4540b1abdc37af3c3007d1e2232b5f5520a199d216d91596",
+    "trace_manifest_sha256": "e04366e5a9a5e0ccd8989288293ecdc872fa6cde8ac2ff6ff08f586ce2b857c3"
+  },
+  "claims": {
+    "provider_backend_revision_authenticated": false,
+    "seed_explicitly_frozen": false,
+    "generalization_verified": false,
+    "automatic_learning_accepted": false
+  },
+  "archify": {
+    "showcase_checks": 9,
+    "errors": 0,
+    "warnings": 0,
+    "json_sha256": "2947ff4a6a3a23be4ff84b850e7e8b9cde551c1c23c1ff1ce7e37edc1a939e5a",
+    "html_sha256": "cfd5a8fbc20bb5f5c3a9fbd4a370d829719b6a90cc91f19a03c8d7a2f9869e80",
+    "visual_check": "pass",
+    "visual_review": "light_1440_and_dark_2048_inspected"
+  },
+  "tests": {
+    "luna_files": 39,
+    "luna_passed": 726,
+    "luna_failed": 0,
+    "luna_errors": 0,
+    "luna_warnings": 16,
+    "luna_seconds": 73.77,
+    "pytest_exit_code": 0,
+    "container_leftovers": 0
+  }
+}

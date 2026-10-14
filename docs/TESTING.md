@@ -12,7 +12,6 @@
 | 多轮对话 | `/chat` | 连续对话、增量修改参数 |
 | 执行看板 | `/dashboard` | 执行记录、代码展开、**结果对比**、图像预览 |
 | 纠错缓存 | `/cache` | 经验条目、命中率 |
-| Demo | `/demo` | 6 个预设场景 |
 
 ---
 
@@ -24,7 +23,7 @@ docker ps --filter name=dify-mcp --filter name=jwave-executor
 # 网关健康
 curl http://192.168.30.200:8001/health      # 预期 "ok"
 # 各页面
-for p in / /portal /dashboard /chat /report /cache /demo; do
+for p in / /portal /dashboard /chat /cache; do
   curl -s -o /dev/null -w "$p -> %{http_code}\n" "http://192.168.30.200:8001$p"
 done   # 预期全部 200
 ```
@@ -69,9 +68,9 @@ done   # 预期全部 200
 ```bash
 cd <项目目录>
 # 多轮对话稳定性（14 轮，约 5-10 元，15-30 分钟）
-python3 test_multiturn_stability.py
+python3 scripts/tests/test_multiturn_stability.py
 # 50 次全量回归（约 20-50 元，30-60 分钟）⚠️ 跑前确认预算
-DIFY_API_KEY=<app-key> python3 run_50_tests_new.py
+DIFY_API_KEY=<app-key> python3 scripts/tests/run_50_tests_new.py
 # P0 初始压力 4 场景（约 2-4 元）
 ```
 > 脚本网关地址用环境变量 `GW_BASE_URL` 覆盖（默认 localhost:8001，远程设 `http://192.168.30.200:8001`）。
@@ -81,11 +80,10 @@ DIFY_API_KEY=<app-key> python3 run_50_tests_new.py
 ## D. 物理正确性验证（免费，executor 内，约 1 分钟）
 
 ```bash
-docker exec -i jwave-executor sh -c "cat > /tmp/validation_baseline.py" < executor/validation_baseline.py
 docker exec -e JAX_PLATFORMS=cpu -e XLA_PYTHON_CLIENT_PREALLOCATE=false -e HOME=/tmp \
-    jwave-executor /opt/jwave/bin/python /tmp/validation_baseline.py
+    -i jwave-executor python - < executor/validation_baseline.py
 ```
-**验收**：3/3 PASS（平面波守恒 / 圆柱波 1√r 衰减 / 平界面反射透射，误差 <1%）
+**验收**：5/5 PASS（含 3D 球面波和频域衰减，误差 <1%）
 
 ---
 
@@ -106,7 +104,7 @@ curl -X POST http://192.168.30.200:8001/mcp -H "Authorization: Bearer $TOKEN" \
 
 | 门禁项 | 验证方式 | 达标线 |
 |---|---|---|
-| VAL-1 验证基准集 | D 节脚本 | 3/3 PASS，误差 <1% |
+| VAL-1 验证基准集 | D 节脚本 | 5/5 PASS，误差 <1% |
 | T-007 结果分析（热力图+verdict） | B-1 报告含热力图 | 每次仿真出图 |
 | T-008 审查+解释 | B-1 含物理解读 | ≥3 句解读 |
 | T-009 迭代循环 | B-3 异常自动重试 | 2 次尝试后终止 |

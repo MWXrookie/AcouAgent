@@ -88,7 +88,7 @@ def err_pct(measured: float, theory: float) -> float:
 # ---------------------------------------------------------------------------
 def case1_plane_wave_conservation() -> dict:
     dx = 0.25e-3  # 0.25 mm
-    Nx, Ny = 384, 256  # 96mm x 64mm; Ny 高以抑制 PML 横向泄漏
+    Nx, Ny = 384, 384  # 96mm x 96mm; complete +/-3sigma probe windows avoid lateral contamination
     domain = jw.Domain((Nx, Ny), (dx, dx))
     medium = jw.Medium(domain, sound_speed=1500.0, density=1000.0, pml_size=20)
     time_axis = jw.TimeAxis.from_medium(medium, cfl=CFL, t_end=34e-6)
@@ -114,6 +114,21 @@ def case1_plane_wave_conservation() -> dict:
     theory_peak = A / 2.0
     return {
         "case": "1 平面波振幅守恒",
+        "raw_evidence": {
+            "profile": "val1-plane-wave-v2",
+            "configuration": {
+                "domain_N": [Nx, Ny], "domain_dx_m": [dx, dx],
+                "sound_speed_m_s": 1500.0, "density_kg_m3": 1000.0,
+                "pml_size": 20, "cfl": CFL, "t_end_s": 34e-6,
+                "initial_pressure_pa": A, "initial_velocity": "zero",
+                "source_x_index": x0, "sigma_grid": sigma,
+                "sensor_indices": [[x1, yc], [x2, yc]], "smooth_initial": False,
+            },
+            "units": {"time": "s", "pressure": "Pa"},
+            "time": [float(v) for v in t],
+            "pressure_x1": [float(v) for v in p[:, x1, yc, 0]],
+            "pressure_x2": [float(v) for v in p[:, x2, yc, 0]],
+        },
         "measured": {"peak_x1": a1, "peak_x2": a2, "ratio_x2_x1": a2 / a1},
         "theory": {"peak": theory_peak, "ratio": 1.0},
         "err_pct": {

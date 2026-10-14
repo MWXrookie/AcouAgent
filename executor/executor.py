@@ -2,6 +2,9 @@
 
 import base64
 import hmac
+import hashlib
+import importlib.metadata
+import platform
 import json
 import os
 import resource
@@ -17,6 +20,28 @@ from pathlib import Path
 TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN", "")
 MAX_CODE_BYTES = 20000
 MAX_OUTPUT_BYTES = 1024 * 1024
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _runtime_identity() -> dict:
+    """Collected by the server BEFORE untrusted code runs; not from stdout.
+
+    Version metadata is not immutable-image or package-content attestation.
+    """
+    versions = {}
+    for name in ("jwave", "jax", "jaxlib", "jaxdf", "numpy"):
+        try:
+            versions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            versions[name] = None
+    return {"executor_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "machine": platform.machine(), "library_versions": versions}
+
 
 
 def _limits(timeout_seconds: int) -> None:
@@ -36,6 +61,11 @@ def execute(payload: dict) -> dict:
     if not 1 <= timeout_seconds <= 30:
         raise ValueError("timeout_seconds must be between 1 and 30")
 
+    nonce = payload.get("request_nonce")
+    if nonce is not None and (not isinstance(nonce, str) or len(nonce) != 32
+                              or any(c not in "0123456789abcdef" for c in nonce)):
+        raise ValueError("request_nonce must be 32 lowercase hex characters")
+    runtime = _runtime_identity()
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="mcp-run-", dir="/tmp") as workdir:
         work = Path(workdir)
@@ -86,7 +116,14 @@ def execute(payload: dict) -> dict:
             except Exception:
                 pass
 
+    receipt = {"version": "executor-receipt.v1", "request_nonce": nonce,
+               "code_sha256": _sha256(code), "stdout_sha256": _sha256(stdout_text),
+               "stderr_sha256": _sha256(stderr_text), "exit_code": process.returncode,
+               "timed_out": timed_out, "timeout_seconds": timeout_seconds,
+               "runtime": runtime,
+               "runtime_sha256": _sha256(json.dumps(runtime, sort_keys=True, separators=(",", ":")))}
     return {
+        "executor_receipt": receipt,
         "exit_code": process.returncode,
         "timed_out": timed_out,
         "duration_ms": round((time.monotonic() - started) * 1000, 1),

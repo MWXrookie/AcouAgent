@@ -44,3 +44,30 @@ def test_sensor_time_series_drives_waveform() -> None:
 def test_legacy_sensor_markers_remain_supported() -> None:
     stdout = _stdout_with_field_and_sensor().replace("__ACOU_SENSOR", "__SENSOR_DATA")
     assert _extract_sensor(stdout)["pressure"] == [0.0, 0.25, -0.5]
+
+
+def test_field_analysis_quality_levels_follow_parsed_evidence() -> None:
+    params = json.dumps({
+        "sound_speed": 1500, "source_frequency": 500000,
+        "domain_N": [128, 128], "domain_dx": 0.00025,
+        "pml_size": 10, "source_index": [64, 64], "sensor_index": [84, 64],
+    })
+
+    def analyze(data: list[list[float]], shape: list[int]) -> dict:
+        payload = {"shape": shape, "downsample": 64, "kind": "field", "data": data}
+        stdout = f"__ACOU_FIELD_START__\n{json.dumps(payload)}\n__ACOU_FIELD_END__"
+        return _analyze_impl(stdout, exit_code=0, params_json=params)
+
+    normal = analyze([[0.0, 0.2], [0.3, 0.5]], [128, 128])
+    assert normal["verdict"] == "normal"
+    assert normal["quality_level"] == "Q2"
+
+    mismatched = analyze([[0.0, 0.2], [0.3, 0.5]], [64, 64])
+    assert mismatched["verdict"] == "normal"
+    assert mismatched["quality_level"] == "Q1"
+    assert not next(check for check in mismatched["physics_checks"]
+                    if check["check_id"] == "parameter_constraints")["passed"]
+
+    zero = analyze([[0.0, 0.0], [0.0, 0.0]], [128, 128])
+    assert zero["verdict"] == "zero_field"
+    assert zero["quality_level"] == "Q0"

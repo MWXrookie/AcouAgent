@@ -41,11 +41,44 @@ TIMING_CONTRACT = r'''
 '''
 
 
+SENSOR_METADATA_MARKER = "## 可选传感器物理元数据（v1）"
+SENSOR_METADATA_SNIPPET = "# Only for a single continuous sinusoid starting at t=0 in uniform medium.\n# These variables must be the ones used to construct Medium, Sources and read p.\nsensor_payload[\"timing_metadata\"] = {\n    \"version\": 1, \"time_unit\": \"s\", \"medium\": \"uniform\",\n    \"sound_speed_m_s\": float(actual_uniform_sound_speed),\n    \"source_frequency_hz\": float(actual_source_frequency_hz),\n    \"source_position_m\": [float(i) * float(d) for i, d in zip(actual_source_index, actual_grid_spacing_m)],\n    \"sensor_position_m\": [float(i) * float(d) for i, d in zip(actual_sensor_index, actual_grid_spacing_m)],\n    \"source_start_s\": 0, \"source_kind\": \"continuous_sinusoid\",\n}\n"
+SENSOR_METADATA_CONTRACT = """
+\n## 可选传感器物理元数据（v1）
+- 只有实际模型是均匀介质、零时刻启动单个连续正弦源时，才在已有sensor_payload加入timing_metadata。其他模型省略，诊断unknown；不得为凑字段伪造模型条件。
+- 下面actual_*必须绑定实际创建Medium/Sources、读取p.params的配置变量，不能从需求文字复制；坐标单位米，时间数组单位秒。
+- actual_source_index/actual_sensor_index/actual_grid_spacing_m长度必须相同且为2或3；同一网格坐标原点。实际网格偏移取整后再计算位置，禁止用期望距离代替实际距离。
+- 先生成原time/pressure/sensor_index，再插入下段，最后沿用原标记和json.dumps打印；不得单独打印元数据或改变场数据/步数。
+- 字段仅供未认证时长诊断，不证明参数绑定、来源真实或稳态。
+""" + "\n\x60\x60\x60python\n" + SENSOR_METADATA_SNIPPET + "\x60\x60\x60\n"
+
+
+
+SENSOR_TIME_ORIGIN_MARKER = "## jwave 压力输出实际时刻（v3）"
+SENSOR_TIME_ORIGIN_SNIPPET = """# jwave 0.2.1 Fourier solver emits p AFTER each full pressure update.
+# Keep the actual output count; do not alter dt or requested simulation steps.
+actual_dt_s = float(time_axis.dt)
+sensor_payload["time"] = [(i + 1) * actual_dt_s for i in range(len(sensor_pressure))]
+# Only if the actual uniform/single-continuous-source model qualifies for metadata:
+if isinstance(sensor_payload.get("timing_metadata"), dict):
+    sensor_payload["timing_metadata"]["version"] = 2
+    sensor_payload["timing_metadata"]["sample_start_s"] = actual_dt_s
+    sensor_payload["timing_metadata"]["sample_origin"] = "jwave_0_2_1_after_update"
+"""
+SENSOR_TIME_ORIGIN_CONTRACT = """
+\n## jwave 压力输出实际时刻（v3）
+- jwave 0.2.1 Fourier求解器在每次完整压力更新之后返回传感器样本，p.params[k]对应(k+1)*dt；不要直接把从0开始的TimeAxis.to_array()贴到该输出上。
+- 本节修正旧时间示例：保留实际压力样本数与用户步数，用实际time_axis.dt构造时间数组。其他求解器/自行加入初始p0的输出须先核对各自语义，不能盲目加dt。
+- 如果符合前述均匀介质、单连续正弦源元数据条件，改用version=2，增加sample_start_s=actual_dt_s及sample_origin=jwave_0_2_1_after_update；其余原有字段保持实际变量取值。
+- 不符合该模型条件时只输出正确time/pressure，不伪造元数据；没有认证仍是unknown/insufficient/unverified，不证明稳态或物理正确。
+""" + "\n" + chr(96)*3 + "python\n" + SENSOR_TIME_ORIGIN_SNIPPET + chr(96)*3+"\n"
+
+
 def main() -> None:
     graph = json.load(open(sys.argv[1], encoding="utf-8"))
     found = False
     for node in graph.get("nodes", []):
-        if node.get("id") != CODE_GEN:
+        if node.get("id") not in {CODE_GEN,"1786095555003"}:
             continue
         for message in node.get("data", {}).get("prompt_template", []):
             if message.get("role") != "user":
@@ -56,8 +89,12 @@ def main() -> None:
                 text = text.rstrip() + CONTRACT
             if TIMING_MARKER not in text:
                 text = text.rstrip() + TIMING_CONTRACT
+            if SENSOR_METADATA_MARKER not in text:
+                text = text.rstrip() + SENSOR_METADATA_CONTRACT
+            if SENSOR_TIME_ORIGIN_MARKER not in text:
+                text = text.rstrip() + SENSOR_TIME_ORIGIN_CONTRACT
             message["text"] = text
-            found = True
+            found = found or node.get("id")==CODE_GEN
     if not found:
         raise SystemExit(f"code-generation node {CODE_GEN} not found")
     print(json.dumps(graph, ensure_ascii=False))

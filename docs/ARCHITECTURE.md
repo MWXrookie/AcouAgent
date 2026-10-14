@@ -1,5 +1,7 @@
 # 技术方案与架构设计
 
+> ⚠️ **2026-10-07 起**：本文档早于 `DEVELOPMENT_PLAN.md` v3.0 的终点（本地可视化技能库系统）与编排层迁移决定，部分内容已过时（如 Gradio 前端、旧节点数、旧成功率）。规划与验收请以 v3.0 与 `SKILL_LIBRARY_ACCEPTANCE.md` 为准。
+
 > 版本 v1.0 | 2026-08-08 | 关联: AGENTS.md, PRD.md
 
 ---
@@ -127,7 +129,7 @@
 │  │                    ▼              │             │             │   │
 │  │  ┌────────────────────────────────┼─────────────┼─────────┐   │   │
 │  │  │ Subprocess Executor           │             │         │   │   │
-│  │  │ • /opt/jwave/bin/python -I main.py          │         │   │   │
+│  │  │ • /usr/local/bin/python -I main.py          │         │   │   │
 │  │  │ • start_new_session (进程隔离)  │             │         │   │   │
 │  │  │ • resource.setrlimit (CPU/FSIZE/NOFILE/NPROC)          │   │   │
 │  │  │ • timeout → killpg (整棵进程树) │             │         │   │   │
@@ -232,7 +234,7 @@ T7: [沙箱执行] MCP run_jwave_code_with_retry
   │  流程:
   │    a. _clean_code(code) — 去除可能的 markdown 包裹
   │    b. httpx POST → jwave-executor:8010/execute
-  │    c. executor: subprocess.Popen("/opt/jwave/bin/python -I main.py")
+  │    c. executor: subprocess.Popen("/usr/local/bin/python -I main.py")
   │    d. 成功 → 返回 {exit_code:0, stdout, stderr, duration_ms}
   │    e. 失败 → _llm_fix_code() 调用 DeepSeek 纠错 → retry (≤7次)
   │  输出: {final_code, history: [{attempt, exit_code, ...}], stdout, stderr}
@@ -314,6 +316,8 @@ app/
 > Web 页面进 `app/portal.py`，缓存进 `app/cache_store.py`；`app/server_safe.py` 保持薄壳，
 > 各模块通过 `register(mcp)` 向同一 FastMCP 实例注册，避免循环导入。
 
+**技能候选的当前信任边界（2026-09-28）**：`app/skill_store.py` 仅提供内部 SQLite 候选存储，尚无 MCP 写入工具、自动激活或生成前注入。`create_candidate` 现只接受 Q2 候选；调用方自报的 Q3/Q4 会被拒绝且不落库。`app/physics_gate.py` 当前只计算 Q0-Q2，待场景规则与来源运行证据的确定性校验完成后，才可设计 Q3/Q4 准入。`analysis.verdict=normal` 不能单独证明场景物理正确。
+
 ### 3.2 jwave Executor (`executor/executor.py`)
 
 ```
@@ -324,7 +328,7 @@ HTTPServer (BaseHTTPRequestHandler)
 │   ├── 解析 JSON body {code, timeout_seconds}
 │   ├── execute(payload)
 │   │   ├── 写入临时文件 main.py
-│   │   ├── subprocess.Popen("/opt/jwave/bin/python -I main.py")
+│   │   ├── subprocess.Popen("/usr/local/bin/python -I main.py")
 │   │   │   ├── start_new_session=True
 │   │   │   ├── preexec_fn: resource.setrlimit (CPU/FSIZE/NOFILE/NPROC)
 │   │   │   └── env: JAX_PLATFORMS=cpu, PYTHONUNBUFFERED=1
@@ -487,7 +491,7 @@ frontend/app.py (Gradio)
 ```
 GET /health
 Headers: X-Executor-Token: <EXECUTOR_SHARED_TOKEN>
-→ 200 {"status": "ok", "python": "/opt/jwave/bin/python", "libraries": [...]}
+→ 200 {"status": "ok", "python": "/usr/local/bin/python", "libraries": [...]}
 
 POST /execute
 Headers: X-Executor-Token: <EXECUTOR_SHARED_TOKEN>, Content-Type: application/json
@@ -683,3 +687,52 @@ CODE_RETRY_MAX=7
 | 自定义介质导入 | 上传 CT/MRI 数据 | 低 |
 | 仿真模板市场 | 用户分享参数模板 | 低 |
 | 多人协作 | 共享仿真历史和结果 | 低 |
+
+
+### 2026-10-02 执行记录来源关联切片
+
+新 executions 记录保存实际最终执行代码的 SHA-256 和 gateway-execution.v1 标记；
+历史记录新增列保持 NULL，不通过回填原始代码哈希冒充最终执行代码。
+重试成功/耗尽写 final current_code；分析以唯一服务器记录核对 run_id、完整网关交付
+stdout/stderr、exit_code 和代码哈希，并在 analysis_events 使用解析出的同一run_id。
+重复run_id、歧义同输出、缺失、篡改或旧记录拒绝来源绑定；数据库不可用则返回未绑定。
+输出核对使用网关压缩后的交付数据，不宣称完整executor原始场已保存。
+
+execution_source.matched 只表示匹配服务器记录；数据库/网关写入属于当前信任边界，
+不防有权限直接篡改数据库的操作者，也不能防沙箱程序打印伪造声学数据。
+parameters_bound=false、physics_validated=false 明确保留，Q3/Q4准入和自动学习不开放。
+来源、参数与确定性validator的完整绑定仍待实现，不能信任调用方回传的matched标志。
+新部署会按既有init_db流程添加两个nullable列；本轮只在隔离临时数据库验证，未迁移生产。
+记录中的timed_out会传入Q0-Q2质量评估，防止调用方仅给exit_code=0时把已超时运行升为Q1/Q2。
+
+### 2026-10-02 执行器响应回执（来源前置，未部署）
+
+执行器父进程在生成代码运行前采集自身源文件哈希、Python/科学库版本与机器类型；executor-receipt.v1把环境指纹、随机请求nonce、实际代码、解码后的输出、退出/超时和请求时限绑定。网关每次实际执行生成nonce，app/executor_evidence.py检查结构/类型/完整上下文，app/tools.py把最后一次尝试的证据写入SQLite新增nullable executor_evidence_json。旧行不回填，旧执行器缺回执仍可返回普通结果，但不能获得新的来源匹配。只在隔离临时DB验收，原服务/数据库未部署或迁移。
+
+matched只代表内网服务响应关联；runtime_approved=false、trusted_run=false，不等于实际参数或物理认证。信任假设仍是内网端点、安装环境、网关及数据库写入；无签名、无包内容或镜像不可变性认证，不防特权改写，也不认证任意stdout声学数据。子进程不传共享令牌不等于证明所有同UID/proc攻击安全。支持环境合同和受控场景/validator接通仍未完成，Q3/Q4关闭。隔离镜像现场JAX=0.4.38，与Dockerfile的0.4.35不同，不能按文档声明自动批准。
+
+代码/真实HTTP证据 auxiliary/reference/executor-receipt-2026-10-02/；Archify回执/四视口/深浅视觉证据 docs/diagrams/reviews/2026-10-02-heartbeat-0759/。架构图反映源代码能力，不表示现有生产服务已部署这些修改。
+
+### 2026-10-02 固定平面波内部派发与隔离环境合同（未部署）
+
+app/controlled_validation.py只允许无参固定平面波配方，经原_execute_code/HTTP执行器运行30s、服务器生成run_id、写execution记录，再从SQLite复读并检查固定validator与环境回执。网关独立保存gateway_request_nonce/gateway_timeout_seconds；检查器不相信返回的matched/可信等级标志，而是与服务器保存的完整代码/输出重新关联。Dockerfile准备复制scripts/validation资产，但未构建或部署新镜像。
+
+plane-wave-isolated-runtime.v1仅指已经实跑验证的隔离环境指纹，明确含JAX0.4.38，与Dockerfile声明0.4.35不是同一批准合同。该指纹通过只使provenance_prerequisites_passed=true；runtime_approved=false/trusted_run=false/parameters_bound=false，无质量等级颁发、不接收调用方参数或代码、不注册公开MCP工具。生产环境证据批准与物理门/事件持久化仍待实现，Q3/Q4与学习不开放。真实隔离网关HTTP→executor→临时DB→校验器证据见auxiliary/reference/controlled-plane-wave-2026-10-02/；不能冒充原服务部署或Dify验收。
+
+### 2026-10-02 离线批准注册表原型（未接通）
+
+scripts/validation/runtime_registry.py在独立SQLite中验证包哈希、候选/批准/退役状态及事务审计。它不由网关调用，不修改生产SQLite模型；actor未鉴权、无固定生产使用路径，approved状态不能认证运行环境。所有runtime_approved返回false。注册表写入身份、使用重核及退役即时失效尚未实现。
+
+### 2026-10-02 固定路径内部批准服务（未公开/未部署）
+
+runtime_registry_service内部写入复用PORTAL_ADMIN_TOKEN，actor固定角色，数据库与配方包路径由安装代码选择。资格检查每次读取只读数据库和证据包，无缓存；批准哈希、production作用域、观察环境/镜像/配方/validator不符拒绝。contract_eligible尚未绑定可信实际运行观察，因此runtime_approved/trusted_run保持false。未注册公开路由或接通physics_gate，共享令牌不认证个人、拒绝审计和在途退役事务仍待续。
+
+### 2026-10-02 宿主侧只读观察（未绑定运行）
+
+executor_host_observation.py只在SSH宿主读取固定执行器的Docker生命周期/创建镜像ID；不向网关或沙箱提供Docker访问。实际生产与隔离镜像不同，lifecycle_stable不等于某个run使用该容器；run_bound/trusted_run/runtime_approved均false。尚需实际受控执行窗口和运行回执绑定，镜像ID也不认证可写层或挂载内容。
+
+### 2026-10-07 门户流式工作流与延迟优化（已部署门户热补丁）
+
+门户通过app/workflow_client.py接收Dify SSE，向浏览器发送NDJSON阶段进度；仅succeeded完成回执且报告非空时展示结果。总截止180s，空闲读取45s，错误脱敏并带请求编号；有task_id时异常请求停止，但不保证上游已终止，无自动重复提交。Dify移除输出未消费的分析调用，使用Flash代码生成，保留检索、参数提取和审查。分析绑定请求参数，解读不得将请求参数/理论值视作实测认证。executor限制与可信准入未变化。部署仅门户三个文件，其他未验收质量原型未部署。详见本日CHANGELOG和工作流前后备份。
+
+代码生成与重试生成显式thinking=false/max_tokens=4096，依据已安装DeepSeek插件0.0.24 schema及转换实现；参数提取、结果审查和解释的配置保持。多轮33.28s成功与180.15s停止两种路径均有真实浏览器证据，不能承诺无上游故障。

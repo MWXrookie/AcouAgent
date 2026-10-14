@@ -7,7 +7,9 @@ import httpx
 from app import cache_store, config, dashboard
 
 
-def _llm_fix_code(api_key: str, model: str, code: str, result: dict[str, Any]) -> str:
+def _llm_fix_code(
+    api_key: str, model: str, code: str, result: dict[str, Any], run_id: str | None = None
+) -> str:
     """调用 DeepSeek API 修正出错的代码，返回修正后的代码字符串."""
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY must be set to use auto-fix")
@@ -105,7 +107,7 @@ def _llm_fix_code(api_key: str, model: str, code: str, result: dict[str, Any]) -
     # 记录 token 用量与成本（费用看板）
     try:
         usage = data.get("usage")
-        dashboard.record_llm_usage(model, usage, config.calc_llm_cost(usage))
+        dashboard.record_llm_usage(model, usage, config.calc_llm_cost(usage), run_id=run_id)
     except Exception:
         pass
 

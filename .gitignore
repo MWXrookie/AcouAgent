@@ -14,3 +14,17 @@ auxiliary/work/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# Local acceptance artifacts, production snapshots and deployment pins stay local.
+/auxiliary/reference/*
+!/auxiliary/reference/jwave-dify-langchain/
+/deploy/compose.deploy.yaml
+/deploy/compose.local-basic.yaml
+/docs/diagrams/*.delivery.json
+/docs/diagrams/*.visual-check.json
+/docs/diagrams/reviews/
+/docs/dify_workflow_backup/*.local.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
