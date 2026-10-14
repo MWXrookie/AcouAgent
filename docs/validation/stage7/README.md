@@ -20,6 +20,12 @@
 
 `scripts/skill_library/audit_report.py` 只读 SQLite，核对 quick_check、外键、连续迁移、只追加触发器、最新代码哈希和引用列表；输出库存、版本、状态、质量、失败、反馈与事件类型计数。来源 run id 只输出 SHA-256，代码、物理证据正文、事件详情、反馈理由和凭据均不进入报告。JSON 自带可复算 `report_sha256`，Markdown 明确 `healthy` 不等于模型采用、真人身份、跨主机认证或任意场景物理正确。
 
+## F5 v1.0.0 发布材料
+
+`scripts/validation/release_manifest.py` 从指定 Git commit 读取树、项目版本和关键文件，生成确定性的发布清单；清单记录每个跟踪条目的 mode/type/blob id、关键文件 SHA-256、缺失必需文件和禁止跟踪的运行产物，并带可复算 `manifest_sha256`。`Release container images` 在每个发行提交上生成并保存该清单，同时在断网、只读、降权 Linux 容器中执行完整单元回归。
+
+发布检查表位于 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)，发行说明位于 [v1.0.0 草案](../../releases/v1.0.0-draft.md)。两者明确当前包版本仍为 `0.1.0`、标签未创建，并列出新人 UAT、第二模型、批量双跑、VM 升级回滚和最终 Luna 全量回归等未关闭门禁。
+
 ## 出口条件
 
 1. 干净 runner 使用 `docker compose up -d --build` 启动的网关源码与 Git head 一致。
@@ -31,4 +37,6 @@
 ## 后续
 
 - 在新的操作者环境完成 30 分钟内首次自然语言仿真 UAT。
-- 准备 v1.0.0 发布检查表、回滚说明和发行说明；实际打标签仍需发布授权。
+- 完成第二模型固定题集、本地/Dify 批量双跑和 VM 升级回滚演练。
+- 在最终候选提交上执行 Luna 全量回归并绑定 Actions 结果。
+- 全部门禁关闭且取得 Owner 授权后，再把包版本升为 `1.0.0` 并创建标签与 Release。
