@@ -1,6 +1,6 @@
 {
   "stage": 6,
-  "slice": "github cold-start skill library",
+  "slice": "github cold-start skill library + local orchestration candidate",
   "date": "2026-10-14",
   "status": "in_progress",
   "architecture_audit": {
@@ -64,12 +64,85 @@
     ],
     "ghcr_skills_api_items": 17,
     "gateway_port_publish_with_frontend_network": true,
-    "executor_remains_internal_only": true
+    "executor_remains_internal_only": true,
+    "targeted_local_orchestration_tests_passed": 54,
+    "local_candidate_http_status": 200,
+    "local_candidate_elapsed_seconds": 13.13,
+    "local_candidate_workflow_status": "succeeded",
+    "local_candidate_quality_level": "Q2",
+    "local_candidate_verdict": "normal",
+    "local_candidate_execution_records": 1,
+    "local_candidate_analysis_records": 1,
+    "local_candidate_model_calls": 4,
+    "unknown_profile_fails_closed": true,
+    "archify_spec_sha256": "dc2ffb4c5d61822b559b648b5509546377c9aa36162a1d663f473b8844a2921f",
+    "archify_html_sha256": "acad7c529096b1a51d501719c67a3a7678395e9834cb2e88c436efa02de07aca",
+    "luna_full_pytest": {
+      "passed": 1475,
+      "failed": 0,
+      "skipped": 1,
+      "warnings": 15,
+      "subtests_passed": 10,
+      "seconds": 92.91
+    },
+    "dify_local_same_case": {
+      "local": {
+        "verdict": "normal",
+        "quality_level": "Q2",
+        "field_shape": [
+          64,
+          64
+        ],
+        "max_pressure": 0.2139234
+      },
+      "dify": {
+        "verdict": "normal",
+        "quality_level": "Q2",
+        "field_shape": [
+          64,
+          64
+        ],
+        "max_pressure": 0.22153118252754211
+      },
+      "peak_relative_difference_approx": 0.0356
+    },
+    "second_profile_probe": {
+      "profile": "deepseek-reasoner",
+      "routed_and_audited": true,
+      "accepted": false,
+      "attempts": [
+        {
+          "seconds": 74.1,
+          "error": "model_response_empty"
+        },
+        {
+          "seconds": 244.69,
+          "error": "model_transport_failed",
+          "executor_attempts": 3,
+          "executor_normal_attempts": 1
+        }
+      ]
+    }
   },
   "remaining_blockers": [
-    "default branch does not yet contain pull request 7",
-    "portal natural-language chat still requires the optional Dify compatibility overlay",
-    "browser model settings do not control the full workflow",
-    "the local orchestration and server-side model profile gates are not complete"
-  ]
+    "the second OpenAI-compatible model routed correctly but has not completed the fixed acceptance set",
+    "the one-case local/Dify comparison passed its gates, but batch artifact and failure-semantic dual runs remain",
+    "the merged GitHub main branch still needs a clean-machine end-to-end install and rollback acceptance"
+  ],
+  "merge": {
+    "pull_request": 7,
+    "merge_commit": "96b4e0b3336e746100f87f7f4552f0874828308b",
+    "rollback_branch": "rollback/pre-pr7-main-20261014"
+  },
+  "local_orchestration": {
+    "backend": "local",
+    "dify_optional_compatibility": true,
+    "server_owned_model_profiles": true,
+    "browser_sends_profile_id_only": true,
+    "task_capability_gate": true,
+    "streamed_response_limit_bytes": 2097152,
+    "generated_code_uses_existing_executor": true,
+    "model_review_can_override_physics_gate": false,
+    "model_call_metadata_excludes_secrets": true
+  }
 }

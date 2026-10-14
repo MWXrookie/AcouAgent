@@ -1,4 +1,5 @@
-# Optional source-build fallback. The base stack pulls prebuilt GHCR images.
+# Optional full source-build fallback. The base stack already builds the gateway
+# from the checked-out source; this overlay also builds the large executor image.
 # Usage:
 #   docker compose -f compose.yaml -f deploy/compose.build.yaml up -d --build
 services:
@@ -6,15 +7,3 @@ services:
     build:
       context: ./executor
       dockerfile: Dockerfile
-  dify-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        APP_MODULE: app.server_safe
-  skill-bootstrap:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        APP_MODULE: app.server_safe

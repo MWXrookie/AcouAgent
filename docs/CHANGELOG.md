@@ -1,3 +1,7 @@
+## 2026-10-14 · 阶段六 GitHub 干净克隆修正运行源码错位
+
+从 GitHub 的阶段六分支重新浅克隆并核对 head 后，发现根 Compose 仍默认拉取阶段六之前的网关镜像；下载者即使拿到新源码，也可能启动旧网关。根 Compose 现为网关和技能自举声明同一份当前源码构建，快速开始改用 `docker compose pull jwave-executor` 与 `docker compose up -d --build`；大型 executor 仍拉取公开预构建镜像。全源码覆盖只额外构建 executor。同步修正 README、部署说明、环境模板、阶段六验收记录和 AGENTS 当前状态。该修正不改变运行拓扑、executor 隔离、物理门或自动学习策略。
+
 ## 2026-10-14 · 阶段六发行冷启动：GitHub 拉取后自举完整技能库
 
 使用 Archify 运行时图逐项对照生产代码与容器：Dify 发布图 63 节点/70 边、9 个 MCP 工具、17 个 Q4 active 加 1 个 Q2 candidate、schema17、学习开关和 executor 隔离约束均一致。发现图只描述生产运行态，没有覆盖 GitHub 冷启动；旧 `docs/ARCHITECTURE.md` 也已标记为历史文档。同步加入固定技能自举节点和可选 Dify 边界，Archify showcase 9/9、0 error、0 warning，deliver 与 1440/1600/1920/2048 明暗画布 containment 均通过并完成截图检查。

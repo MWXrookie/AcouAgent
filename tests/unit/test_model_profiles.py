@@ -1,0 +1,125 @@
+import asyncio
+import json
+
+import pytest
+
+from app import model_client, model_profiles
+
+
+def _profiles():
+    return json.dumps({
+        "fast": {
+            "label": "Fast",
+            "provider": "openai-compatible",
+            "base_url": "https://models.example.test/v1",
+            "model": "acoustic-fast",
+            "api_key_env": "TEST_MODEL_KEY",
+            "capabilities": ["chat", "json", "code"],
+            "tasks": {"code_generation": {"temperature": 0.4, "max_tokens": 4096}},
+        }
+    })
+
+
+def test_public_profiles_never_expose_secret_or_credential_reference(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    public = model_profiles.public_profiles()
+    encoded = json.dumps(public)
+    assert public["default_profile"] == "fast"
+    assert public["profiles"][0]["configured"] is True
+    assert "unit-test-secret-value" not in encoded
+    assert "TEST_MODEL_KEY" not in encoded
+    assert "base_url" not in public["profiles"][0]
+
+
+def test_profile_rejects_http_without_explicit_server_flag(monkeypatch):
+    raw = json.loads(_profiles())
+    raw["fast"]["base_url"] = "http://127.0.0.1:11434/v1"
+    monkeypatch.setenv("MODEL_PROFILES_JSON", json.dumps(raw))
+    with pytest.raises(model_profiles.ModelProfileError, match="base_url"):
+        model_profiles.load_profiles()
+    raw["fast"]["allow_insecure_http"] = True
+    monkeypatch.setenv("MODEL_PROFILES_JSON", json.dumps(raw))
+    assert model_profiles.load_profiles()["fast"].endpoint().endswith("/v1/chat/completions")
+
+
+def test_unknown_profile_fails_before_transport(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    with pytest.raises(model_profiles.ModelProfileError, match="unknown"):
+        model_profiles.resolve("missing", "code_generation")
+
+
+def test_model_client_uses_server_profile_and_records_actual_model(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    captured = {}
+
+    class Response:
+        content = b'{"choices":[{"message":{"content":"done"}}],"usage":{"prompt_tokens":3}}'
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        def raise_for_status(self): pass
+        async def aiter_bytes(self):
+            yield self.content
+
+    class Client:
+        def __init__(self, **kwargs): captured["client"] = kwargs
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        def stream(self, method, url, headers, json):
+            captured.update(method=method, url=url, headers=headers, body=json)
+            return Response()
+
+    recorded = {}
+    monkeypatch.setattr(model_client.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(model_client.dashboard, "record_llm_usage",
+                        lambda model, usage, cost, run_id=None, metadata=None: recorded.update(
+                            model=model, usage=usage, cost=cost, run_id=run_id, metadata=metadata))
+    result = asyncio.run(model_client.complete(
+        "fast", "code_generation", [{"role": "user", "content": "make code"}], run_id="run-1"))
+    assert result["content"] == "done"
+    assert result["model"] == "acoustic-fast"
+    assert captured["url"] == "https://models.example.test/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer unit-test-secret-value"
+    assert recorded["model"] == "openai-compatible:acoustic-fast"
+    assert recorded["metadata"] == {
+        "profile_id": "fast", "provider": "openai-compatible", "model": "acoustic-fast",
+        "task": "code_generation", "temperature": 0.4, "max_tokens": 4096,
+        "thinking": False, "timeout_seconds": 120.0,
+    }
+    assert "base_url" not in recorded["metadata"] and "api_key" not in recorded["metadata"]
+
+
+def test_model_client_stops_stream_above_response_limit(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+
+    class Response:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        def raise_for_status(self): pass
+        async def aiter_bytes(self):
+            yield b"x" * model_client.MAX_RESPONSE_BYTES
+            yield b"x"
+
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        def stream(self, *args, **kwargs): return Response()
+
+    monkeypatch.setattr(model_client.httpx, "AsyncClient", Client)
+    with pytest.raises(model_client.ModelCallError, match="too_large"):
+        asyncio.run(model_client.complete(
+            "fast", "code_generation", [{"role": "user", "content": "make code"}]))
+
+
+def test_profile_capability_mismatch_fails_before_transport(monkeypatch):
+    raw = json.loads(_profiles())
+    raw["fast"]["capabilities"] = ["chat", "json"]
+    monkeypatch.setenv("MODEL_PROFILES_JSON", json.dumps(raw))
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    with pytest.raises(model_profiles.ModelProfileError, match="capability"):
+        model_profiles.resolve("fast", "code_generation")
+    assert model_profiles.resolve("fast", "parameter_extraction")[0].profile_id == "fast"

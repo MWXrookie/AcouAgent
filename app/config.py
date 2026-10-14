@@ -13,6 +13,7 @@ CODE_RETRY_MAX = int(os.environ.get("CODE_RETRY_MAX", "7"))
 DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
 DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://nginx/v1").rstrip("/")
 PORTAL_ADMIN_TOKEN = os.environ.get("PORTAL_ADMIN_TOKEN", "")
+ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "dify").strip().lower()
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"
@@ -38,6 +39,8 @@ def validate() -> None:
         raise RuntimeError("MCP_AUTH_TOKEN must be set and at least 32 characters long")
     if not EXECUTOR_SHARED_TOKEN or len(EXECUTOR_SHARED_TOKEN) < 32:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+    if ORCHESTRATION_BACKEND not in {"dify", "local"}:
+        raise RuntimeError("ORCHESTRATION_BACKEND must be dify or local")
 
 # Skill features are opt-in; no flag alone certifies a run or activates a skill.
 SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "true"
