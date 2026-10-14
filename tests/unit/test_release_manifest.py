@@ -1,5 +1,8 @@
 import json
+import shutil
 from pathlib import Path
+
+import pytest
 
 from scripts.validation import release_manifest
 
@@ -27,6 +30,8 @@ def test_manifest_digest_detects_tampering():
 
 
 def test_current_head_manifest_is_reproducible_and_safe():
+    if shutil.which("git") is None:
+        pytest.skip("git executable is covered by the separate release-manifest workflow job")
     root = Path(__file__).resolve().parents[2]
     first = release_manifest.build_manifest(root)
     second = release_manifest.build_manifest(root)
