@@ -13,7 +13,10 @@
       "Q2_candidate": 1
     },
     "executor_isolation_unchanged": true,
-    "distribution_gap_found": "empty GitHub data volume had no bootstrap path"
+    "distribution_gap_found": [
+      "empty GitHub data volume had no bootstrap path",
+      "gateway attached only to an internal Docker network could not publish its host port"
+    ]
   },
   "distribution_fix": {
     "prebuilt_ghcr_images": true,
@@ -23,13 +26,20 @@
     "default_skill_library_enabled": true,
     "default_automatic_learning_enabled": false,
     "fixed_profile_bootstrap_count": 17,
-    "copies_production_database": false
+    "copies_production_database": false,
+    "gateway_networks": [
+      "gateway_frontend",
+      "executor_internal"
+    ],
+    "executor_networks": [
+      "executor_internal"
+    ]
   },
   "verified": {
     "compose_base_config": true,
     "compose_dify_overlay_config": true,
     "compose_build_overlay_config": true,
-    "related_tests_passed": 40,
+    "related_tests_passed": 41,
     "isolated_bootstrap_profiles_ready": 17,
     "isolated_bootstrap_q4_active": 17,
     "isolated_bootstrap_versions": 17,
@@ -37,7 +47,24 @@
     "archify_showcase_checks": "9/9",
     "archify_errors": 0,
     "archify_warnings": 0,
-    "archify_visual_containment": "pass"
+    "archify_visual_containment": "pass",
+    "ghcr_gateway_image_pulled": "ghcr.io/mwxrookie/acouagent-gateway:522bc05",
+    "ghcr_gateway_digest": "sha256:ccc6b71639fe33dd0c63412952ab45347d2e439ee0f2b55aeeb3679fc69504de",
+    "ghcr_executor_image_pulled": "ghcr.io/mwxrookie/acouagent-executor:522bc05",
+    "ghcr_executor_digest": "sha256:825d117c02757eb101349230517dba20625e9ddf039e53d75ae625576a553782",
+    "ghcr_empty_volume_bootstrap_profiles_ready": 17,
+    "ghcr_empty_volume_q4_active": 17,
+    "ghcr_empty_volume_versions": 17,
+    "ghcr_sqlite_quick_check": "ok",
+    "ghcr_gateway_routes_http_200": [
+      "/health",
+      "/portal",
+      "/skills",
+      "/dashboard"
+    ],
+    "ghcr_skills_api_items": 17,
+    "gateway_port_publish_with_frontend_network": true,
+    "executor_remains_internal_only": true
   },
   "remaining_blockers": [
     "default branch does not yet contain pull request 7",

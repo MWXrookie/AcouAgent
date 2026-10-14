@@ -37,4 +37,10 @@ Archify 运行时图的核心执行和质量门链路与生产实际一致；发
 
 ## 隔离验收
 
-在独立 Docker volume 上完成 17 项冷启动：17/17 为 Q4 active，17 个版本，SQLite `quick_check=ok`。相关单测 40 passed。生产 volume、生产网关和生产 executor 配置均未修改。
+在独立 Docker volume 上完成 17 项冷启动：17/17 为 Q4 active，17 个版本，SQLite `quick_check=ok`。相关单测 41 passed。生产 volume、生产网关和生产 executor 配置均未修改。
+
+## GHCR 空卷复验与网络修正
+
+实际拉取 `522bc05` 的 gateway/executor 镜像后，在全新的隔离 volume 上再次完成 17/17 固定配方自举，得到 17 个 Q4 active、17 个版本，`skill_store.db` 的 `quick_check=ok`。随后发现根 Compose 若让 gateway 也只连接 `internal: true` 网络，Docker 会保留端口声明却不建立主机监听。现已改为 gateway 同时连接 `gateway_frontend` 与 `executor_internal`，executor 仍只连接内部网络。
+
+修正后 `/health`、`/portal`、`/skills`、`/dashboard` 均返回 HTTP 200；`/skills/api?limit=20` 返回 17 项且全部为 Q4；`status-all` 返回 17/17 ready。该复验只使用 GHCR 镜像与空数据卷，不读取生产技能数据库。

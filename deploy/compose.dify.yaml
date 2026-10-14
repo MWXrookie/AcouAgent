@@ -4,6 +4,7 @@
 services:
   dify-mcp:
     networks:
+      - gateway_frontend
       - executor_internal
       - dify_default
 

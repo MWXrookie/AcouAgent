@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app import config, dashboard
 from app import skill_local_profile as local
 from scripts.skill_library import local_basic
@@ -71,3 +73,18 @@ def test_status_all_exit_code_fails_when_catalog_is_incomplete(monkeypatch):
     monkeypatch.setattr(local_basic,"status_all",lambda:{"ready":False,"ready_count":16})
     monkeypatch.setattr("sys.argv",["local_basic","status-all"])
     assert local_basic.main()==1
+
+
+def test_release_compose_keeps_gateway_reachable_and_executor_internal_only():
+    compose_path = Path(__file__).resolve().parents[2] / "compose.yaml"
+    compose = compose_path.read_text(encoding="utf-8")
+    executor = compose.split("  jwave-executor:\n", 1)[1].split("  dify-mcp:\n", 1)[0]
+    gateway = compose.split("  dify-mcp:\n", 1)[1].split("  skill-bootstrap:\n", 1)[0]
+    networks = compose.split("\nnetworks:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+
+    assert "      - executor_internal" in executor
+    assert "      - gateway_frontend" not in executor
+    assert "      - gateway_frontend" in gateway
+    assert "      - executor_internal" in gateway
+    assert "  gateway_frontend:" in networks
+    assert "  executor_internal:\n    internal: true" in networks
