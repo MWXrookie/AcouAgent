@@ -16,6 +16,10 @@
 
 `docs/FIRST_SIMULATION.md` 给出下载、prepare-only、服务端模型 profile、启动、标准首题和回查顺序。`scripts/validation/first_simulation_acceptance.py` 通过公开 profile 接口选择实际 profile，执行固定首题，再用 dashboard 核对同一 run id 的 exit code 和超时状态；回执排除报告、代码、提示词和凭据。真实新操作者 UAT 仍需在有模型凭据的独立环境执行，准备完成不计为出口通过。
 
+## F4 技能库审计与报告
+
+`scripts/skill_library/audit_report.py` 只读 SQLite，核对 quick_check、外键、连续迁移、只追加触发器、最新代码哈希和引用列表；输出库存、版本、状态、质量、失败、反馈与事件类型计数。来源 run id 只输出 SHA-256，代码、物理证据正文、事件详情、反馈理由和凭据均不进入报告。JSON 自带可复算 `report_sha256`，Markdown 明确 `healthy` 不等于模型采用、真人身份、跨主机认证或任意场景物理正确。
+
 ## 出口条件
 
 1. 干净 runner 使用 `docker compose up -d --build` 启动的网关源码与 Git head 一致。
@@ -27,5 +31,4 @@
 ## 后续
 
 - 在新的操作者环境完成 30 分钟内首次自然语言仿真 UAT。
-- 生成技能库存与验证证据审计报告。
 - 准备 v1.0.0 发布检查表、回滚说明和发行说明；实际打标签仍需发布授权。

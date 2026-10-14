@@ -79,6 +79,18 @@ curl http://127.0.0.1:8001/health
 curl http://127.0.0.1:8001/skills
 ```
 
+生成脱敏的技能库存、版本、质量、反馈、来源摘要和一致性报告：
+
+```bash
+docker exec dify-mcp python -m scripts.skill_library.audit_report
+docker cp dify-mcp:/app/data/audit/skill-library-audit.json .
+docker cp dify-mcp:/app/data/audit/skill-library-audit.md .
+docker exec dify-mcp python -m scripts.skill_library.audit_report \
+  --verify /app/data/audit/skill-library-audit.json
+```
+
+报告用哈希后的来源 run id 和代码哈希，不导出代码、物理证据正文、反馈理由或凭据；`healthy=true` 只证明库存与审计结构一致，不证明任意场景物理正确。
+
 自举幂等，不复制生产数据库，不恢复已撤回记录；自动学习仍默认关闭。源码构建回退和已有生产环境升级见 [部署说明](deploy/README.md)。
 
 已有克隆的 `.env` 不会被 `git pull` 覆盖。若升级后技能页仍为空，请按 [部署说明](deploy/README.md#已有克隆升级) 开启固定技能开关并显式运行一次自举。

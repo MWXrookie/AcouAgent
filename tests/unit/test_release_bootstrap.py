@@ -118,6 +118,8 @@ def test_clean_install_workflow_checks_source_skills_and_cleanup():
     assert "bash scripts/install.sh --prepare-only" in workflow
     assert "bash scripts/install.sh" in workflow
     assert "scripts.skill_library.local_basic status-all" in workflow
+    assert "scripts.skill_library.audit_report" in workflow
+    assert "skill-library-audit.json" in workflow
     assert "app/local_workflow.py" in workflow
     assert 'assert status["ready_count"] == 17' in workflow
     assert 'assert network["Internal"] is True' in workflow
