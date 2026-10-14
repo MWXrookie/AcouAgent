@@ -2,13 +2,13 @@
 
 ## 新环境
 
-根 Compose 使用公开 GHCR 预构建镜像，不要求本机已有 Dify 网络：
+根 Compose 从当前检出的源码构建网关，并拉取公开的 executor 镜像；不要求本机已有 Dify 网络：
 
 ```bash
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 生成两个不同的 32+ 字符随机值
-docker compose pull
-docker compose up -d
+docker compose pull jwave-executor
+docker compose up -d --build
 docker compose ps -a
 ```
 
@@ -36,11 +36,11 @@ SKILL_BOOTSTRAP_ALL_FIXED=true
 SKILL_LEARNING_ENABLED=false
 ```
 
-然后拉取新镜像、重建网关配置并显式运行一次自举：
+然后拉取 executor 镜像、从当前源码重建网关并显式运行一次自举：
 
 ```bash
-docker compose pull
-docker compose up -d --force-recreate jwave-executor dify-mcp
+docker compose pull jwave-executor
+docker compose up -d --build --force-recreate jwave-executor dify-mcp
 docker compose run --rm skill-bootstrap
 docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
 ```
@@ -50,18 +50,18 @@ docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
 ## 连接已有 Dify
 
 ```bash
-docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d
+docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 ```
 
-通过 `DIFY_NETWORK_NAME` 指定外部网络，通过 `DIFY_BASE_URL` 指定 API 根地址。当前门户完整自然语言聊天仍需此兼容层；健康、MCP、技能库和看板可在基础栈独立运行。
+通过 `DIFY_NETWORK_NAME` 指定外部网络，通过 `DIFY_BASE_URL` 指定 API 根地址。本地编排是发行默认路径；该覆盖只用于需要保留既有 Dify 工作流的兼容部署。
 
-## 源码构建回退
+## 全源码构建
 
 ```bash
 docker compose -f compose.yaml -f deploy/compose.build.yaml up -d --build
 ```
 
-executor 科学栈较大，弱网环境优先使用 GHCR 镜像。
+根 Compose 已从当前源码构建网关；此覆盖进一步从源码构建 executor。executor 科学栈较大，弱网环境优先使用 GHCR 镜像。
 
 ## 既有生产环境
 

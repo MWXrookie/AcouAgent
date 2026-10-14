@@ -46,8 +46,8 @@
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 设置两个不同的 32+ 字符随机值
 # 设置 DEEPSEEK_API_KEY，或在 MODEL_PROFILES_JSON 中配置其他服务端 OpenAI-compatible profile
-docker compose pull
-docker compose up -d
+docker compose pull jwave-executor
+docker compose up -d --build
 docker compose ps -a
 ```
 
@@ -69,7 +69,7 @@ curl http://127.0.0.1:8001/skills
 若需要继续使用既有 Dify 工作流，可启用兼容覆盖：
 
 ```bash
-docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d
+docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 ```
 
 通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify，并把 `ORCHESTRATION_BACKEND=dify`。此模式中门户 profile 只负责多轮需求合并，Dify 内部模型仍由 Dify 配置。

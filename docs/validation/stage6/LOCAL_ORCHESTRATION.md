@@ -37,6 +37,7 @@
 | Dify 同题对照 | 本地与已发布 Dify 均为 `exit_code=0`、未超时、`verdict=normal`、`Q2`、`64×64`；峰值约相差 3.6% |
 | 第二模型探测 | `deepseek-reasoner` 可选择并留下实际模型审计，但两次完整工作流分别以 `model_response_empty` 和 `model_transport_failed` 失败，未计为通过 |
 | Luna 全量回归 | 1475 passed，0 failed，1 skipped，15 warnings，10 subtests，92.91s |
+| GitHub 干净克隆 | 远端 head 为 `6bb5362`；发现默认 Compose 仍指向旧网关镜像后，改为从当前检出源码构建网关，避免源码与运行镜像错位 |
 
 
 
@@ -52,6 +53,10 @@
 - 回退该合并应使用 `git revert -m 1 96b4e0b`，避免改写共享分支历史。
 - 当前切片位于 `feat/stage6-local-orchestration-20261014`，尚未合并；现有生产容器、生产数据卷和 Dify 发布图未修改。
 - `ORCHESTRATION_BACKEND=dify` 保留既有兼容行为；该模式的门户 profile 只负责多轮需求合并。
+
+## 下载后运行一致性
+
+根 Compose 的网关和一次性技能自举服务共用当前检出源码的构建定义，快速开始使用 `docker compose up -d --build`。executor 继续使用公开预构建镜像，避免新用户在弱网环境重新下载和编译大型科学依赖。这样 GitHub 分支中的阶段六源码就是实际启动的网关源码；受控发行仍可通过 `ACOUAGENT_GATEWAY_IMAGE` 指向不可变镜像标签。
 
 ## 尚未完成
 

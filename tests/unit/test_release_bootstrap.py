@@ -88,3 +88,16 @@ def test_release_compose_keeps_gateway_reachable_and_executor_internal_only():
     assert "      - executor_internal" in gateway
     assert "  gateway_frontend:" in networks
     assert "  executor_internal:\n    internal: true" in networks
+
+
+def test_release_compose_builds_gateway_from_checked_out_source():
+    compose_path = Path(__file__).resolve().parents[2] / "compose.yaml"
+    compose = compose_path.read_text(encoding="utf-8")
+    gateway = compose.split("  dify-mcp:\n", 1)[1].split("  skill-bootstrap:\n", 1)[0]
+    bootstrap = compose.split("  skill-bootstrap:\n", 1)[1].split("\nnetworks:\n", 1)[0]
+
+    assert "x-gateway-build: &gateway-build" in compose
+    assert "    build: *gateway-build" in gateway
+    assert "    build: *gateway-build" in bootstrap
+    assert "local/acouagent-gateway:source" in gateway
+    assert "feat-acouagent-evidence-gates-20261007" not in gateway

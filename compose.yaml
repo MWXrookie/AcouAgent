@@ -1,3 +1,9 @@
+x-gateway-build: &gateway-build
+  context: .
+  dockerfile: Dockerfile
+  args:
+    APP_MODULE: app.server_safe
+
 services:
   jwave-executor:
     image: ${ACOUAGENT_EXECUTOR_IMAGE:-ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007}
@@ -25,7 +31,8 @@ services:
       start_period: 10s
 
   dify-mcp:
-    image: ${ACOUAGENT_GATEWAY_IMAGE:-ghcr.io/mwxrookie/acouagent-gateway:feat-acouagent-evidence-gates-20261007}
+    image: ${ACOUAGENT_GATEWAY_IMAGE:-local/acouagent-gateway:source}
+    build: *gateway-build
     container_name: dify-mcp
     restart: unless-stopped
     env_file:
@@ -65,7 +72,8 @@ services:
       start_period: 10s
 
   skill-bootstrap:
-    image: ${ACOUAGENT_GATEWAY_IMAGE:-ghcr.io/mwxrookie/acouagent-gateway:feat-acouagent-evidence-gates-20261007}
+    image: ${ACOUAGENT_GATEWAY_IMAGE:-local/acouagent-gateway:source}
+    build: *gateway-build
     container_name: acouagent-skill-bootstrap
     restart: "no"
     env_file:
