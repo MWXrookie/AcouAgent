@@ -5,6 +5,14 @@
 根 Compose 从当前检出的源码构建网关，并拉取公开的 executor 镜像；不要求本机已有 Dify 网络：
 
 ```bash
+bash scripts/install.sh
+```
+
+Windows Docker Desktop 可从 PowerShell 运行 `powershell -ExecutionPolicy Bypass -File scripts/install.ps1`。安装器只在 `.env` 不存在时创建安全随机 token，重复运行不会覆盖已有配置。使用 `--prepare-only` / `-PrepareOnly` 可以先生成配置，填写模型凭据后再启动。
+
+手工步骤：
+
+```bash
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 生成两个不同的 32+ 字符随机值
 docker compose pull jwave-executor

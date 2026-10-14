@@ -1,3 +1,7 @@
+## 2026-10-14 · 阶段七 F2：跨平台一键安装入口
+
+新增 Bash 与 PowerShell 安装器：仅在 `.env` 缺失时生成两个独立本地 token，拒绝短值、占位符和相同 token，已有配置不覆盖；支持 prepare-only，正式启动时解析 Compose、拉取 executor、从当前源码构建网关、等待健康和 17 项固定技能自举并复核库存。安装器不回显 token 或模型凭据。干净安装 GitHub 门改为直接调用 Bash 安装器，再独立核对源码身份、库存和容器边界；README 与部署说明加入两种系统入口。自然语言首题仍属于 F3，需要操作者模型凭据与 UAT，未在此切片冒称通过。
+
 ## 2026-10-14 · 阶段七启动：GitHub 干净安装持续验收门
 
 新增 `Clean install smoke` 工作流，在全新 Ubuntu runner 上按根 Compose 从当前检出源码构建网关、拉取公开 executor、启动完整栈并等待 17 项固定技能自举。验收同时核对容器内 `local_workflow.py` 与 Git 文件哈希、模型 profile 公共接口、技能库存、只读根文件系统、cap-drop、no-new-privileges 与 executor internal 网络；所有路径最终执行 `docker compose down -v --remove-orphans`。该门不配置模型密钥、不产生模型费用，也不把固定技能自举写成自然语言首题通过。阶段七后续保持一键安装、新人 UAT、审计报告和 v1.0 发布材料四项。

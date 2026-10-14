@@ -10,6 +10,8 @@ on:
       - "requirements.lock.txt"
       - "app/**"
       - "executor/**"
+      - "scripts/install.sh"
+      - "scripts/install.ps1"
       - "scripts/skill_library/**"
   workflow_dispatch:
 
@@ -32,67 +34,11 @@ jobs:
 
       - name: Prepare secret-free local configuration
         shell: bash
-        run: |
-          set -euo pipefail
-          cp .env.example .env
-          python3 - <<'PY'
-          from pathlib import Path
-          import secrets
-
-          path = Path(".env")
-          text = path.read_text(encoding="utf-8")
-          text = text.replace(
-              "replace-with-at-least-32-random-characters", secrets.token_hex(32)
-          )
-          text = text.replace(
-              "replace-with-a-different-32-character-secret", secrets.token_hex(32)
-          )
-          path.write_text(text, encoding="utf-8")
-          PY
-          chmod 600 .env
+        run: bash scripts/install.sh --prepare-only
 
       - name: Validate and start the clean stack
         shell: bash
-        run: |
-          set -euo pipefail
-          docker compose config --quiet
-          docker compose pull jwave-executor
-          docker compose up -d --build
-
-      - name: Wait for gateway and fixed-skill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          gateway_ready=false
-          for _ in $(seq 1 60); do
-            if [[ "$(curl -fsS http://127.0.0.1:8001/health 2>/dev/null || true)" == "ok" ]]; then
-              gateway_ready=true
-              break
-            fi
-            sleep 2
-          done
-          if [[ "$gateway_ready" != true ]]; then
-            docker compose logs dify-mcp
-            exit 1
-          fi
-
-          bootstrap_done=false
-          for _ in $(seq 1 180); do
-            state="$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' acouagent-skill-bootstrap)"
-            if [[ "$state" == "exited 0" ]]; then
-              bootstrap_done=true
-              break
-            fi
-            if [[ "$state" == exited\ * && "$state" != "exited 0" ]]; then
-              docker compose logs skill-bootstrap
-              exit 1
-            fi
-            sleep 5
-          done
-          if [[ "$bootstrap_done" != true ]]; then
-            docker compose logs skill-bootstrap
-            exit 1
-          fi
+        run: bash scripts/install.sh
 
       - name: Verify source identity, skill inventory, and sandbox boundary
         shell: bash
