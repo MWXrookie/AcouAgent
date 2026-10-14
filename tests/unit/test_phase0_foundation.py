@@ -15,12 +15,19 @@ def test_run_id_links_execution_analysis_and_llm_usage(tmp_path, monkeypatch) ->
     run_id = "run-phase0-test"
     assert dashboard.record_execution("test", "print(1)", 0, False, 1, "ok", "", run_id=run_id) == run_id
     assert dashboard.record_analysis_event(0, "normal", 1.0, 0.5, [2, 2], True, "ok", None, None, "", "", run_id=run_id) == run_id
-    assert dashboard.record_llm_usage("test", {"prompt_tokens": 1}, 0.0, run_id=run_id) == run_id
+    metadata = {"profile_id": "test", "provider": "openai-compatible", "model": "test",
+                "task": "result_review", "temperature": 0.1, "max_tokens": 10,
+                "thinking": False, "timeout_seconds": 2.0}
+    assert dashboard.record_llm_usage("test", {"prompt_tokens": 1}, 0.0,
+                                      run_id=run_id, metadata=metadata) == run_id
     assert dashboard.find_run_id_for_output("ok", 0) == run_id
     db = sqlite3.connect(db_path)
     assert db.execute("SELECT run_id FROM executions").fetchone()[0] == run_id
     assert db.execute("SELECT run_id FROM analysis_events").fetchone()[0] == run_id
-    assert db.execute("SELECT run_id FROM llm_usage").fetchone()[0] == run_id
+    llm_row = db.execute("SELECT run_id, metadata_json FROM llm_usage").fetchone()
+    assert llm_row[0] == run_id
+    assert json.loads(llm_row[1]) == metadata
+    assert "api_key" not in llm_row[1] and "base_url" not in llm_row[1]
     db.close()
 
 

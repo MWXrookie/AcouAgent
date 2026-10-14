@@ -4,7 +4,7 @@
 
 ## 结论
 
-Archify 运行时图的核心执行和质量门链路与生产实际一致；发行冷启动部分存在缺失，现已同步修正。旧的 `docs/ARCHITECTURE.md` 明确标记为历史文档，仍包含 Gradio、旧工具数量和旧节点描述，不能作为当前发行事实。
+Archify 运行时图已同步阶段六本地编排候选、服务端模型 profile、Dify 兼容路径、原 executor 隔离和冷启动技能自举。旧的 `docs/ARCHITECTURE.md` 明确标记为历史文档，仍包含 Gradio、旧工具数量和旧节点描述，不能作为当前发行事实。
 
 ## 逐项核对
 
@@ -15,7 +15,7 @@ Archify 运行时图的核心执行和质量门链路与生产实际一致；发
 | executor 仅在内部网络 | 运行容器仅连接 `executor_internal`；只读、cap-drop、no-new-privileges、4 GiB、2 CPU、256 PID | 一致 |
 | 生产技能库 Q4/Q2 分流 | 生产为 17 个 Q4 active 与 1 个 Q2 candidate，schema 1..17，quick_check=ok | 一致 |
 | 生产自动学习已开启 | 五个技能相关开关均为 true | 一致 |
-| Dify 与 DeepSeek 仍是依赖 | 门户主聊天仍调用 Dify；DeepSeek 仍用于需求合并和纠错 | 一致，属于阶段六未完成项 |
+| 本地编排与可配置内核 | `ORCHESTRATION_BACKEND=local` 已真实运行；浏览器只选服务端 profile；Dify 为可选兼容 | 一致，第二模型与双跑仍待终验 |
 | GitHub 新环境能看到技能内容 | 原根 Compose 默认关闭技能开关、依赖外部 Dify 网络且空卷没有种子 | **不一致，已修复发行路径** |
 
 ## “拉取后没有技能库内容”的根因
@@ -44,3 +44,13 @@ Archify 运行时图的核心执行和质量门链路与生产实际一致；发
 实际拉取 `522bc05` 的 gateway/executor 镜像后，在全新的隔离 volume 上再次完成 17/17 固定配方自举，得到 17 个 Q4 active、17 个版本，`skill_store.db` 的 `quick_check=ok`。随后发现根 Compose 若让 gateway 也只连接 `internal: true` 网络，Docker 会保留端口声明却不建立主机监听。现已改为 gateway 同时连接 `gateway_frontend` 与 `executor_internal`，executor 仍只连接内部网络。
 
 修正后 `/health`、`/portal`、`/skills`、`/dashboard` 均返回 HTTP 200；`/skills/api?limit=20` 返回 17 项且全部为 Q4；`status-all` 返回 17/17 ready。该复验只使用 GHCR 镜像与空数据卷，不读取生产技能数据库。
+
+
+## 本地编排候选复核
+
+候选网关从当前工作树构建，使用独立数据卷并连接原 `jwave-executor`，未替换或重启生产网关与 executor。真实请求依次留下 1 条执行、1 条分析和 4 条模型调用审计；模型任务为参数提取、代码生成、结果审查和结果解释，审计元数据不含 endpoint 或密钥。未知 profile 在模型传输前失败关闭。
+
+Archify 最终源 SHA-256 为 `dc2ffb4c5d61822b559b648b5509546377c9aa36162a1d663f473b8844a2921f`，HTML SHA-256 为 `acad7c529096b1a51d501719c67a3a7678395e9834cb2e88c436efa02de07aca`；showcase 9/9、0 error、0 warning，1440×900 至 2048×1320 的亮暗视图无溢出，人工检查确认 Dify 兼容层位于本地服务边界之外。
+
+
+同一二维水中点源请求已分别通过本地编排候选和已发布 Dify 路径：两边均为 exit code 0、未超时、normal、Q2 和 64×64 场；峰值约为 0.2139 Pa 与 0.2215 Pa。链路和门控语义一致，数值差异约 3.6%，后续仍需批量双跑分析。

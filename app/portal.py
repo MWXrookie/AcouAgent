@@ -8,11 +8,18 @@ import secrets
 import uuid
 from pathlib import Path as _Path
 
-import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
-from app import cache_store, config, execution, skill_library_service
+from app import (
+    cache_store,
+    config,
+    execution,
+    local_workflow,
+    model_client,
+    model_profiles,
+    skill_library_service,
+)
 from app.ui_chrome import render_page
 from app.workflow_client import workflow_events
 from app.dashboard import (
@@ -24,7 +31,6 @@ from app.dashboard import (
     record_admin_event,
     record_execution,
 )
-from app.network_security import UnsafeOutboundUrl, validate_public_https_url
 
 
 def _serve_html(filename: str) -> HTMLResponse:
@@ -47,48 +53,22 @@ def _extract_report(output) -> str:
     return ""
 
 
-async def _merge_requirement(requirement: str, message: str, model_config: dict | None = None) -> str:
-    """用 DeepSeek 把「历史需求 + 本轮增量修改」合并成完整需求。"""
-    cfg = model_config or {}
-    api_key = (cfg.get("api_key") or config.DEEPSEEK_API_KEY).strip()
-    if not api_key:
-        return f"{requirement}；{message}"
-    raw_base_url = (cfg.get("base_url") or "https://api.deepseek.com").strip()
-    try:
-        base_url = validate_public_https_url(raw_base_url)
-    except UnsafeOutboundUrl:
-        # Never reveal network details to the portal client.
-        return f"{requirement}；{message}"
-    endpoint = base_url if base_url.endswith("/chat/completions") else base_url + "/chat/completions"
-    model = (cfg.get("model") or config.DEEPSEEK_MODEL).strip()
+async def _merge_requirement(requirement: str, message: str,
+                             model_profile: str | None = None) -> str:
+    """Merge turns through a server-owned profile; fail closed to concatenation."""
     prompt = (
-        "你是声学仿真需求整理助手。请根据「当前完整需求」和「用户新修改」，输出更新后的完整需求。\n"
-        "要求：输出一段完整的中文需求描述，包含所有当前有效的仿真参数"
-        "（如声源频率、网格大小、仿真区域、声速、介质/异质结构、传感器位置、仿真时长等）；"
-        "用户的新修改要覆盖旧值；只输出需求本身，不要任何解释或前缀。\n\n"
-        f"当前完整需求：\n{requirement}\n\n"
-        f"用户新修改：\n{message}\n\n"
-        "更新后的完整需求："
+        "你是声学仿真需求整理助手。根据当前完整需求和用户新修改，输出更新后的完整需求。"
+        "新修改覆盖旧值；只输出需求，不要解释。\n\n"
+        f"当前完整需求：\n{requirement}\n\n用户新修改：\n{message}"
     )
     try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-            resp = await client.post(
-                endpoint,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1,
-                    "max_tokens": 1200,
-                },
-            )
-        resp.raise_for_status()
-        merged = resp.json()["choices"][0]["message"]["content"].strip()
-        return merged or f"{requirement}；{message}"
-    except Exception:
+        result = await model_client.complete(
+            model_profile,
+            "requirement_merge",
+            [{"role": "user", "content": prompt}],
+        )
+        return result["content"]
+    except (model_profiles.ModelProfileError, model_client.ModelCallError):
         return f"{requirement}；{message}"
 
 
@@ -100,6 +80,20 @@ def register(mcp) -> None:
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> PlainTextResponse:
         return PlainTextResponse("ok")
+
+    @mcp.custom_route("/api/model-profiles", methods=["GET"])
+    async def model_profiles_api(_: Request) -> PlainTextResponse:
+        try:
+            payload = model_profiles.public_profiles()
+            payload["orchestration_backend"] = config.ORCHESTRATION_BACKEND
+            status = 200
+        except model_profiles.ModelProfileError as exc:
+            payload = {"profiles": [], "default_profile": None,
+                       "orchestration_backend": config.ORCHESTRATION_BACKEND,
+                       "error": str(exc)}
+            status = 503
+        return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
+                                 media_type="application/json")
 
     def require_admin(request: Request, action: str, target_id: str | None = None) -> PlainTextResponse | None:
         """Fail closed for state-changing portal endpoints and audit every attempt."""
@@ -132,7 +126,12 @@ def register(mcp) -> None:
         message = (body.get("message") or "").strip()
         requirement = (body.get("requirement") or "").strip()
         session_id = (body.get("session_id") or "").strip()[:24]
-        model_config = body.get("model_config") if isinstance(body.get("model_config"), dict) else None
+        model_profile = body.get("model_profile")
+        if model_profile is not None and (not isinstance(model_profile, str) or len(model_profile) > 64):
+            return PlainTextResponse(
+                json.dumps({"error": "invalid model_profile"}, ensure_ascii=False),
+                status_code=400, media_type="application/json",
+            )
         if not message:
             return PlainTextResponse(
                 json.dumps({"error": "message is required"}, ensure_ascii=False),
@@ -140,7 +139,7 @@ def register(mcp) -> None:
             )
 
         if requirement:
-            full_requirement = await _merge_requirement(requirement, message, model_config)
+            full_requirement = await _merge_requirement(requirement, message, model_profile)
             merge_used = True
         else:
             full_requirement = message
@@ -150,11 +149,16 @@ def register(mcp) -> None:
         dify_user = f"portal-{session_id}" if session_id else "portal"
 
         async def events():
-            async for item in workflow_events(full_requirement, dify_user, config.DIFY_API_KEY):
+            source = (local_workflow.workflow_events(full_requirement, dify_user, model_profile)
+                      if config.ORCHESTRATION_BACKEND == "local"
+                      else workflow_events(full_requirement, dify_user, config.DIFY_API_KEY))
+            async for item in source:
                 if item["event"] == "result":
                     if "outputs" in item:
                         item["report"] = _extract_report(item.pop("outputs").get("text"))
-                    item.update(requirement=full_requirement, merge_used=merge_used)
+                    item.update(requirement=full_requirement, merge_used=merge_used,
+                                orchestration_backend=item.get("orchestration_backend",
+                                                               config.ORCHESTRATION_BACKEND))
                 yield item
 
         if body.get("stream") is True:

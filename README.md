@@ -1,10 +1,10 @@
 # AcouAgent · 声学仿真与成功技能库
 
-> **2026-10-14 阶段六发行冷启动已通过第一道门**：根 Compose 默认使用 GHCR 镜像且不要求 Dify 网络；新数据卷会通过原 executor 与物理门幂等准备 17 项 Q4 固定技能，自动学习默认关闭。自然语言聊天仍需可选 Dify 兼容覆盖。详见 [阶段六架构核对](docs/validation/stage6/ARCHITECTURE_AUDIT.md)。
+> **2026-10-14 阶段六本地编排切片已通过候选验收**：发行示例默认 `local`，自然语言聊天可以脱离 Dify 完成参数提取、技能检索、代码生成、原 executor 执行、物理门、审查解释和最多两次修正；浏览器只选择服务端模型 profile，不接触端点或密钥。同机真实 DeepSeek + executor 运行得到 `verdict=normal / Q2`。阶段六仍需第二模型、Dify 同题双跑和 GitHub 干净环境终验。详见 [本地编排验收](docs/validation/stage6/LOCAL_ORCHESTRATION.md)。
 
 > **2026-10-13 阶段五自动学习闭环已通过**：主执行与重试路径统一经过质量门；精确固定配方可确定性接纳为 `Q4 active`，普通成功运行最高只形成不可复用的 `Q2 candidate`；真实 Dify 学习、候选隔离、run-bound 幂等负反馈和 Luna 772 项回归均通过。当前生产已显式开启学习，executor 未变。详见 [阶段五验收](docs/validation/stage5/README.md)。
 
-自然语言声学仿真服务：Dify 提取参数和生成代码，FastMCP 网关调用 jwave 沙箱执行，SQLite 保存执行历史与可复用技能。技能检索发生在参数提取之后、代码生成之前；缺少合格技能或证据时回退原上下文。
+自然语言声学仿真服务：服务内本地编排器或可选 Dify 兼容工作流负责参数提取和代码生成，FastMCP 网关调用 jwave 沙箱执行，SQLite 保存执行历史、模型调用审计与可复用技能。技能检索发生在参数提取之后、代码生成之前；缺少合格技能或证据时回退原上下文。
 
 ## 当前可用范围
 
@@ -18,7 +18,7 @@
 
 这些配置由服务端目录固定，修改频率、材料或网格不会继承原认证。普通运行只有判定为 `normal` 且通过物理合理性门才可积累为候选；退出码 0 或模型自述不能证明物理正确。候选不能自动成为可复用技能。
 
-本机基础使用不要求用户配置签名私钥。受控网关留证与物理检查负责本机固定技能；跨主机独立来源认证是单独的高级路径。仓库发行示例继续默认关闭自动学习，当前生产环境已在阶段五验收后显式开启。固定目录的精确合格结果可进入 `Q4 active`；普通成功运行最高写入 `Q2 candidate`，不能参与检索或注入。Dify 运行时依赖和 DeepSeek 内核固定仍是后续产品化问题。详见 [验收矩阵](docs/SKILL_LIBRARY_ACCEPTANCE.md) 与 [已知缺口](docs/KNOWN_GAPS.md)。
+本机基础使用不要求用户配置签名私钥。受控网关留证与物理检查负责本机固定技能；跨主机独立来源认证是单独的高级路径。仓库发行示例继续默认关闭自动学习，当前生产环境已在阶段五验收后显式开启。固定目录的精确合格结果可进入 `Q4 active`；普通成功运行最高写入 `Q2 candidate`，不能参与检索或注入。阶段六已加入本地编排和服务端 OpenAI-compatible 模型 profile；剩余产品化门包括第二模型验收、Dify/本地同题双跑和全新机器终验。详见 [验收矩阵](docs/SKILL_LIBRARY_ACCEPTANCE.md) 与 [已知缺口](docs/KNOWN_GAPS.md)。
 
 ## 阶段一验收基线
 
@@ -27,10 +27,13 @@
 ## 架构与安全
 
 ```text
-浏览器 / Dify
-    → FastMCP 网关 :8001
-        → SQLite：执行历史 / 纠错缓存 / 技能与只追加审计
-        → jwave executor :8010（内部隔离网络）
+浏览器 → Web 门户 / 本地编排器 → 服务端模型 profile
+                         ↓
+                 FastMCP 共享校验与执行入口 :8001
+                         → SQLite：执行 / 分析 / 模型 / 技能审计
+                         → jwave executor :8010（内部隔离网络）
+
+可选 Dify 兼容工作流 ───────────────→ FastMCP MCP 工具
 ```
 
 技能代码仍只经过原 executor：只读文件系统、降权、cap-drop、no-new-privileges、网络隔离与资源上限保持。生成参考每次重核精确参数、版本、来源、物理证据、撤回与一次消费；公开检索只读，最多返回 3 条元数据。
@@ -42,10 +45,13 @@
 ```bash
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 设置两个不同的 32+ 字符随机值
+# 设置 DEEPSEEK_API_KEY，或在 MODEL_PROFILES_JSON 中配置其他服务端 OpenAI-compatible profile
 docker compose pull
 docker compose up -d
 docker compose ps -a
 ```
+
+多 profile、分任务参数、内部模型网关和失败语义见 [模型 profile 配置](docs/MODEL_PROFILES.md)。
 
 首次启动的一次性 `skill-bootstrap` 会逐项执行 17 个服务端固定配方；只有通过原 executor 回执与确定性物理门的结果才进入 Q4。正常完成后它显示 `Exited (0)`：
 
@@ -60,13 +66,13 @@ curl http://127.0.0.1:8001/skills
 
 已有克隆的 `.env` 不会被 `git pull` 覆盖。若升级后技能页仍为空，请按 [部署说明](deploy/README.md#已有克隆升级) 开启固定技能开关并显式运行一次自举。
 
-完整自然语言聊天当前仍需 Dify 兼容层：
+若需要继续使用既有 Dify 工作流，可启用兼容覆盖：
 
 ```bash
 docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d
 ```
 
-通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify。阶段六后续将把编排迁入本项目。
+通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify，并把 `ORCHESTRATION_BACKEND=dify`。此模式中门户 profile 只负责多轮需求合并，Dify 内部模型仍由 Dify 配置。
 
 ## 页面与工具
 

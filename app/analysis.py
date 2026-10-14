@@ -506,6 +506,45 @@ def _analyze_impl(
     return result
 
 
+def analyze_and_record(
+    stdout_text: str,
+    stderr_text: str = "",
+    exit_code: int = 0,
+    params_json: str = "{}",
+    run_id: str = "",
+) -> dict[str, Any]:
+    """Analyze one execution and persist its analysis event exactly once."""
+    result = _analyze_impl(
+        stdout_text,
+        stderr_text,
+        exit_code,
+        params_json,
+        run_id,
+    )
+    # Analysis history is separate from execution history. Recording failure must
+    # never turn a completed deterministic analysis into a workflow failure.
+    try:
+        from app.dashboard import record_analysis_event
+
+        record_analysis_event(
+            exit_code=exit_code,
+            verdict=result.get("verdict", "unknown"),
+            max_pressure=result.get("max_pressure"),
+            rms_pressure=result.get("rms_pressure"),
+            field_shape=result.get("field_shape"),
+            has_signal=bool(result.get("has_signal")),
+            summary=result.get("summary", ""),
+            heatmap_base64=result.get("heatmap_png_base64"),
+            waveform_base64=result.get("waveform_png_base64"),
+            stdout_excerpt=(stdout_text or "")[:500],
+            stderr_excerpt=(stderr_text or "")[:200],
+            run_id=result.get("run_id"),
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return result
+
+
 def register(mcp) -> None:
     """向 FastMCP 实例注册本模块工具。"""
 
@@ -524,31 +563,10 @@ def register(mcp) -> None:
         Returns has_signal, max/rms pressure, field shape, heatmap/waveform PNG
         (base64) and a physical verdict (normal / zero_field / abnormal).
         """
-        r = _analyze_impl(
+        return analyze_and_record(
             stdout_text,
             stderr_text,
             exit_code,
             params_json,
             run_id,
         )
-        # 结果分析写入独立 analysis_events，不再污染执行历史。
-        try:
-            from app.dashboard import record_analysis_event
-
-            record_analysis_event(
-                exit_code=exit_code,
-                verdict=r.get("verdict", "unknown"),
-                max_pressure=r.get("max_pressure"),
-                rms_pressure=r.get("rms_pressure"),
-                field_shape=r.get("field_shape"),
-                has_signal=bool(r.get("has_signal")),
-                summary=r.get("summary", ""),
-                heatmap_base64=r.get("heatmap_png_base64"),
-                waveform_base64=r.get("waveform_png_base64"),
-                stdout_excerpt=(stdout_text or "")[:500],
-                stderr_excerpt=(stderr_text or "")[:200],
-                run_id=r.get("run_id"),
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        return r

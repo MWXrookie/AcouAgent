@@ -71,7 +71,8 @@ def init_db() -> None:
             completion_tokens INTEGER DEFAULT 0,
             prompt_cache_hit_tokens INTEGER DEFAULT 0,
             prompt_cache_miss_tokens INTEGER DEFAULT 0,
-            cost_rmb REAL DEFAULT 0
+            cost_rmb REAL DEFAULT 0,
+            metadata_json TEXT
         )
     """)
     db.execute("""
@@ -107,6 +108,10 @@ def init_db() -> None:
             db.execute(f"ALTER TABLE {table} ADD COLUMN run_id TEXT")
         except sqlite3.OperationalError:
             pass
+    try:
+        db.execute("ALTER TABLE llm_usage ADD COLUMN metadata_json TEXT")
+    except sqlite3.OperationalError:
+        pass
     # Never backfill historical records: retry rows used to store initial code.
     columns = {row[1] for row in db.execute("PRAGMA table_info(executions)")}
     for name in ("code_sha256", "record_version", "executor_evidence_json"):
@@ -264,6 +269,20 @@ def get_execution(execution_id: int) -> dict | None:
     return result
 
 
+def get_execution_by_run_id(run_id: str) -> dict | None:
+    """Return exactly one immutable gateway execution for an internal run id."""
+    if not isinstance(run_id, str) or not 1 <= len(run_id) <= 128:
+        return None
+    db = _get_db()
+    rows = db.execute("SELECT * FROM executions WHERE run_id = ? LIMIT 2", (run_id,)).fetchall()
+    db.close()
+    if len(rows) != 1:
+        return None
+    result = dict(rows[0])
+    result["timed_out"] = bool(result["timed_out"])
+    return result
+
+
 def find_run_id_for_output(stdout: str, exit_code: int | None) -> str | None:
     """Resolve an analysis call back to its execution when Dify omits run_id.
 
@@ -365,15 +384,20 @@ def get_stats() -> dict:
     return {"total": total, "success": success, "failed": failed, "timeout": timeout}
 
 
-def record_llm_usage(model: str, usage: dict | None, cost_rmb: float, run_id: str | None = None) -> str:
-    """记录一次 LLM 调用的 token 用量与估算成本。usage 为 DeepSeek 返回的 usage 字段。"""
+def record_llm_usage(model: str, usage: dict | None, cost_rmb: float,
+                     run_id: str | None = None, metadata: dict | None = None) -> str:
+    """Record one model call with bounded, server-selected non-secret settings."""
     usage = usage or {}
     run_id = run_id or str(uuid.uuid4())
+    metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True,
+                               separators=(",", ":")) if isinstance(metadata, dict) else None
+    if metadata_json is not None and len(metadata_json.encode("utf-8")) > 4096:
+        raise ValueError("llm usage metadata exceeds 4096 bytes")
     with _write_lock:
         db = _get_db()
         db.execute(
-            "INSERT INTO llm_usage (timestamp, model, prompt_tokens, completion_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, cost_rmb, run_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO llm_usage (timestamp, model, prompt_tokens, completion_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, cost_rmb, run_id, metadata_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 datetime.now(timezone.utc).isoformat(),
                 model,
@@ -383,6 +407,7 @@ def record_llm_usage(model: str, usage: dict | None, cost_rmb: float, run_id: st
                 usage.get("prompt_cache_miss_tokens") or usage.get("prompt_tokens") or 0,
                 cost_rmb,
                 run_id,
+                metadata_json,
             ),
         )
         db.commit()
@@ -1434,7 +1459,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   .modal-box { width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 18px; box-shadow: 0 12px 28px rgba(17,24,39,.16); }
   .modal-box h2 { margin: 0 0 12px; font-size: 17px; }
   .modal-box label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 5px; }
-  .modal-box input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; }
+  .modal-box input, .modal-box select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .modal-actions button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
   .modal-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -1561,14 +1586,11 @@ body{background:var(--bg)!important;color:var(--text)!important}
 
 <div class="modal" id="model-modal">
   <div class="modal-box">
-    <h2>模型接口设置</h2>
-    <label>API Base URL</label>
-    <input id="model-base" type="text" placeholder="https://api.deepseek.com">
-    <label>API Key</label>
-    <input id="model-key" type="password" placeholder="sk-...">
-    <label>Model</label>
-    <input id="model-name" type="text" placeholder="deepseek-chat">
-    <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">配置保存在当前浏览器，并在发起请求时发送到本服务。留空时使用服务端默认模型。</p>
+    <h2>选择模型配置</h2>
+    <label for="model-profile">服务端模型 profile</label>
+    <select id="model-profile"></select>
+    <p id="model-profile-detail" style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">正在读取服务端配置…</p>
+    <p style="color:var(--muted);font-size:12px;line-height:1.6">浏览器只保存 profile 编号。API 地址、模型参数和密钥由服务端管理员配置，密钥不会发送到浏览器或写入技能库。</p>
     <div class="modal-actions">
       <button onclick="closeModelSettings()">取消</button>
       <button class="primary" onclick="saveModelSettings()">保存</button>
@@ -1622,30 +1644,39 @@ function renderMarkdown(md) {
 var conversation = [];
 var currentRequirement = '';
 
-function loadModelConfig() {
+function getModelProfile() {
+  return localStorage.getItem('acouagent_model_profile') || null;
+}
+
+async function loadModelProfiles() {
+  var select = document.getElementById('model-profile');
+  var detail = document.getElementById('model-profile-detail');
+  select.innerHTML = '';
   try {
-    return JSON.parse(localStorage.getItem('acouagent_model_config') || 'null');
+    var resp = await fetch('/api/model-profiles', {headers:{'Accept':'application/json'}});
+    var data = await resp.json();
+    if (!resp.ok || !Array.isArray(data.profiles) || !data.profiles.length) throw new Error(data.error || '没有可用 profile');
+    var saved = getModelProfile() || data.default_profile;
+    data.profiles.forEach(function(profile) {
+      var option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = profile.label + ' · ' + profile.model + (profile.configured ? '' : '（未配置凭据）');
+      option.disabled = !profile.configured;
+      option.selected = profile.id === saved;
+      select.appendChild(option);
+    });
+    if (!select.value && data.default_profile) select.value = data.default_profile;
+    detail.textContent = data.orchestration_backend === 'local'
+      ? '编排后端：local。该选择用于参数提取、代码生成、审查、解释和重试。'
+      : '编排后端：dify。该选择仅用于门户的需求合并；Dify 工作流内部模型仍由 Dify 配置决定。';
   } catch(e) {
-    return null;
+    detail.textContent = '无法读取模型配置：' + String(e);
   }
 }
 
-function getModelConfig() {
-  var cfg = loadModelConfig();
-  if (!cfg || !cfg.api_key || !cfg.model) return null;
-  return {
-    base_url: cfg.base_url || 'https://api.deepseek.com',
-    api_key: cfg.api_key,
-    model: cfg.model
-  };
-}
-
 function openModelSettings() {
-  var cfg = loadModelConfig() || {};
-  document.getElementById('model-base').value = cfg.base_url || 'https://api.deepseek.com';
-  document.getElementById('model-key').value = cfg.api_key || '';
-  document.getElementById('model-name').value = cfg.model || '';
   document.getElementById('model-modal').classList.add('open');
+  loadModelProfiles();
 }
 
 function closeModelSettings() {
@@ -1653,16 +1684,9 @@ function closeModelSettings() {
 }
 
 function saveModelSettings() {
-  var cfg = {
-    base_url: document.getElementById('model-base').value.trim(),
-    api_key: document.getElementById('model-key').value.trim(),
-    model: document.getElementById('model-name').value.trim()
-  };
-  if (cfg.api_key && cfg.model) {
-    localStorage.setItem('acouagent_model_config', JSON.stringify(cfg));
-  } else {
-    localStorage.removeItem('acouagent_model_config');
-  }
+  var selected = document.getElementById('model-profile').value;
+  if (selected) localStorage.setItem('acouagent_model_profile', selected);
+  else localStorage.removeItem('acouagent_model_profile');
   closeModelSettings();
 }
 
@@ -1716,7 +1740,7 @@ async function ask() {
     var resp = await fetch('/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({stream: true, message: message, requirement: currentRequirement, session_id: getSessionId(), model_config: getModelConfig()})
+      body: JSON.stringify({stream: true, message: message, requirement: currentRequirement, session_id: getSessionId(), model_profile: getModelProfile()})
     });
     if (!resp.ok) throw new Error('服务返回 HTTP ' + resp.status);
     var data;

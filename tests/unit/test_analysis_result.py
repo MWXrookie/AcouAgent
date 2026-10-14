@@ -1,6 +1,7 @@
 import base64
 import json
 
+from app import analysis, dashboard
 from app.analysis import _analyze_impl, _extract_sensor
 
 
@@ -71,3 +72,18 @@ def test_field_analysis_quality_levels_follow_parsed_evidence() -> None:
     zero = analyze([[0.0, 0.0], [0.0, 0.0]], [128, 128])
     assert zero["verdict"] == "zero_field"
     assert zero["quality_level"] == "Q0"
+
+
+def test_analyze_and_record_is_shared_audited_entrypoint(monkeypatch) -> None:
+    result = {"verdict": "normal", "max_pressure": 1.5, "rms_pressure": 0.4,
+              "field_shape": [2, 2], "has_signal": True, "summary": "ok",
+              "heatmap_png_base64": None, "waveform_png_base64": None,
+              "run_id": "run-shared"}
+    recorded = {}
+    monkeypatch.setattr(analysis, "_analyze_impl", lambda *args: dict(result))
+    monkeypatch.setattr(dashboard, "record_analysis_event", lambda **kwargs: recorded.update(kwargs))
+    got = analysis.analyze_and_record("stdout", "stderr", 0, "{}", "run-shared")
+    assert got == result
+    assert recorded["run_id"] == "run-shared"
+    assert recorded["verdict"] == "normal"
+    assert recorded["stdout_excerpt"] == "stdout"
