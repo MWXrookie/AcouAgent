@@ -101,3 +101,21 @@ def test_release_compose_builds_gateway_from_checked_out_source():
     assert "    build: *gateway-build" in bootstrap
     assert "local/acouagent-gateway:source" in gateway
     assert "feat-acouagent-evidence-gates-20261007" not in gateway
+
+
+def test_clean_install_workflow_checks_source_skills_and_cleanup():
+    workflow_path = (
+        Path(__file__).resolve().parents[2]
+        / ".github"
+        / "workflows"
+        / "clean-install-smoke.yml"
+    )
+    workflow = workflow_path.read_text(encoding="utf-8")
+
+    assert "docker compose up -d --build" in workflow
+    assert "scripts.skill_library.local_basic status-all" in workflow
+    assert "app/local_workflow.py" in workflow
+    assert 'assert status["ready_count"] == 17' in workflow
+    assert 'assert network["Internal"] is True' in workflow
+    assert "docker compose down -v --remove-orphans" in workflow
+    assert "if: always()" in workflow

@@ -1,3 +1,7 @@
+## 2026-10-14 · 阶段七启动：GitHub 干净安装持续验收门
+
+新增 `Clean install smoke` 工作流，在全新 Ubuntu runner 上按根 Compose 从当前检出源码构建网关、拉取公开 executor、启动完整栈并等待 17 项固定技能自举。验收同时核对容器内 `local_workflow.py` 与 Git 文件哈希、模型 profile 公共接口、技能库存、只读根文件系统、cap-drop、no-new-privileges 与 executor internal 网络；所有路径最终执行 `docker compose down -v --remove-orphans`。该门不配置模型密钥、不产生模型费用，也不把固定技能自举写成自然语言首题通过。阶段七后续保持一键安装、新人 UAT、审计报告和 v1.0 发布材料四项。
+
 ## 2026-10-14 · 阶段六 GitHub 干净克隆修正运行源码错位
 
 从 GitHub 的阶段六分支重新浅克隆并核对 head 后，发现根 Compose 仍默认拉取阶段六之前的网关镜像；下载者即使拿到新源码，也可能启动旧网关。根 Compose 现为网关和技能自举声明同一份当前源码构建，快速开始改用 `docker compose pull jwave-executor` 与 `docker compose up -d --build`；大型 executor 仍拉取公开预构建镜像。全源码覆盖只额外构建 executor。同步修正 README、部署说明、环境模板、阶段六验收记录和 AGENTS 当前状态。该修正不改变运行拓扑、executor 隔离、物理门或自动学习策略。

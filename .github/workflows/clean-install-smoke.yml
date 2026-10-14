@@ -1,0 +1,152 @@
+name: Clean install smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/clean-install-smoke.yml"
+      - ".env.example"
+      - "compose.yaml"
+      - "Dockerfile"
+      - "requirements.lock.txt"
+      - "app/**"
+      - "executor/**"
+      - "scripts/skill_library/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: clean-install-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: acouagent-clean-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare secret-free local configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          python3 - <<'PY'
+          from pathlib import Path
+          import secrets
+
+          path = Path(".env")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "replace-with-at-least-32-random-characters", secrets.token_hex(32)
+          )
+          text = text.replace(
+              "replace-with-a-different-32-character-secret", secrets.token_hex(32)
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          chmod 600 .env
+
+      - name: Validate and start the clean stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose config --quiet
+          docker compose pull jwave-executor
+          docker compose up -d --build
+
+      - name: Wait for gateway and fixed-skill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          gateway_ready=false
+          for _ in $(seq 1 60); do
+            if [[ "$(curl -fsS http://127.0.0.1:8001/health 2>/dev/null || true)" == "ok" ]]; then
+              gateway_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$gateway_ready" != true ]]; then
+            docker compose logs dify-mcp
+            exit 1
+          fi
+
+          bootstrap_done=false
+          for _ in $(seq 1 180); do
+            state="$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' acouagent-skill-bootstrap)"
+            if [[ "$state" == "exited 0" ]]; then
+              bootstrap_done=true
+              break
+            fi
+            if [[ "$state" == exited\ * && "$state" != "exited 0" ]]; then
+              docker compose logs skill-bootstrap
+              exit 1
+            fi
+            sleep 5
+          done
+          if [[ "$bootstrap_done" != true ]]; then
+            docker compose logs skill-bootstrap
+            exit 1
+          fi
+
+      - name: Verify source identity, skill inventory, and sandbox boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(curl -fsS http://127.0.0.1:8001/health)" = "ok"
+          curl -fsS http://127.0.0.1:8001/api/model-profiles >/tmp/model-profiles.json
+          docker exec dify-mcp python -m scripts.skill_library.local_basic status-all \
+            >/tmp/skill-status.json
+
+          host_sha="$(sha256sum app/local_workflow.py | cut -d' ' -f1)"
+          image_sha="$(docker exec dify-mcp sha256sum /app/app/local_workflow.py | cut -d' ' -f1)"
+          test "$host_sha" = "$image_sha"
+
+          docker inspect jwave-executor dify-mcp >/tmp/container-inspect.json
+          docker network inspect "${COMPOSE_PROJECT_NAME}_executor_internal" \
+            >/tmp/executor-network.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          profiles = json.loads(Path("/tmp/model-profiles.json").read_text())
+          assert profiles["orchestration_backend"] == "local"
+          assert profiles["default_profile"] == "deepseek-default"
+          assert profiles["profiles"]
+
+          status = json.loads(Path("/tmp/skill-status.json").read_text())
+          assert status["ready"] is True
+          assert status["ready_count"] == 17
+          assert status["profile_count"] == 17
+
+          containers = json.loads(Path("/tmp/container-inspect.json").read_text())
+          assert len(containers) == 2
+          for container in containers:
+              host = container["HostConfig"]
+              assert host["ReadonlyRootfs"] is True
+              assert "ALL" in (host.get("CapDrop") or [])
+              assert any(
+                  item == "no-new-privileges:true"
+                  for item in (host.get("SecurityOpt") or [])
+              )
+
+          network = json.loads(Path("/tmp/executor-network.json").read_text())[0]
+          assert network["Internal"] is True
+          PY
+
+      - name: Show service state
+        if: always()
+        run: docker compose ps -a
+
+      - name: Show failure logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Remove clean-install resources
+        if: always()
+        run: docker compose down -v --remove-orphans
