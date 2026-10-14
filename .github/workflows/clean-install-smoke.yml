@@ -48,6 +48,13 @@ jobs:
           curl -fsS http://127.0.0.1:8001/api/model-profiles >/tmp/model-profiles.json
           docker exec dify-mcp python -m scripts.skill_library.local_basic status-all \
             >/tmp/skill-status.json
+          docker exec dify-mcp python -m scripts.skill_library.audit_report \
+            >/tmp/skill-audit-command.json
+          docker exec dify-mcp python -m scripts.skill_library.audit_report \
+            --verify /app/data/audit/skill-library-audit.json \
+            >/tmp/skill-audit-verify.json
+          docker exec dify-mcp python -c \
+            "import json; r=json.load(open('/app/data/audit/skill-library-audit.json')); assert r['healthy'] is True; assert r['summary']['table_counts']['simulation_skills']==17"
 
           host_sha="$(sha256sum app/local_workflow.py | cut -d' ' -f1)"
           image_sha="$(docker exec dify-mcp sha256sum /app/app/local_workflow.py | cut -d' ' -f1)"
