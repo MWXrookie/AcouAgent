@@ -22,7 +22,7 @@
 
 ## F5 v1.0.0 发布材料
 
-`scripts/validation/release_manifest.py` 从指定 Git commit 读取树、项目版本和关键文件，生成确定性的发布清单；清单记录每个跟踪条目的 mode/type/blob id、关键文件 SHA-256、缺失必需文件和禁止跟踪的运行产物，并带可复算 `manifest_sha256`。`Release container images` 在每个发行提交上生成并保存该清单。
+`scripts/validation/release_manifest.py` 从指定 Git commit 读取树、项目版本和关键文件，生成确定性的发布清单；清单记录每个跟踪条目的 mode/type/blob id、关键文件 SHA-256、缺失必需文件和禁止跟踪的运行产物，并带可复算 `manifest_sha256`。`Release container images` 在每个发行提交上生成并保存该清单，同时在断网、只读、降权 Linux 容器中执行完整单元回归。
 
 发布检查表位于 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)，发行说明位于 [v1.0.0 草案](../../releases/v1.0.0-draft.md)。两者明确当前包版本仍为 `0.1.0`、标签未创建，并列出新人 UAT、第二模型、批量双跑、VM 升级回滚和最终 Luna 全量回归等未关闭门禁。
 

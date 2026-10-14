@@ -12,6 +12,33 @@ permissions:
   packages: write
 
 jobs:
+  unit-tests:
+    name: Full unit regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build isolated test image
+        run: docker build --build-arg INSTALL_DEV=true -t local/acouagent-tests:${{ github.sha }} .
+
+      - name: Run full unit suite with production-like restrictions
+        run: |
+          docker run --rm \
+            --network none \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=2g \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            -e MCP_AUTH_TOKEN="$(printf 'a%.0s' {1..40})" \
+            -e EXECUTOR_SHARED_TOKEN="$(printf 'b%.0s' {1..40})" \
+            -v "${{ github.workspace }}:/src:ro" \
+            -w /src \
+            local/acouagent-tests:${{ github.sha }} \
+            python -m pytest -q -p no:cacheprovider
+
   release-manifest:
     name: Build release manifest
     runs-on: ubuntu-latest

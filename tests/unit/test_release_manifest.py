@@ -64,3 +64,8 @@ def test_release_workflow_generates_and_uploads_manifest():
     assert "--verify release-manifest.json" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "release-manifest-${{ github.sha }}" in workflow
+    assert "Full unit regression" in workflow
+    assert "python -m pytest -q -p no:cacheprovider" in workflow
+    assert "--network none" in workflow
+    assert "--read-only" in workflow
+    assert "--cap-drop ALL" in workflow
