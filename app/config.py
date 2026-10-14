@@ -11,6 +11,7 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 CODE_RETRY_MAX = int(os.environ.get("CODE_RETRY_MAX", "7"))
 DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
+DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://nginx/v1").rstrip("/")
 PORTAL_ADMIN_TOKEN = os.environ.get("PORTAL_ADMIN_TOKEN", "")
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
@@ -43,6 +44,7 @@ SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "
 SKILL_RETRIEVAL_ENABLED = os.environ.get("SKILL_RETRIEVAL_ENABLED", "").lower() == "true"
 SKILL_INJECTION_ENABLED = os.environ.get("SKILL_INJECTION_ENABLED", "").lower() == "true"
 SKILL_LEARNING_ENABLED = os.environ.get("SKILL_LEARNING_ENABLED", "").lower() == "true"
+SKILL_BOOTSTRAP_ALL_FIXED = os.environ.get("SKILL_BOOTSTRAP_ALL_FIXED", "").lower() == "true"
 
 # Explicit host-only provenance observation is separate from automatic learning.
 SKILL_CASE_OBSERVATION_ENABLED = os.environ.get("SKILL_CASE_OBSERVATION_ENABLED", "").lower() == "true"

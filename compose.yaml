@@ -1,9 +1,6 @@
 services:
   jwave-executor:
-    build:
-      context: ./executor
-      dockerfile: Dockerfile
-    image: local/dify-mcp:jwave-0.2.1-executor
+    image: ${ACOUAGENT_EXECUTOR_IMAGE:-ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007}
     container_name: jwave-executor
     restart: unless-stopped
     environment:
@@ -20,13 +17,15 @@ services:
     pids_limit: 256
     mem_limit: 4g
     cpus: 2.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 10s
 
   dify-mcp:
-    build:
-      context: .
-      args:
-        APP_MODULE: app.server_safe
-    image: local/dify-mcp:fastmcp-3.4.6-safe
+    image: ${ACOUAGENT_GATEWAY_IMAGE:-ghcr.io/mwxrookie/acouagent-gateway:feat-acouagent-evidence-gates-20261007}
     container_name: dify-mcp
     restart: unless-stopped
     env_file:
@@ -37,14 +36,14 @@ services:
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       CODE_RETRY_MAX: ${CODE_RETRY_MAX:-7}
       DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
     ports:
-      # 绑定 IP 可配：DIFY_MCP_BIND_IP 环境变量，默认内网 192.168.30.200
-      - "${DIFY_MCP_BIND_IP:-192.168.30.200}:8001:8001"
+      - "${DIFY_MCP_BIND_IP:-127.0.0.1}:8001:8001"
     networks:
-      - dify_default
       - executor_internal
     depends_on:
-      - jwave-executor
+      jwave-executor:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
@@ -57,11 +56,41 @@ services:
       - ALL
     pids_limit: 128
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 10s
+
+  skill-bootstrap:
+    image: ${ACOUAGENT_GATEWAY_IMAGE:-ghcr.io/mwxrookie/acouagent-gateway:feat-acouagent-evidence-gates-20261007}
+    container_name: acouagent-skill-bootstrap
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN}
+    command: ["python", "-m", "scripts.skill_library.local_basic", "bootstrap"]
+    networks:
+      - executor_internal
+    depends_on:
+      jwave-executor:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - dify_mcp_data:/app/data
+      - ./docs:/app/docs:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 256m
 
 networks:
-  dify_default:
-    external: true
-    name: docker_default
   executor_internal:
     internal: true
 

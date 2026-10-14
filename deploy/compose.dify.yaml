@@ -1,0 +1,13 @@
+# Optional Dify compatibility overlay. The base stack starts without Dify.
+# Usage:
+#   docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d
+services:
+  dify-mcp:
+    networks:
+      - executor_internal
+      - dify_default
+
+networks:
+  dify_default:
+    external: true
+    name: ${DIFY_NETWORK_NAME:-docker_default}

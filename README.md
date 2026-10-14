@@ -1,5 +1,7 @@
 # AcouAgent · 声学仿真与成功技能库
 
+> **2026-10-14 阶段六发行冷启动已通过第一道门**：根 Compose 默认使用 GHCR 镜像且不要求 Dify 网络；新数据卷会通过原 executor 与物理门幂等准备 17 项 Q4 固定技能，自动学习默认关闭。自然语言聊天仍需可选 Dify 兼容覆盖。详见 [阶段六架构核对](docs/validation/stage6/ARCHITECTURE_AUDIT.md)。
+
 > **2026-10-13 阶段五自动学习闭环已通过**：主执行与重试路径统一经过质量门；精确固定配方可确定性接纳为 `Q4 active`，普通成功运行最高只形成不可复用的 `Q2 candidate`；真实 Dify 学习、候选隔离、run-bound 幂等负反馈和 Luna 772 项回归均通过。当前生产已显式开启学习，executor 未变。详见 [阶段五验收](docs/validation/stage5/README.md)。
 
 自然语言声学仿真服务：Dify 提取参数和生成代码，FastMCP 网关调用 jwave 沙箱执行，SQLite 保存执行历史与可复用技能。技能检索发生在参数提取之后、代码生成之前；缺少合格技能或证据时回退原上下文。
@@ -20,7 +22,7 @@
 
 ## 阶段一验收基线
 
-阶段一已确认完成：17 项清单、30 道冻结题（15 独立正向配置、5 同义、5 越界、5 缺参），独立 Luna 验证 68 项相关测试通过。完整场和探针误差须各自严格小于 1%，负例不交付固定参考。后续 180 次 A/B 仅为计划，实际模型采用和收益尚未验证。公开清单及可重复检查见 [阶段一基线](docs/validation/stage1/README.md)；下载仓库不会继承生产认证或数据。
+阶段一已确认完成：17 项清单、30 道冻结题（15 独立正向配置、5 同义、5 越界、5 缺参），独立 Luna 验证 68 项相关测试通过。完整场和探针误差须各自严格小于 1%，负例不交付固定参考。后续 180 次 A/B 仅为计划，实际模型采用和收益尚未验证。公开清单及可重复检查见 [阶段一基线](docs/validation/stage1/README.md)。下载仓库不会继承生产数据库、用户反馈或运行历史；阶段六冷启动会在新机器重新执行固定配方并建立本机 Q4 记录。
 
 ## 架构与安全
 
@@ -35,46 +37,36 @@
 
 ## 新环境部署
 
-需要 Docker Compose、现有 Dify 网络与应用配置。先设置自己的服务认证信息：
+基础栈只需要 Docker Compose，不要求已有 Dify：
 
 ```bash
 cp .env.example .env
-# 编辑 .env：设置 MCP_AUTH_TOKEN、EXECUTOR_SHARED_TOKEN，
-# 按需设置 DIFY_API_KEY、DEEPSEEK_API_KEY 和 PORTAL_ADMIN_TOKEN。
-docker compose up -d --build
-docker compose ps
+# 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 设置两个不同的 32+ 字符随机值
+docker compose pull
+docker compose up -d
+docker compose ps -a
 ```
 
-上述构建命令用于新环境。已有生产 executor 的更新应使用经过验证的镜像和 **gateway-only** 方式，不重建 executor。模板见 [部署说明](deploy/README.md)。本机镜像、生产库及凭据不随仓库分发。
-
-默认不开启技能库。要试用人工准备的固定基础技能，在 `.env` 显式设置：
-
-```dotenv
-SKILL_LIBRARY_ENABLED=true
-SKILL_RETRIEVAL_ENABLED=true
-SKILL_INJECTION_ENABLED=true
-SKILL_MANUAL_INTAKE_ENABLED=true
-SKILL_LEARNING_ENABLED=false
-```
-
-重建或更新网关使配置生效后，执行以下显式操作。首次 `init` 仅创建缺失库，不覆盖或迁移既有库：
+首次启动的一次性 `skill-bootstrap` 会逐项执行 17 个服务端固定配方；只有通过原 executor 回执与确定性物理门的结果才进入 Q4。正常完成后它显示 `Exited (0)`：
 
 ```bash
-docker exec dify-mcp python -m scripts.skill_library.local_basic init
-docker exec dify-mcp python -m scripts.skill_library.local_basic seed
-docker exec dify-mcp python -m scripts.skill_library.local_basic status
-docker exec dify-mcp python -m scripts.skill_library.local_basic verify-reuse
+docker compose logs skill-bootstrap
+docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
+curl http://127.0.0.1:8001/health
+curl http://127.0.0.1:8001/skills
 ```
 
-界面或周期技能使用相同命令加对应 profile（17 项范围见公开基线）：
+自举幂等，不复制生产数据库，不恢复已撤回记录；自动学习仍默认关闭。源码构建回退和已有生产环境升级见 [部署说明](deploy/README.md)。
+
+已有克隆的 `.env` 不会被 `git pull` 覆盖。若升级后技能页仍为空，请按 [部署说明](deploy/README.md#已有克隆升级) 开启固定技能开关并显式运行一次自举。
+
+完整自然语言聊天当前仍需 Dify 兼容层：
 
 ```bash
---profile managed-local-interface-wide.v1
-# 例如周期水中轴向驻波：
---profile managed-local-periodic-water-axial.v1
+docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d
 ```
 
-`seed` 与 `verify-reuse` 会真正调用受限 executor；不调用模型。重复 seed 不重复执行已合格技能，撤回后不自动恢复。现有库升级须先只读备份，再显式调用迁移；详见 [本机基础技能](docs/SKILL_LOCAL_BASIC.md) 与 [参考执行关联](docs/SKILL_LOCAL_REUSE_2026-10-11.md)。
+通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify。阶段六后续将把编排迁入本项目。
 
 ## 页面与工具
 

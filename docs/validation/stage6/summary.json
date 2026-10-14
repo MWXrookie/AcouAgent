@@ -1,35 +1,48 @@
 {
   "stage": 6,
-  "slice": "github portability baseline",
+  "slice": "github cold-start skill library",
   "date": "2026-10-14",
   "status": "in_progress",
-  "remote_snapshot": {
-    "ref": "origin/feat/acouagent-evidence-gates-20261007",
-    "sha": "b00013519623ca4ab5b2568f061357643c2efb00",
-    "tracked_files": 425,
-    "required_files_complete": true
+  "architecture_audit": {
+    "runtime_diagram_matches_production": true,
+    "production_dify_nodes": 63,
+    "production_dify_edges": 70,
+    "mcp_tools": 9,
+    "production_skills": {
+      "Q4_active": 17,
+      "Q2_candidate": 1
+    },
+    "executor_isolation_unchanged": true,
+    "distribution_gap_found": "empty GitHub data volume had no bootstrap path"
+  },
+  "distribution_fix": {
+    "prebuilt_ghcr_images": true,
+    "root_compose_requires_dify_network": false,
+    "optional_dify_overlay": "deploy/compose.dify.yaml",
+    "source_build_overlay": "deploy/compose.build.yaml",
+    "default_skill_library_enabled": true,
+    "default_automatic_learning_enabled": false,
+    "fixed_profile_bootstrap_count": 17,
+    "copies_production_database": false
   },
   "verified": {
-    "compose_config": true,
-    "gateway_clean_build": true,
-    "gateway_empty_volume_health": true,
-    "focused_tests_passed": 68,
-    "focused_test_warnings": 15,
-    "focused_test_seconds": 3.17,
-    "cleanup_complete": true
+    "compose_base_config": true,
+    "compose_dify_overlay_config": true,
+    "compose_build_overlay_config": true,
+    "related_tests_passed": 40,
+    "isolated_bootstrap_profiles_ready": 17,
+    "isolated_bootstrap_q4_active": 17,
+    "isolated_bootstrap_versions": 17,
+    "isolated_sqlite_quick_check": "ok",
+    "archify_showcase_checks": "9/9",
+    "archify_errors": 0,
+    "archify_warnings": 0,
+    "archify_visual_containment": "pass"
   },
-  "blockers": [
+  "remaining_blockers": [
     "default branch does not yet contain pull request 7",
-    "root compose requires the external docker_default Dify network",
-    "the portal chat path still requires Dify",
+    "portal natural-language chat still requires the optional Dify compatibility overlay",
     "browser model settings do not control the full workflow",
-    "a fresh executor build timed out while downloading jaxlib on the audit host"
-  ],
-  "executor_build": {
-    "status": "failed",
-    "layer": "pip scientific stack",
-    "artifact": "jaxlib 0.4.38 wheel",
-    "observed_bytes": "approximately 93.0/101.8 MB",
-    "error": "ReadTimeout after 120 seconds"
-  }
+    "the local orchestration and server-side model profile gates are not complete"
+  ]
 }

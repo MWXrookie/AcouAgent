@@ -5,8 +5,9 @@ import logging
 import re
 import uuid
 import httpx
+from app import config
 
-BASE_URL = "http://nginx/v1"
+BASE_URL = config.DIFY_BASE_URL
 DEADLINE_SECONDS = 180
 MAX_EVENT_BYTES = 8 * 1024 * 1024
 logger = logging.getLogger(__name__)

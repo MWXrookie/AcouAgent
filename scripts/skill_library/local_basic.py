@@ -58,8 +58,61 @@ def seed(profile=local.PROFILE):
         execution_evidence=result.get("execution_evidence"))
     accepted=local.record(run)
     return dict(ready=accepted.get("admitted") is True, executed=True, run_id=run,
-                admission=accepted, actual_use_authenticated=False,
+                reason=accepted.get("reason"), admission=accepted,
+                actual_use_authenticated=False,
                 learning_enabled=config.SKILL_LEARNING_ENABLED is True)
+
+
+def bootstrap():
+    """Idempotently prepare every reviewed fixed profile on a fresh data volume."""
+    if config.SKILL_BOOTSTRAP_ALL_FIXED is not True:
+        return dict(ready=True, skipped=True, profile_count=0,
+                    reason="fixed_profile_bootstrap_disabled")
+    if not (config.SKILL_LIBRARY_ENABLED is True
+            and config.SKILL_RETRIEVAL_ENABLED is True
+            and config.SKILL_MANUAL_INTAKE_ENABLED is True):
+        return dict(ready=False, skipped=False, profile_count=0,
+                    reason="fixed_profile_bootstrap_flags_incomplete")
+    dashboard.init_db()
+    initialized=initialize()
+    if initialized.get("ready") is not True:
+        return dict(ready=False, skipped=False, profile_count=0,
+                    reason=initialized.get("reason","store_initialization_failed"))
+    items=[]
+    for profile in local.catalog.SCOPES:
+        attempts=[]
+        for attempt in range(1,4):
+            result=seed(profile)
+            attempts.append(dict(attempt=attempt,ready=result.get("ready") is True,
+                executed=result.get("executed") is True,reason=result.get("reason")))
+            if result.get("ready") is True or result.get("executed") is not True:
+                break
+        item=dict(profile=profile,ready=result.get("ready") is True,
+            executed=any(row["executed"] for row in attempts),attempts=attempts,
+            reason=result.get("reason"))
+        admission=result.get("admission")
+        if isinstance(admission,dict):
+            item["skill_id"]=admission.get("skill_id")
+            item["quality_level"]=admission.get("quality_level")
+        items.append(item)
+        if item["ready"] is not True:
+            return dict(ready=False,skipped=False,profile_count=len(items),
+                failed_profile=profile,reason=item["reason"],profiles=items)
+    return dict(ready=True,skipped=False,profile_count=len(items),
+        executed_count=sum(1 for item in items if item["executed"]),
+        reason="all_fixed_profiles_ready",profiles=items)
+
+
+def status_all():
+    items=[]
+    for profile in local.catalog.SCOPES:
+        spec=local.catalog.specification(profile)
+        found=skill_retrieval.search(spec["scene"],canonical(spec["parameters"]).decode())
+        matched=[item for item in found.get("skills",[]) if item.get("scope")==profile]
+        items.append(dict(profile=profile,ready=len(matched)==1,
+            skill_id=matched[0].get("skill_id") if matched else None))
+    return dict(ready=all(item["ready"] for item in items),
+        profile_count=len(items),ready_count=sum(1 for item in items if item["ready"]),profiles=items)
 
 
 def verify_reuse(profile=local.PROFILE):
@@ -81,12 +134,14 @@ def verify_reuse(profile=local.PROFILE):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action",choices=("init","seed","status","verify-reuse"))
+    parser.add_argument("action",choices=("init","seed","status","status-all","bootstrap","verify-reuse"))
     parser.add_argument("--profile",choices=local.catalog.SCOPES,default=local.PROFILE)
     args=parser.parse_args();action=args.action
     try:
         if action=="init":result=initialize()
         elif action=="seed":result=seed(args.profile)
+        elif action=="bootstrap":result=bootstrap()
+        elif action=="status-all":result=status_all()
         elif action=="verify-reuse":result=verify_reuse(args.profile)
         else:
             spec=local.catalog.specification(args.profile)

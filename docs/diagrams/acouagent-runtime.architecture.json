@@ -21,7 +21,7 @@
           "mcp_gateway",
           "simulation_pipeline"
         ],
-        "note": "当前发布版支持 skill_reuse_mode，默认 on；参数提取后检索最多3项技能，精确固定配置由服务端重核后直接送入原 jwave 沙箱。off 仅用于冻结 A/B 对照，越界、缺参或检索故障回退原模型路径。"
+        "note": "生产兼容路径仍使用 Dify 63 节点 / 70 边工作流；阶段六根 Compose 已把 Dify 网络改为可选覆盖。参数提取后检索最多3项技能，精确固定配置由服务端重核后送入原 jwave 沙箱。"
       },
       {
         "id": "quality-loop",
@@ -33,7 +33,7 @@
           "deepseek_api",
           "state_store"
         ],
-        "note": "阶段五已启用受质量门控制的自动学习：精确固定配方必须通过确定性物理校验才以 Q4 active 接纳；其他正常运行最多写入 Q2 candidate，不能参与检索或注入。"
+        "note": "生产环境已启用受质量门控制的自动学习；发行默认保持关闭。精确固定配方必须通过确定性物理校验才以 Q4 active 接纳，其他正常运行最多写入不可复用的 Q2 candidate。"
       },
       {
         "id": "isolation-boundary",
@@ -46,16 +46,6 @@
         "note": "执行器仅连接内部网络，代码在只读、降权和资源受限的沙箱内运行。"
       },
       {
-        "id": "fixed-reference-offline",
-        "label": "复用收益与自动学习",
-        "focus": [
-          "mcp_gateway",
-          "state_store",
-          "dify_workflow"
-        ],
-        "note": "阶段四完成30题×off/on×3次收益验收；阶段五随后开启自动学习。每轮执行按 run_id 留痕，固定 Q4 与通用 Q2 分流，低等级记录不会覆盖高等级接纳。"
-      },
-      {
         "id": "skill-workbench",
         "label": "技能库工作台",
         "focus": [
@@ -66,6 +56,19 @@
           "simulation_pipeline"
         ],
         "note": "门户把服务端技能记录、版本、生命周期和执行证据组织为只读工作台。聊天明确区分检索命中、参考交付、执行验证；执行看板只对已完成验证的固定配方提供技能与版本深链接。"
+      },
+      {
+        "id": "fresh-install",
+        "label": "GitHub 冷启动",
+        "focus": [
+          "web_portal",
+          "mcp_gateway",
+          "skill_bootstrap",
+          "simulation_pipeline",
+          "state_store",
+          "jwave_sandbox"
+        ],
+        "note": "阶段六发行默认拉取 GHCR 镜像；根 Compose 不再要求 Dify 网络。新数据卷的一次性自举会逐项执行 17 个服务端固定配方，只有通过原 executor 回执与物理门的结果才进入 Q4 active。自动学习默认关闭。"
       }
     ]
   },
@@ -102,7 +105,7 @@
     {
       "id": "dify_workflow",
       "type": "cloud",
-      "label": "Dify 工作流",
+      "label": "Dify 兼容工作流",
       "sublabel": "检索 / A/B 门 / 配方或生成",
       "pos": [
         390,
@@ -112,7 +115,7 @@
         180,
         76
       ],
-      "tag": "63 节点 / 70 边 · 默认 on"
+      "tag": "生产兼容 · 63 节点 / 70 边"
     },
     {
       "id": "dify_kb",
@@ -145,6 +148,21 @@
       "tag": "9 个 MCP 工具"
     },
     {
+      "id": "skill_bootstrap",
+      "type": "backend",
+      "label": "固定技能自举",
+      "sublabel": "17 配方 / executor 实跑 / 物理门",
+      "pos": [
+        640,
+        500
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "新数据卷 · 幂等"
+    },
+    {
       "id": "simulation_pipeline",
       "type": "backend",
       "label": "仿真执行闭环",
@@ -172,7 +190,7 @@
         170,
         64
       ],
-      "tag": "SQLite · 学习已启用"
+      "tag": "SQLite · Q4/Q2 门控"
     },
     {
       "id": "jwave_sandbox",
@@ -208,7 +226,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "Dify 编排层",
+      "label": "Dify 兼容编排层（可选）",
       "wraps": [
         "dify_workflow",
         "dify_kb"
@@ -220,7 +238,8 @@
       "wraps": [
         "mcp_gateway",
         "simulation_pipeline",
-        "state_store"
+        "state_store",
+        "skill_bootstrap"
       ]
     },
     {
@@ -244,7 +263,11 @@
       "id": "portal-to-dify",
       "from": "web_portal",
       "to": "dify_workflow",
-      "label": "SSE 工作流 API"
+      "label": "可选 SSE 工作流 API",
+      "labelAt": [
+        350,
+        276
+      ]
     },
     {
       "id": "kb-to-dify",
@@ -263,9 +286,7 @@
     {
       "id": "mcp-to-pipeline",
       "from": "mcp_gateway",
-      "to": "simulation_pipeline",
-      "label": "执行",
-      "labelDy": 62
+      "to": "simulation_pipeline"
     },
     {
       "id": "pipeline-to-sandbox",
@@ -288,6 +309,13 @@
       "to": "state_store",
       "label": "执行历史 + 分级学习 + 反馈",
       "labelDy": 24
+    },
+    {
+      "id": "bootstrap-to-pipeline",
+      "from": "skill_bootstrap",
+      "to": "simulation_pipeline",
+      "label": "固定配方实跑与接纳",
+      "variant": "emphasis"
     }
   ],
   "cards": [
@@ -295,10 +323,10 @@
       "dot": "cyan",
       "title": "入口与编排",
       "items": [
-        "Dify 发布图 63 节点 / 70 边，skill_reuse_mode 默认 on",
+        "生产 Dify 发布图 63 节点 / 70 边；根 Compose 将 Dify 改为可选兼容覆盖",
         "门户含聊天、技能工作台与执行看板",
         "参数提取后只读检索，返回最多 3 项",
-        "off 只用于冻结对照；普通请求保持 on"
+        "聊天仍需 Dify 兼容层，本地编排迁移属于阶段六后续门"
       ]
     },
     {
@@ -307,7 +335,7 @@
       "items": [
         "阶段四 180 次配对运行：on 正例物理通过 60/60",
         "阶段五主执行与重试路径统一经过学习终结器",
-        "固定配方须过确定性物理门才能成为 Q4 active",
+        "新数据卷自举17项固定配方，仍须 executor 实跑和确定性物理门",
         "普通正常运行最多写 Q2 candidate，不能检索或注入"
       ]
     },
@@ -316,9 +344,9 @@
       "title": "回退与信任边界",
       "items": [
         "结果不对按 run_id 绑定，重复反馈幂等并保留审计",
-        "当前部署学习开启；发行示例仍默认关闭以便先验收环境",
+        "生产学习开启；发行自动学习默认关闭，固定技能自举独立控制",
         "executor 沙箱及资源限制未改",
-        "Dify 强依赖与 DeepSeek 内核固定仍列为后续问题"
+        "Dify 聊天依赖与 DeepSeek 内核固定仍列为阶段六后续问题"
       ]
     }
   ]

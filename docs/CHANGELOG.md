@@ -1,3 +1,11 @@
+## 2026-10-14 · 阶段六发行冷启动：GitHub 拉取后自举完整技能库
+
+使用 Archify 运行时图逐项对照生产代码与容器：Dify 发布图 63 节点/70 边、9 个 MCP 工具、17 个 Q4 active 加 1 个 Q2 candidate、schema17、学习开关和 executor 隔离约束均一致。发现图只描述生产运行态，没有覆盖 GitHub 冷启动；旧 `docs/ARCHITECTURE.md` 也已标记为历史文档。同步加入固定技能自举节点和可选 Dify 边界，Archify showcase 9/9、0 error、0 warning，deliver 与 1440/1600/1920/2048 明暗画布 containment 均通过并完成截图检查。
+
+定位组员拉取后技能库为空的五个原因：默认 `main` 尚未包含 PR #7；发行开关默认关闭；生产 SQLite 数据卷不进 Git；旧说明只引导单 profile 手工 seed；根 Compose 强制外部 `docker_default`。修复后根 Compose 默认拉取公开 GHCR gateway/executor 镜像，只保留内部 executor 网络；Dify 移到可选覆盖，源码构建移到回退覆盖；`.env.example` 默认打开技能库、检索、注入、人工固定配方接纳和 17 项自举，自动学习保持关闭。
+
+一次性 `skill-bootstrap` 在隔离数据卷逐项调用原 executor，只有通过回执与确定性物理门才写 Q4；支持幂等重跑和最多三次同配方瞬态重试，不复制生产库、不恢复撤回记录。真实空卷验收为 17/17 Q4 active、17 版本、SQLite quick_check=ok；相关 40 passed。Luna 只读断网全量回归为 1475 passed、1 skipped（未配置 GW_BASE_URL）、15 warnings、10 subtests，107.71s。阶段一在其提交 `80bfb39` 上复核 17 技能/30 题封印通过；阶段二至五的发布图、180 条阶段四记录与 trace、生产技能库和 executor 运行态复核一致。自然语言聊天仍需 Dify 覆盖，本地编排和服务端模型 profile 是阶段六后续门。
+
 ## 2026-10-14 · 阶段六启动：GitHub 发行可移植性基线与镜像流水线
 
 从已回读 GitHub 且与 origin 一致的阶段五 SHA 生成隔离 archive，避免使用工作区未提交文件、`.env`、生产数据卷或现有生产镜像。425 个跟踪文件和必需清单完整；网关从该快照构建成功，空数据卷、只读、降权容器 `/health=ok`，阶段五相关 68 passed / 15 warnings / 3.17s，测试资源全部清理。
