@@ -12,6 +12,10 @@
 
 `scripts/install.sh` 与 `scripts/install.ps1` 覆盖常见 Docker Compose 宿主。它们只在 `.env` 不存在时从模板创建配置，生成两个不同的 64 位十六进制本地 token，已有配置一律原样保留；随后解析 Compose、拉取 executor、从当前源码构建并启动网关、等待健康与 17 项自举并复核库存。`prepare-only` 模式允许用户在启动前填写服务端模型凭据。脚本不回显 token 或模型密钥。
 
+## F3 新人首次仿真准备
+
+`docs/FIRST_SIMULATION.md` 给出下载、prepare-only、服务端模型 profile、启动、标准首题和回查顺序。`scripts/validation/first_simulation_acceptance.py` 通过公开 profile 接口选择实际 profile，执行固定首题，再用 dashboard 核对同一 run id 的 exit code 和超时状态；回执排除报告、代码、提示词和凭据。真实新操作者 UAT 仍需在有模型凭据的独立环境执行，准备完成不计为出口通过。
+
 ## 出口条件
 
 1. 干净 runner 使用 `docker compose up -d --build` 启动的网关源码与 Git head 一致。
