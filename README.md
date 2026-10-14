@@ -42,6 +42,22 @@
 
 基础栈只需要 Docker Compose，不要求已有 Dify：
 
+Linux、macOS 或 WSL：
+
+```bash
+bash scripts/install.sh
+```
+
+Windows PowerShell：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
+安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有 `.env` 不会被覆盖。未配置服务端模型凭据时，健康检查、技能库和固定技能自举仍可用，自然语言聊天会保持关闭并给出明确提示。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
+
+对应的手工命令为：
+
 ```bash
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 设置两个不同的 32+ 字符随机值
