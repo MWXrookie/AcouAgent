@@ -5,7 +5,7 @@ import httpx
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from app import config, local_workflow, portal
+from app import config, local_workflow, model_profiles, portal
 
 
 class Registry:
@@ -84,3 +84,31 @@ def test_chat_dispatches_local_backend_and_rejects_non_string_profile(monkeypatc
 
     asyncio.run(run())
     assert calls == [("simulate", "portal-s1", "fast")]
+
+
+def test_byok_session_routes_never_return_or_persist_secret(monkeypatch):
+    monkeypatch.delenv("MODEL_PROFILES_JSON", raising=False)
+    monkeypatch.delenv("MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("MODEL_NAME", raising=False)
+    monkeypatch.delenv("DEFAULT_MODEL_PROFILE", raising=False)
+    monkeypatch.setattr(model_profiles, "validate_public_https_url", lambda value: value)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app()),
+                                     base_url="http://isolated") as client:
+            response = await client.post("/api/byok/session", json={
+                "base_url": "https://models.example.test/v1",
+                "model": "user-model",
+                "api_key": "browser-secret",
+            })
+            assert response.status_code == 201
+            payload = response.json()
+            assert "browser-secret" not in response.text
+            profile_id = payload["profile_id"]
+            profile, _ = model_profiles.resolve(profile_id, "parameter_extraction")
+            assert profile.api_key() == "browser-secret"
+            removed = await client.request("DELETE", "/api/byok/session",
+                                           json={"profile_id": profile_id})
+            assert removed.status_code == 200 and removed.json()["ok"] is True
+
+    asyncio.run(run())

@@ -1586,11 +1586,19 @@ body{background:var(--bg)!important;color:var(--text)!important}
 
 <div class="modal" id="model-modal">
   <div class="modal-box">
-    <h2>选择模型配置</h2>
-    <label for="model-profile">服务端模型 profile</label>
-    <select id="model-profile"></select>
+    <h2>连接你的模型</h2>
+    <label for="model-profile">模型来源</label>
+    <select id="model-profile" onchange="toggleByokFields()"></select>
+    <div id="byok-fields" hidden>
+      <label for="byok-base-url">OpenAI 兼容 API 地址</label>
+      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1">
+      <label for="byok-model">模型名称</label>
+      <input id="byok-model" type="text" autocomplete="off" placeholder="模型 ID">
+      <label for="byok-api-key">API Key</label>
+      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器">
+    </div>
     <p id="model-profile-detail" style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">正在读取服务端配置…</p>
-    <p style="color:var(--muted);font-size:12px;line-height:1.6">浏览器只保存 profile 编号。API 地址、模型参数和密钥由服务端管理员配置，密钥不会发送到浏览器或写入技能库。</p>
+    <p style="color:var(--muted);font-size:12px;line-height:1.6">密钥仅保存在当前网关进程的临时内存中，到期或重启后失效；不会写入浏览器持久存储、SQLite、日志或技能库。</p>
     <div class="modal-actions">
       <button onclick="closeModelSettings()">取消</button>
       <button class="primary" onclick="saveModelSettings()">保存</button>
@@ -1645,7 +1653,7 @@ var conversation = [];
 var currentRequirement = '';
 
 function getModelProfile() {
-  return localStorage.getItem('acouagent_model_profile') || null;
+  return sessionStorage.getItem('acouagent_byok_profile') || localStorage.getItem('acouagent_model_profile') || null;
 }
 
 async function loadModelProfiles() {
@@ -1655,7 +1663,7 @@ async function loadModelProfiles() {
   try {
     var resp = await fetch('/api/model-profiles', {headers:{'Accept':'application/json'}});
     var data = await resp.json();
-    if (!resp.ok || !Array.isArray(data.profiles) || !data.profiles.length) throw new Error(data.error || '没有可用 profile');
+    if (!resp.ok || !Array.isArray(data.profiles)) throw new Error(data.error || '无法读取模型配置');
     var saved = getModelProfile() || data.default_profile;
     data.profiles.forEach(function(profile) {
       var option = document.createElement('option');
@@ -1665,13 +1673,25 @@ async function loadModelProfiles() {
       option.selected = profile.id === saved;
       select.appendChild(option);
     });
+    var byok = document.createElement('option');
+    byok.value = '__byok__';
+    byok.textContent = sessionStorage.getItem('acouagent_byok_profile') ? '我的 BYOK 模型（本次会话）' : '使用自己的 API Key（BYOK）';
+    byok.selected = !!sessionStorage.getItem('acouagent_byok_profile');
+    select.appendChild(byok);
     if (!select.value && data.default_profile) select.value = data.default_profile;
+    if (!select.value) select.value = '__byok__';
     detail.textContent = data.orchestration_backend === 'local'
-      ? '编排后端：local。该选择用于参数提取、代码生成、审查、解释和重试。'
-      : '编排后端：dify。该选择仅用于门户的需求合并；Dify 工作流内部模型仍由 Dify 配置决定。';
+      ? 'BYOK 会用于参数提取、代码生成、审查、解释和重试。公网端点默认要求 HTTPS；本地模型地址需由部署者显式开启。'
+      : '当前是 Dify 兼容模式，BYOK 无法接管 Dify 内部模型。请把 ORCHESTRATION_BACKEND 设为 local。';
+    toggleByokFields();
   } catch(e) {
     detail.textContent = '无法读取模型配置：' + String(e);
   }
+}
+
+function toggleByokFields() {
+  var selected = document.getElementById('model-profile').value;
+  document.getElementById('byok-fields').hidden = selected !== '__byok__';
 }
 
 function openModelSettings() {
@@ -1683,8 +1703,37 @@ function closeModelSettings() {
   document.getElementById('model-modal').classList.remove('open');
 }
 
-function saveModelSettings() {
+async function revokeByokProfile() {
+  var profile = sessionStorage.getItem('acouagent_byok_profile');
+  if (!profile) return;
+  sessionStorage.removeItem('acouagent_byok_profile');
+  try {
+    await fetch('/api/byok/session', {method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({profile_id:profile})});
+  } catch (_) {}
+}
+
+async function saveModelSettings() {
   var selected = document.getElementById('model-profile').value;
+  var detail = document.getElementById('model-profile-detail');
+  if (selected === '__byok__') {
+    var baseUrl = document.getElementById('byok-base-url').value.trim();
+    var model = document.getElementById('byok-model').value.trim();
+    var apiKey = document.getElementById('byok-api-key').value.trim();
+    if (!baseUrl || !model || !apiKey) { detail.textContent = '请填写 API 地址、模型名称和 API Key。'; return; }
+    detail.textContent = '正在注册临时 BYOK 配置…';
+    try {
+      var resp = await fetch('/api/byok/session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({base_url:baseUrl, model:model, api_key:apiKey})});
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'BYOK 配置失败');
+      await revokeByokProfile();
+      sessionStorage.setItem('acouagent_byok_profile', data.profile_id);
+      localStorage.removeItem('acouagent_model_profile');
+      document.getElementById('byok-api-key').value = '';
+      closeModelSettings();
+    } catch (e) { detail.textContent = 'BYOK 配置失败：' + String(e.message || e); }
+    return;
+  }
+  await revokeByokProfile();
   if (selected) localStorage.setItem('acouagent_model_profile', selected);
   else localStorage.removeItem('acouagent_model_profile');
   closeModelSettings();

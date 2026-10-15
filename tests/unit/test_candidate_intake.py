@@ -103,7 +103,9 @@ def test_storage_failure_does_not_repeat_executor(env,monkeypatch):
     assert result["candidate_accumulation"]["reason"]=="candidate_store_unavailable"
 
 def test_retry_captures_actual_final_code(env,monkeypatch):
-    monkeypatch.setattr(config,"DEEPSEEK_API_KEY","test-only")
+    monkeypatch.setenv("MODEL_BASE_URL","https://models.example.test/v1")
+    monkeypatch.setenv("MODEL_NAME","test-model")
+    monkeypatch.setenv("MODEL_API_KEY","test-only")
     monkeypatch.setattr(tools.llm,"_llm_fix_code",lambda *args,**kwargs:"print('corrected')")
     monkeypatch.setattr(tools.cache_store,"_update_cache",lambda *args,**kwargs:None)
     count=[]

@@ -1,3 +1,11 @@
+## 2026-10-15 · 模型运行时改为自部署 BYOK
+
+发行默认编排从 Dify 改为项目内 `local`，并移除网关、Compose、环境模板和安装器中的 DeepSeek 专用变量、端点、模型名与定价。所有参数提取、代码生成、结果审查、解释、需求合并和自动纠错统一解析 OpenAI-compatible profile。下载者可在门户填写 endpoint、model 和 API key，或通过通用环境变量、`MODEL_PROFILES_JSON` 配置长期 profile；未配置模型时安装与 17 项固定技能自举仍可完成，自然语言请求会在模型调用前失败关闭。
+
+门户 BYOK 只在网关进程内存保存，默认 12 小时过期并可主动撤销；浏览器 `sessionStorage` 只保存随机句柄，审计和响应使用不可重放摘要。公网端点在注册时和每次调用前重新检查 HTTPS 与公网可路由性，本地 Ollama/vLLM 等私有地址需要部署者显式开启；模型响应保持 2 MiB 上限且禁止重定向。Dify 保留为显式兼容后端，其内部模型仍由 Dify 自行配置。
+
+更新门户模型设置、一键安装提示、模型配置指南、首次仿真说明、已知缺口、v1.0 草案和运行时 Archify 图；干净安装 CI 现在接受“无预配置模型 + 门户 BYOK 可用”的初始状态。当前候选的相关单测 **83 passed**，BYOK profile 独立复核 **9 passed**，前端脚本语法、Python AST 和 `git diff --check` 通过。Luna 在缺少 Docker/WSL、`resource`、Starlette 和 FastMCP 的 Windows 环境执行最大可收集子集为 986 passed、198 failed、127 collection errors；这些失败保留为平台/依赖阻塞，不写成全量回归通过。Archify showcase 9/9、0 error、0 warning；HTML `17ffa2cd…` 在 1440/1600/1920/2048 四种桌面尺寸无溢出并完成明暗截图检查。第二模型固定集、真实新操作者 BYOK 首题、批量 Dify 对照和 VM 回滚仍是 v1.0 开放门。
+
 ## 2026-10-15 · 阶段七 F5：可复现发布清单与 v1.0.0 草案
 
 新增 Git commit 级确定性发布清单：从 Git tree 记录全部跟踪条目的 mode/type/blob id，读取提交时间和项目版本，计算关键运行/安装/验收文件 SHA-256，显式拒绝缺失必需文件及被跟踪的 `.env`、数据库、日志、缓存和归档产物；清单带可复算摘要并支持离线 verify。发行镜像工作流为每个提交生成并保存 14 天 Actions 产物，并在断网、只读、降权 Linux 容器中运行全量单元回归。新增 v1.0.0 发布检查表、SQLite online backup 与回滚说明、发行说明草案。当前版本仍为 `0.1.0`，新人 UAT、第二模型、批量本地/Dify 双跑、VM 升级回滚和最终候选回归未关闭，因此未创建标签或 Release。

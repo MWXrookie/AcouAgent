@@ -1,6 +1,6 @@
 # AcouAgent · 声学仿真与成功技能库
 
-> **2026-10-14 阶段六本地编排切片已通过候选验收**：发行示例默认 `local`，自然语言聊天可以脱离 Dify 完成参数提取、技能检索、代码生成、原 executor 执行、物理门、审查解释和最多两次修正；浏览器只选择服务端模型 profile，不接触端点或密钥。同机真实 DeepSeek + executor 运行得到 `verdict=normal / Q2`。阶段六仍需第二模型、Dify 同题双跑和 GitHub 干净环境终验。详见 [本地编排验收](docs/validation/stage6/LOCAL_ORCHESTRATION.md)。
+> **2026-10-15 BYOK 运行时**：发行示例默认 `local`，自然语言聊天可以脱离 Dify 完成参数提取、技能检索、代码生成、原 executor 执行、物理门、审查解释和最多两次修正。下载者可在门户临时接入自己的 OpenAI-compatible 模型，也可用环境变量配置可复用 profile；模型密钥不进入浏览器持久存储、SQLite、日志或技能库。
 
 > **2026-10-13 阶段五自动学习闭环已通过**：主执行与重试路径统一经过质量门；精确固定配方可确定性接纳为 `Q4 active`，普通成功运行最高只形成不可复用的 `Q2 candidate`；真实 Dify 学习、候选隔离、run-bound 幂等负反馈和 Luna 772 项回归均通过。当前生产已显式开启学习，executor 未变。详见 [阶段五验收](docs/validation/stage5/README.md)。
 
@@ -18,7 +18,7 @@
 
 这些配置由服务端目录固定，修改频率、材料或网格不会继承原认证。普通运行只有判定为 `normal` 且通过物理合理性门才可积累为候选；退出码 0 或模型自述不能证明物理正确。候选不能自动成为可复用技能。
 
-本机基础使用不要求用户配置签名私钥。受控网关留证与物理检查负责本机固定技能；跨主机独立来源认证是单独的高级路径。仓库发行示例继续默认关闭自动学习，当前生产环境已在阶段五验收后显式开启。固定目录的精确合格结果可进入 `Q4 active`；普通成功运行最高写入 `Q2 candidate`，不能参与检索或注入。阶段六已加入本地编排和服务端 OpenAI-compatible 模型 profile；剩余产品化门包括第二模型验收、Dify/本地同题双跑和全新机器终验。详见 [验收矩阵](docs/SKILL_LIBRARY_ACCEPTANCE.md) 与 [已知缺口](docs/KNOWN_GAPS.md)。
+本机基础使用不要求用户配置签名私钥。受控网关留证与物理检查负责本机固定技能；跨主机独立来源认证是单独的高级路径。仓库发行示例继续默认关闭自动学习，当前生产环境已在阶段五验收后显式开启。固定目录的精确合格结果可进入 `Q4 active`；普通成功运行最高写入 `Q2 candidate`，不能参与检索或注入。本地编排已统一使用 OpenAI-compatible BYOK profile；剩余产品化门包括第二模型固定集验收、Dify/本地同题双跑和全新机器自然语言首题终验。详见 [验收矩阵](docs/SKILL_LIBRARY_ACCEPTANCE.md) 与 [已知缺口](docs/KNOWN_GAPS.md)。
 
 ## 阶段一验收基线
 
@@ -27,7 +27,7 @@
 ## 架构与安全
 
 ```text
-浏览器 → Web 门户 / 本地编排器 → 服务端模型 profile
+浏览器 → Web 门户 / 本地编排器 → 用户 BYOK / 环境变量模型 profile
                          ↓
                  FastMCP 共享校验与执行入口 :8001
                          → SQLite：执行 / 分析 / 模型 / 技能审计
@@ -54,14 +54,14 @@ Windows PowerShell：
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 ```
 
-安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有 `.env` 不会被覆盖。未配置服务端模型凭据时，健康检查、技能库和固定技能自举仍可用，自然语言聊天会保持关闭并给出明确提示。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
+安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有 `.env` 不会被覆盖。未配置环境变量模型时，健康检查、技能库和固定技能自举仍可用；启动后可直接在门户“模型设置”中填写自己的 API 地址、模型名和密钥。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
 
 对应的手工命令为：
 
 ```bash
 cp .env.example .env
 # 为 MCP_AUTH_TOKEN 和 EXECUTOR_SHARED_TOKEN 设置两个不同的 32+ 字符随机值
-# 设置 DEEPSEEK_API_KEY，或在 MODEL_PROFILES_JSON 中配置其他服务端 OpenAI-compatible profile
+# 可选：设置 MODEL_BASE_URL、MODEL_NAME、MODEL_API_KEY；也可启动后在门户使用 BYOK
 docker compose pull jwave-executor
 docker compose up -d --build
 docker compose ps -a

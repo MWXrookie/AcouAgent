@@ -106,6 +106,6 @@ if (-not $bootstrapDone) {
 & docker exec dify-mcp python -m scripts.skill_library.local_basic status-all *> $null
 if ($LASTEXITCODE -ne 0) { throw 'fixed-skill inventory is incomplete' }
 Write-Output 'AcouAgent is ready at http://127.0.0.1:8001/portal'
-if ([string]::IsNullOrEmpty((Get-EnvValue 'DEEPSEEK_API_KEY'))) {
-    Write-Output 'natural-language chat remains unavailable until a server model credential is configured in .env'
+if ([string]::IsNullOrEmpty((Get-EnvValue 'MODEL_API_KEY')) -and [string]::IsNullOrEmpty((Get-EnvValue 'MODEL_PROFILES_JSON'))) {
+    Write-Output 'open Model Settings in the portal to enter your BYOK endpoint, model and API key'
 }

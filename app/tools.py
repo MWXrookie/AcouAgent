@@ -5,15 +5,21 @@
 """
 
 import json
-import os
 import uuid
 from typing import Any
 
 import httpx
 
-from app import cache_store, config, execution, llm, candidate_intake
+from app import (
+    cache_store,
+    candidate_intake,
+    config,
+    execution,
+    llm,
+    model_profiles,
+    runtime_registry_service,
+)
 from app.dashboard import record_execution
-from app import runtime_registry_service
 
 
 def _record_dispatch_completion(result: dict[str, Any], run_id: str) -> None:
@@ -101,8 +107,8 @@ def register(mcp) -> None:
         """
         if type(original_context) is not str or len(original_context.encode("utf-8"))>65536:
             raise ValueError("generation_context_budget")
-        from app.skill_retrieval import generation_context
         from app.skill_deadline import limited
+        from app.skill_retrieval import generation_context
         try:
             with limited(2):
                 return generation_context(original_context,scenario_type=scenario_type,
@@ -122,8 +128,8 @@ def register(mcp) -> None:
         """
         if type(original_context) is not str or len(original_context.encode("utf-8"))>65536:
             raise ValueError("generation_context_budget")
-        from app.skill_reference_consumer import read_committed_context
         from app.skill_deadline import limited
+        from app.skill_reference_consumer import read_committed_context
         try:
             with limited(2):
                 return read_committed_context(decision_id=decision_id,generation_run_id=generation_run_id,
@@ -140,7 +146,8 @@ def register(mcp) -> None:
             "auto_fix_tool": "run_jwave_code_with_retry",
             "analysis_tool": "analyze_simulation_result",
             "validator_tool": "validate_simulation_params",
-            "deepseek_model": config.DEEPSEEK_MODEL if config.DEEPSEEK_API_KEY else None,
+            "model_runtime": "openai-compatible-byok",
+            "configured_environment_profiles": len(model_profiles.load_profiles()),
         }
 
     @mcp.tool
@@ -200,11 +207,12 @@ def register(mcp) -> None:
         run_id: str = "",
         scenario_type: str = "",
         params_json: str = "{}",
+        model_profile: str = "",
     ) -> dict[str, Any]:
-        """Run Python code and auto-fix errors using DeepSeek LLM.
+        """Run Python code and auto-fix errors using the selected BYOK profile.
 
         Executes the code in the sandboxed jwave environment.  If the code fails
-        (non-zero exit code or timeout), the tool sends the error output to DeepSeek
+        (non-zero exit code or timeout), the tool sends the error output to the model
         and asks it to produce a corrected version, then re-executes.  This loop
         continues until the code succeeds or *max_retries* is exhausted.
 
@@ -223,11 +231,7 @@ def register(mcp) -> None:
         if not 0 <= max_retries <= 7:
             raise ValueError("max_retries must be between 0 and 7")
 
-        if not config.DEEPSEEK_API_KEY:
-            raise RuntimeError(
-                "DEEPSEEK_API_KEY must be set in the server environment "
-                "to use auto-fix. Use run_jwave_code for plain execution."
-            )
+        resolved_profile, _ = model_profiles.resolve(model_profile or None, "retry")
 
         run_id = run_id or str(uuid.uuid4())
         current_code = code
@@ -317,8 +321,7 @@ def register(mcp) -> None:
             if error_sig:
                 last_error_sig = error_sig
             current_code = llm._llm_fix_code(
-                config.DEEPSEEK_API_KEY,
-                config.DEEPSEEK_MODEL,
+                resolved_profile.profile_id,
                 current_code,
                 result,
                 run_id=run_id,

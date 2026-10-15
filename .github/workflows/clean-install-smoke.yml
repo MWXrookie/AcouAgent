@@ -69,8 +69,10 @@ jobs:
 
           profiles = json.loads(Path("/tmp/model-profiles.json").read_text())
           assert profiles["orchestration_backend"] == "local"
-          assert profiles["default_profile"] == "deepseek-default"
-          assert profiles["profiles"]
+          assert profiles["default_profile"] is None
+          assert profiles["profiles"] == []
+          assert profiles["byok"]["enabled"] is True
+          assert profiles["byok"]["private_endpoints_allowed"] is False
 
           status = json.loads(Path("/tmp/skill-status.json").read_text())
           assert status["ready"] is True

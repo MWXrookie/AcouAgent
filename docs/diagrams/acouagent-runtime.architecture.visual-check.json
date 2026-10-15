@@ -5,16 +5,17 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "acad7c529096b1a51d501719c67a3a7678395e9834cb2e88c436efa02de07aca",
-    "bytes": 719927
+    "path": "C:\\Users\\ASUS\\Documents\\Codex\\2026-10-12\\codex-threads-01a11722-34ed-7362-bd4f\\work\\pr8-remote-snapshot\\docs\\diagrams\\acouagent-runtime.architecture.html",
+    "sha256": "17ffa2cda3fea038de14d314d741ae472eaba2c8c4260f24a4337f971a5f1b9e",
+    "bytes": 719901
   },
   "state": {
     "detail": "read",
     "motion": "still"
   },
   "chrome": {
-    "status": "available"
+    "status": "available",
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
   },
   "diagnostics": [],
   "containment": {
@@ -542,6 +543,5 @@
   "sidecars": {
     "receipt": "acouagent-runtime.architecture.visual-check.json",
     "contactSheet": "acouagent-runtime.architecture.visual-check.html"
-  },
-  "operator_paths_redacted": true
+  }
 }

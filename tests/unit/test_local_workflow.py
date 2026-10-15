@@ -4,7 +4,6 @@ from pathlib import Path
 
 from app import local_workflow, skill_retrieval
 
-
 PARAMS = {
     "sound_speed": 1500.0,
     "density": 1000.0,
@@ -79,8 +78,11 @@ def test_model_review_cannot_override_failed_physics_gate(monkeypatch):
 
 
 def test_portal_source_sends_only_profile_id_not_browser_secret_fields():
-    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text()
+    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+        encoding="utf-8"
+    )
     assert "model_profile: getModelProfile()" in source
+    assert "localStorage.setItem('acouagent_byok" not in source
     for forbidden in ("model-key", "model-base", "getModelConfig", "acouagent_model_config"):
         assert forbidden not in source
 

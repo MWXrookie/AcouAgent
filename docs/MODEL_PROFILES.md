@@ -1,34 +1,63 @@
-# 服务端模型 profile 配置
+# BYOK 模型配置
 
-阶段六本地编排使用 OpenAI-compatible `/chat/completions` 接口。浏览器只保存并发送 profile id；URL、模型名、凭据环境变量和推理参数全部由服务端管理员配置。
+AcouAgent 的本地编排统一调用 OpenAI-compatible `/chat/completions` 接口。项目不绑定具体模型厂商。下载者可以在门户为当前会话临时接入自己的模型，也可以在 `.env` 中配置可重复使用的模型 profile。
 
-## 最小配置
+## 门户临时 BYOK
 
-`.env` 中的 `MODEL_PROFILES_JSON` 必须是单行 JSON 对象，键为 profile id：
+启动后打开 `/portal`，进入“模型设置”，填写：
+
+- OpenAI 兼容 API 地址，例如 `https://models.example.com/v1`
+- 服务商实际提供的模型 ID
+- 用户自己的 API Key
+
+浏览器把密钥提交给本机网关一次。网关只在进程内存中保存临时 profile，默认 12 小时后过期，重启也会立即失效；浏览器 `sessionStorage` 只保存不透明的临时 profile id。密钥不会写入 `localStorage`、SQLite、执行记录、模型审计或技能库。
+
+公网 BYOK 地址默认必须使用 HTTPS 443，并且 DNS 只能解析到公网地址。需要接入 Ollama、vLLM 或内网模型网关时，可由自部署操作者显式设置：
+
+```dotenv
+BYOK_ALLOW_PRIVATE_ENDPOINTS=true
+```
+
+此开关允许门户提供的 HTTP 和私网地址。只应在网关保持本机或可信网络访问时启用。临时 profile 生命周期可在 300 到 86400 秒之间调整：
+
+```dotenv
+BYOK_SESSION_TTL_SECONDS=43200
+```
+
+## 单一环境变量模型
+
+无界面调用、自动化或长期自部署可直接配置：
 
 ```dotenv
 ORCHESTRATION_BACKEND=local
-DEFAULT_MODEL_PROFILE=deepseek-default
-DEEPSEEK_API_KEY=replace-with-server-secret
-MODEL_PROFILES_JSON={"deepseek-default":{"label":"DeepSeek","provider":"openai-compatible","base_url":"https://api.deepseek.com","model":"deepseek-chat","api_key_env":"DEEPSEEK_API_KEY","capabilities":["chat","json","code"]}}
+MODEL_BASE_URL=https://models.example.com/v1
+MODEL_NAME=acoustic-model
+MODEL_API_KEY=replace-with-your-own-key
+MODEL_LABEL=我的模型
 ```
 
-`base_url` 可以包含 `/v1`，也可以直接以 `/chat/completions` 结尾；服务端会规范化为唯一请求地址。HTTPS 是默认要求。受信的内部 HTTP 模型网关必须显式设置 `"allow_insecure_http":true`，并由操作者保证网络边界。
-
-## 多 profile 示例
+如果模型网关使用可信内网 HTTP，再增加：
 
 ```dotenv
-DEFAULT_MODEL_PROFILE=deepseek-default
-DEEPSEEK_API_KEY=replace-with-server-secret
-SECOND_MODEL_API_KEY=replace-with-another-server-secret
-MODEL_PROFILES_JSON={"deepseek-default":{"label":"DeepSeek","provider":"openai-compatible","base_url":"https://api.deepseek.com","model":"deepseek-chat","api_key_env":"DEEPSEEK_API_KEY","capabilities":["chat","json","code"]},"second-cloud":{"label":"Second cloud model","provider":"openai-compatible","base_url":"https://models.example.com/v1","model":"acoustic-model","api_key_env":"SECOND_MODEL_API_KEY","capabilities":["chat","json","code"]}}
+MODEL_ALLOW_INSECURE_HTTP=true
 ```
 
-重启网关后，门户的“选择模型配置”只显示 profile 标签、模型名、能力与凭据是否已配置，不返回 URL、凭据变量名或密钥。
+## 多 profile
+
+`MODEL_PROFILES_JSON` 是单行 JSON 对象。密钥只通过 `api_key_env` 引用环境变量，不能直接写入 JSON：
+
+```dotenv
+DEFAULT_MODEL_PROFILE=cloud-a
+CLOUD_A_KEY=replace-with-your-own-key
+LOCAL_GATEWAY_KEY=local-placeholder-if-required
+MODEL_PROFILES_JSON={"cloud-a":{"label":"Cloud A","provider":"openai-compatible","base_url":"https://models.example.com/v1","model":"model-a","api_key_env":"CLOUD_A_KEY","capabilities":["chat","json","code"]},"local-b":{"label":"Local B","provider":"openai-compatible","base_url":"http://host.docker.internal:11434/v1","model":"model-b","api_key_env":"LOCAL_GATEWAY_KEY","allow_insecure_http":true,"capabilities":["chat","json","code"]}}
+```
+
+`base_url` 可以包含 `/v1`，也可以直接以 `/chat/completions` 结尾；服务端会规范化请求地址。环境变量 profile 不受门户公网 URL 限制，因为它由部署者直接管理。
 
 ## 分任务参数
 
-可在每个 profile 的 `tasks` 中覆盖以下职责：
+每个 profile 的 `tasks` 可以覆盖：
 
 - `requirement_merge`
 - `parameter_extraction`
@@ -50,9 +79,9 @@ MODEL_PROFILES_JSON={"deepseek-default":{"label":"DeepSeek","provider":"openai-c
 }
 ```
 
-范围限制：`temperature` 0..2，`max_tokens` 1..32768，超时 1..180 秒。模型响应流式读取，超过 2 MiB 时立即终止。
+范围限制：`temperature` 0..2，`max_tokens` 1..32768，超时 1..180 秒。模型响应超过 2 MiB 时终止，HTTP 重定向不会跟随。
 
-## 能力与失败语义
+## 能力、费用与失败语义
 
 | 任务 | 必需能力 |
 | --- | --- |
@@ -60,12 +89,14 @@ MODEL_PROFILES_JSON={"deepseek-default":{"label":"DeepSeek","provider":"openai-c
 | 代码生成、重试 | `chat`、`code` |
 | 需求合并、审查、解释 | `chat` |
 
-未知 profile、缺少凭据或能力不足都会失败关闭，不会静默改用其他模型。模型审查只解释结果，不能覆盖 executor 状态和确定性物理门。
+未知 profile、过期 BYOK、缺少凭据或能力不足都会失败关闭。模型审查只能解释结果，不能覆盖 executor 状态和确定性物理门。
+
+费用默认记录为 `0`，含义是未知。部署者可以按所用货币配置每百万 token 单价：`MODEL_PRICE_INPUT`、`MODEL_PRICE_INPUT_CACHE`、`MODEL_PRICE_OUTPUT`。
 
 ## Dify 兼容模式
 
-`ORCHESTRATION_BACKEND=dify` 时，profile 只用于门户多轮需求合并；Dify 工作流内部节点仍由 Dify 管理。需要整条链路按 profile 切换时使用 `local`。
+完整 BYOK 只作用于 `ORCHESTRATION_BACKEND=local`。`dify` 模式保留给既有部署，其中模型由 Dify 工作流自行管理。
 
 ## 审计边界
 
-每次调用记录 provider、model、profile id、任务、temperature、max tokens、thinking、timeout 和 token usage，并与运行 id 关联。记录中不保存 endpoint、凭据变量名或密钥。
+每次调用记录 provider、model、任务、推理参数和 token usage，并与运行 id 关联。环境 profile 记录其 id；临时 BYOK 只记录不可重放的 SHA-256 摘要。审计不保存 endpoint、凭据变量名、临时 profile 令牌或密钥。

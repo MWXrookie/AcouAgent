@@ -1,18 +1,19 @@
-"""DeepSeek 自动纠错：根据执行失败结果调用 LLM 返回修正代码。"""
+"""模型无关的自动纠错：根据执行失败结果返回修正代码。"""
 
+import json
 from typing import Any
 
 import httpx
 
-from app import cache_store, config, dashboard
+from app import cache_store, config, dashboard, model_client, model_profiles
 
 
 def _llm_fix_code(
-    api_key: str, model: str, code: str, result: dict[str, Any], run_id: str | None = None
+    profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
 ) -> str:
-    """调用 DeepSeek API 修正出错的代码，返回修正后的代码字符串."""
-    if not api_key:
-        raise RuntimeError("DEEPSEEK_API_KEY must be set to use auto-fix")
+    """Use the selected BYOK profile to fix failed code."""
+    profile, settings = model_profiles.resolve(profile_id, "retry")
+    model_profiles.validate_runtime_endpoint(profile)
 
     # ---- 提取错误签名，查缓存 ----
     stderr = result.get("stderr", "")
@@ -86,28 +87,43 @@ def _llm_fix_code(
         "\nReturn ONLY the fixed Python code:"
     )
 
-    llm_response = httpx.post(
-        "https://api.deepseek.com/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 8000,
-        },
-        timeout=60,
-    )
-    llm_response.raise_for_status()
-    data = llm_response.json()
-    fixed = data["choices"][0]["message"]["content"].strip()
+    body = {
+        "model": profile.model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": settings.temperature,
+        "max_tokens": settings.max_tokens,
+    }
+    if settings.thinking:
+        body["thinking"] = True
+    with httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False) as client:
+        with client.stream(
+            "POST",
+            profile.endpoint(),
+            headers={"Authorization": f"Bearer {profile.api_key()}",
+                     "Content-Type": "application/json"},
+            json=body,
+        ) as llm_response:
+            llm_response.raise_for_status()
+            raw = bytearray()
+            for chunk in llm_response.iter_bytes():
+                raw.extend(chunk)
+                if len(raw) > model_client.MAX_RESPONSE_BYTES:
+                    raise model_client.ModelCallError("model_response_too_large")
+    try:
+        data = json.loads(raw)
+        fixed = model_client._content(data)
+    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
+        raise model_client.ModelCallError("model_response_invalid") from exc
 
     # 记录 token 用量与成本（费用看板）
     try:
         usage = data.get("usage")
-        dashboard.record_llm_usage(model, usage, config.calc_llm_cost(usage), run_id=run_id)
+        dashboard.record_llm_usage(
+            f"{profile.provider}:{profile.model}", usage, config.calc_llm_cost(usage),
+            run_id=run_id,
+            metadata={"profile_id": profile.audit_profile_id(), "provider": profile.provider,
+                      "model": profile.model, "task": "retry"},
+        )
     except Exception:
         pass
 

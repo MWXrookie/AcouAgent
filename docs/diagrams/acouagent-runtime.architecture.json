@@ -72,7 +72,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "发行示例默认 local，可在不部署 Dify 的情况下使用服务端模型 profile；既有部署未设置 ORCHESTRATION_BACKEND 时继续使用 Dify 兼容默认。"
+        "note": "发行默认 local，不需要部署 Dify。下载者可在门户注册只存于内存且会过期的 BYOK profile，或通过环境变量配置长期 profile。"
       }
     ]
   },
@@ -139,7 +139,7 @@
     {
       "id": "model_provider",
       "type": "cloud",
-      "label": "可配置模型内核",
+      "label": "用户 BYOK 模型",
       "sublabel": "提取 / 生成 / 审查 / 解释 / 重试",
       "pos": [
         630,
@@ -149,7 +149,7 @@
         180,
         64
       ],
-      "tag": "OpenAI-compatible profiles"
+      "tag": "临时会话 / 环境 profile"
     },
     {
       "id": "mcp_gateway",
@@ -286,7 +286,7 @@
       "id": "local-to-model",
       "from": "local_orchestrator",
       "to": "model_provider",
-      "label": "服务端 profile 选择",
+      "label": "BYOK / 环境 profile",
       "fromSide": "top",
       "toSide": "bottom"
     },
@@ -342,8 +342,8 @@
       "dot": "cyan",
       "title": "入口与编排",
       "items": [
-        "发行示例默认 local；既有部署保持 Dify 默认",
-        "浏览器只选 profile id；端点和密钥仅在服务端",
+        "发行默认 local；Dify 仅为显式兼容覆盖",
+        "门户密钥仅存网关内存；审计只写不可重放摘要",
         "本地模式覆盖提取、检索、生成、执行、重试、审查和解释"
       ]
     },

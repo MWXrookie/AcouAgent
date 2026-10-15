@@ -4,7 +4,7 @@
 - config.py        环境配置与校验
 - cache_store.py   纠错经验缓存（SQLite）
 - execution.py     代码清理/沙箱执行/报告生成
-- llm.py           DeepSeek 自动纠错
+- llm.py           BYOK 模型自动纠错
 - tools.py         MCP 工具集（6 个）
 - portal.py        Web 门户路由
 - analysis.py      结果分析（T-007 占位，落点在此）

@@ -126,6 +126,6 @@ fi
 
 docker exec dify-mcp python -m scripts.skill_library.local_basic status-all >/dev/null
 echo "AcouAgent is ready at http://127.0.0.1:8001/portal"
-if [[ -z "$(read_env_value DEEPSEEK_API_KEY)" ]]; then
-  echo "natural-language chat remains unavailable until a server model credential is configured in .env"
+if [[ -z "$(read_env_value MODEL_API_KEY)" && -z "$(read_env_value MODEL_PROFILES_JSON)" ]]; then
+  echo "open Model Settings in the portal to enter your BYOK endpoint, model and API key"
 fi
