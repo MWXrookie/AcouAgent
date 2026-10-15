@@ -1,5 +1,9 @@
 # AcouAgent · 声学仿真与成功技能库
 
+> 当前实现、开放发布门和文档优先级统一见
+> [当前状态](docs/CURRENT_STATUS.md)。带日期的旧计划和验收记录用于追溯，
+> 不覆盖该状态页。
+
 > **2026-10-15 BYOK 运行时**：发行示例默认 `local`，自然语言聊天可以脱离 Dify 完成参数提取、技能检索、代码生成、原 executor 执行、物理门、审查解释和最多两次修正。下载者可在门户临时接入自己的 OpenAI-compatible 模型，也可用环境变量配置可复用 profile；模型密钥不进入浏览器持久存储、SQLite、日志或技能库。
 
 > **2026-10-13 阶段五自动学习闭环已通过**：主执行与重试路径统一经过质量门；精确固定配方可确定性接纳为 `Q4 active`，普通成功运行最高只形成不可复用的 `Q2 candidate`；真实 Dify 学习、候选隔离、run-bound 幂等负反馈和 Luna 772 项回归均通过。当前生产已显式开启学习，executor 未变。详见 [阶段五验收](docs/validation/stage5/README.md)。
@@ -53,6 +57,21 @@ Windows PowerShell：
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 ```
+
+安装前或运行异常时，如主机已有 Python 3.11，可执行脱敏 Doctor。Doctor
+不输出 token、模型密钥、endpoint 或模型响应正文：
+
+```bash
+python3 -m scripts.diagnostics.acouagent_doctor --mode auto
+python3 -m scripts.diagnostics.acouagent_doctor --mode auto --json
+```
+
+Windows 可将 `python3` 换成 `py -3.11` 或实际的 Python 3.11 命令。
+
+Doctor 的 `prepare` 模式检查主机、`.env`、Docker、Compose 和端口；
+`runtime` 模式还检查网关、模型 profile 接口、17 项技能、SQLite 审计、
+在线备份入口、源码身份及 executor 隔离。它是诊断工具，安装器仍只要求
+Docker Compose。
 
 安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有 `.env` 不会被覆盖。未配置环境变量模型时，健康检查、技能库和固定技能自举仍可用；启动后可直接在门户“模型设置”中填写自己的 API 地址、模型名和密钥。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
 

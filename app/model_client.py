@@ -32,16 +32,25 @@ def _content(payload: Any) -> str:
     return text
 
 
-async def complete(profile_id: str | None, task: str, messages: list[dict[str, str]],
-                   *, run_id: str | None = None) -> dict[str, Any]:
-    profile, settings = model_profiles.resolve(profile_id, task)
-    model_profiles.validate_runtime_endpoint(profile)
+def _validate_messages(messages: list[dict[str, str]]) -> None:
     if (not isinstance(messages, list) or not 1 <= len(messages) <= 16
             or any(not isinstance(item, dict) or set(item) != {"role", "content"}
                    or item["role"] not in {"system", "user", "assistant"}
                    or not isinstance(item["content"], str)
                    or len(item["content"].encode("utf-8")) > 100000 for item in messages)):
         raise ModelCallError("model_messages_invalid")
+
+
+async def _complete_resolved(
+    profile: model_profiles.ModelProfile,
+    settings: model_profiles.TaskSettings,
+    task: str,
+    messages: list[dict[str, str]],
+    *,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    model_profiles.validate_runtime_endpoint(profile)
+    _validate_messages(messages)
     body: dict[str, Any] = {
         "model": profile.model,
         "messages": messages,
@@ -109,3 +118,30 @@ async def complete(profile_id: str | None, task: str, messages: list[dict[str, s
         "usage": usage if isinstance(usage, dict) else {},
         "run_id": actual_run_id,
     }
+
+
+async def complete(profile_id: str | None, task: str, messages: list[dict[str, str]],
+                   *, run_id: str | None = None) -> dict[str, Any]:
+    profile, settings = model_profiles.resolve(profile_id, task)
+    return await _complete_resolved(profile, settings, task, messages, run_id=run_id)
+
+
+async def probe(profile_id: str | None, messages: list[dict[str, str]],
+                *, run_id: str | None = None) -> dict[str, Any]:
+    """Run one low-cost capability probe against a full-workflow profile.
+
+    Resolving both tasks verifies that the selected profile declares the JSON and
+    code capabilities used by local orchestration. The transport remains the same
+    bounded, redirect-free path as normal model calls.
+    """
+    profile, _ = model_profiles.resolve(profile_id, "parameter_extraction")
+    code_profile, _ = model_profiles.resolve(profile_id, "code_generation")
+    if code_profile.profile_id != profile.profile_id:
+        raise model_profiles.ModelProfileError("model_profile_resolution_mismatch")
+    settings = model_profiles.TaskSettings(
+        temperature=0.0,
+        max_tokens=160,
+        thinking=False,
+        timeout_seconds=30.0,
+    )
+    return await _complete_resolved(profile, settings, "preflight", messages, run_id=run_id)

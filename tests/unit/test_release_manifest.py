@@ -38,8 +38,11 @@ def test_current_head_manifest_is_reproducible_and_safe():
     assert first == second
     assert first["integrity"]["forbidden_tracked_paths"] == []
     assert set(first["integrity"]["missing_required_files"]) <= {
+        "app/model_preflight.py",
+        "docs/CURRENT_STATUS.md",
         "docs/releases/v1.0.0-draft.md",
         "docs/validation/stage7/RELEASE_CHECKLIST.md",
+        "scripts/diagnostics/acouagent_doctor.py",
         "scripts/validation/release_manifest.py",
     }
     assert first["source"]["commit_sha"]

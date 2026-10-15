@@ -1462,6 +1462,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
   .modal-box input, .modal-box select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .modal-actions button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
+  .modal-actions button:disabled { opacity: .55; cursor: wait; }
   .modal-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 
   .chat-log {
@@ -1591,16 +1592,18 @@ body{background:var(--bg)!important;color:var(--text)!important}
     <select id="model-profile" onchange="toggleByokFields()"></select>
     <div id="byok-fields" hidden>
       <label for="byok-base-url">OpenAI 兼容 API 地址</label>
-      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1">
+      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" oninput="clearModelPreflightResult()">
       <label for="byok-model">模型名称</label>
-      <input id="byok-model" type="text" autocomplete="off" placeholder="模型 ID">
+      <input id="byok-model" type="text" autocomplete="off" placeholder="模型 ID" oninput="clearModelPreflightResult()">
       <label for="byok-api-key">API Key</label>
-      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器">
+      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器" oninput="clearModelPreflightResult()">
     </div>
     <p id="model-profile-detail" style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">正在读取服务端配置…</p>
+    <p id="model-preflight-result" role="status" aria-live="polite" style="color:var(--muted);font-size:12px;line-height:1.6;white-space:pre-line"></p>
     <p style="color:var(--muted);font-size:12px;line-height:1.6">密钥仅保存在当前网关进程的临时内存中，到期或重启后失效；不会写入浏览器持久存储、SQLite、日志或技能库。</p>
     <div class="modal-actions">
       <button onclick="closeModelSettings()">取消</button>
+      <button id="model-test-btn" onclick="testModelConnection()">测试连接</button>
       <button class="primary" onclick="saveModelSettings()">保存</button>
     </div>
   </div>
@@ -1692,6 +1695,11 @@ async function loadModelProfiles() {
 function toggleByokFields() {
   var selected = document.getElementById('model-profile').value;
   document.getElementById('byok-fields').hidden = selected !== '__byok__';
+  clearModelPreflightResult();
+}
+
+function clearModelPreflightResult() {
+  document.getElementById('model-preflight-result').textContent = '';
 }
 
 function openModelSettings() {
@@ -1712,23 +1720,73 @@ async function revokeByokProfile() {
   } catch (_) {}
 }
 
+async function registerByokForCurrentSession() {
+  var baseUrl = document.getElementById('byok-base-url').value.trim();
+  var model = document.getElementById('byok-model').value.trim();
+  var apiKey = document.getElementById('byok-api-key').value.trim();
+  if (!baseUrl || !model || !apiKey) throw new Error('请填写 API 地址、模型名称和 API Key。');
+  var resp = await fetch('/api/byok/session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({base_url:baseUrl, model:model, api_key:apiKey})});
+  var data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'BYOK 配置失败');
+  await revokeByokProfile();
+  sessionStorage.setItem('acouagent_byok_profile', data.profile_id);
+  localStorage.removeItem('acouagent_model_profile');
+  document.getElementById('byok-api-key').value = '';
+  return data.profile_id;
+}
+
+async function testModelConnection() {
+  var selected = document.getElementById('model-profile').value;
+  var result = document.getElementById('model-preflight-result');
+  var button = document.getElementById('model-test-btn');
+  button.disabled = true;
+  result.textContent = '正在执行一次小型模型调用，不会执行返回的代码…';
+  try {
+    var profile = selected;
+    if (selected === '__byok__') {
+      var hasNewCredential = document.getElementById('byok-api-key').value.trim();
+      profile = hasNewCredential ? await registerByokForCurrentSession() : getModelProfile();
+      if (!profile || !String(profile).startsWith('byok-')) {
+        throw new Error('请填写并测试 BYOK 配置。');
+      }
+    }
+    if (!profile) throw new Error('请选择一个已配置的模型。');
+    var resp = await fetch('/api/model-profiles/test', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({profile_id:profile})
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '模型测试失败');
+    var lines = [
+      data.ok ? '基础兼容测试通过。' : '端点已连接，但基础兼容测试未通过。',
+      '模型：' + String(data.model || ''),
+      '耗时：' + String(data.latency_ms) + ' ms'
+    ];
+    (data.checks || []).forEach(function(item) {
+      lines.push((item.passed ? '通过 · ' : '失败 · ') + String(item.detail || item.id));
+    });
+    lines.push('完整仿真仍需固定题、executor 与物理质量门验收。');
+    result.textContent = lines.join('\n');
+  } catch (e) {
+    result.textContent = '模型测试失败：' + String(e.message || e);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function saveModelSettings() {
   var selected = document.getElementById('model-profile').value;
   var detail = document.getElementById('model-profile-detail');
   if (selected === '__byok__') {
-    var baseUrl = document.getElementById('byok-base-url').value.trim();
-    var model = document.getElementById('byok-model').value.trim();
-    var apiKey = document.getElementById('byok-api-key').value.trim();
-    if (!baseUrl || !model || !apiKey) { detail.textContent = '请填写 API 地址、模型名称和 API Key。'; return; }
+    var existing = sessionStorage.getItem('acouagent_byok_profile');
+    if (existing && !document.getElementById('byok-api-key').value.trim()) {
+      closeModelSettings();
+      return;
+    }
     detail.textContent = '正在注册临时 BYOK 配置…';
     try {
-      var resp = await fetch('/api/byok/session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({base_url:baseUrl, model:model, api_key:apiKey})});
-      var data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'BYOK 配置失败');
-      await revokeByokProfile();
-      sessionStorage.setItem('acouagent_byok_profile', data.profile_id);
-      localStorage.removeItem('acouagent_model_profile');
-      document.getElementById('byok-api-key').value = '';
+      await registerByokForCurrentSession();
       closeModelSettings();
     } catch (e) { detail.textContent = 'BYOK 配置失败：' + String(e.message || e); }
     return;

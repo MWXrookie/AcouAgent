@@ -21,13 +21,16 @@
 
 阶段六首个切片增加可重复的 release snapshot smoke 和网关/executor GHCR 构建工作流。工作流提交后仍需等待 GitHub Actions 实际成功并回拉镜像验证，不能仅凭 YAML 存在宣称预构建分发已经可用。
 
-## GAP-PLAT-001：运行时强依赖 Dify
+## GAP-PLAT-001：Dify 兼容路径仍待对照收口
 
 **现状**：本地编排候选已经覆盖完整聊天主链路，发行示例默认 `local`；Dify 保留为兼容后端。合并后的 GitHub `main` 已在全新 runner 完成无模型安装、技能自举和安全边界验收；带真实模型凭据的新操作者首题与已发布 Dify 图的批量同题双跑尚未完成。
 
-**影响**：无法真正做到 GitHub 下载后直接运行；部署容器多，工作流版本、插件和模型凭据还存在额外配置面。
+**影响**：默认发行已经可以脱离 Dify 运行；尚未完成的影响是无法用批量证据证明
+本地编排与历史 Dify 发布图在关键产物和失败语义上完全一致。
 
-**拟议方向**：延续 `DEVELOPMENT_PLAN.md` 的 Phase E，将编排迁入本项目内的可测试运行时。迁移实现可以采用 LangGraph，但必须继续调用现有 FastMCP 工具和 `jwave-executor`，不得把技能代码放到网关进程执行，也不得削弱 executor 的网络、权限、资源和回执限制。
+**拟议方向**：保持现有 `app/local_workflow.py` 为发行主路径，对已发布 Dify 图执行
+有界固定题双跑。Dify 不再承接新发行功能；所有生成代码继续只进入现有
+FastMCP 与 `jwave-executor` 链路。
 
 **关闭条件**：
 

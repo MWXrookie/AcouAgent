@@ -12,6 +12,7 @@ on:
       - "executor/**"
       - "scripts/install.sh"
       - "scripts/install.ps1"
+      - "scripts/diagnostics/**"
       - "scripts/skill_library/**"
   workflow_dispatch:
 

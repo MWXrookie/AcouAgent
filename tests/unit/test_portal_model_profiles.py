@@ -5,7 +5,7 @@ import httpx
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from app import config, local_workflow, model_profiles, portal
+from app import config, local_workflow, model_preflight, model_profiles, portal
 
 
 class Registry:
@@ -110,5 +110,64 @@ def test_byok_session_routes_never_return_or_persist_secret(monkeypatch):
             removed = await client.request("DELETE", "/api/byok/session",
                                            json={"profile_id": profile_id})
             assert removed.status_code == 200 and removed.json()["ok"] is True
+
+    asyncio.run(run())
+
+
+def test_model_preflight_route_is_bounded_and_returns_no_store(monkeypatch):
+    calls = []
+
+    async def fake_run(profile_id):
+        calls.append(profile_id)
+        return {
+            "ok": True,
+            "status": "basic_compatible",
+            "connected": True,
+            "latency_ms": 12,
+            "profile_id": "safe-audit-id",
+            "provider": "openai-compatible",
+            "model": "test-model",
+            "checks": [],
+            "full_simulation_validated": False,
+            "notice": "bounded",
+        }
+
+    monkeypatch.setattr(model_preflight, "run", fake_run)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app()),
+                                     base_url="http://isolated") as client:
+            bad = await client.post("/api/model-profiles/test", json={"profile_id": {"bad": 1}})
+            assert bad.status_code == 400
+            response = await client.post(
+                "/api/model-profiles/test", json={"profile_id": "fast"}
+            )
+            assert response.status_code == 200
+            assert response.headers["cache-control"] == "no-store"
+            assert response.json()["full_simulation_validated"] is False
+
+    asyncio.run(run())
+    assert calls == ["fast"]
+
+
+def test_model_preflight_transport_error_is_sanitized(monkeypatch):
+    async def fake_run(_profile_id):
+        raise portal.model_client.ModelCallError("model_transport_failed")
+
+    monkeypatch.setattr(model_preflight, "run", fake_run)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app()),
+                                     base_url="http://isolated") as client:
+            response = await client.post(
+                "/api/model-profiles/test", json={"profile_id": "fast"}
+            )
+            assert response.status_code == 502
+            assert response.json() == {
+                "ok": False,
+                "connected": False,
+                "error": "model_transport_failed",
+                "full_simulation_validated": False,
+            }
 
     asyncio.run(run())

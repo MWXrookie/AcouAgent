@@ -11,7 +11,7 @@
     },
     "viewBox": [
       1240,
-      660
+      680
     ],
     "views": [
       {
@@ -20,11 +20,12 @@
         "focus": [
           "users",
           "web_portal",
+          "model_preflight",
           "local_orchestrator",
           "mcp_gateway",
           "simulation_pipeline"
         ],
-        "note": "阶段六新增服务内本地编排：参数提取、技能检索、代码生成、原 executor 执行、确定性物理门、审查解释与最多两次修正。Dify 仍作为可选兼容路径。"
+        "note": "阶段七在门户增加一次性模型预检：同一 profile 同时验证参数提取与代码生成能力；主请求仍由本地编排器完成技能检索、沙箱执行、确定性物理门、审查解释与最多两次修正。"
       },
       {
         "id": "quality-loop",
@@ -63,16 +64,17 @@
       },
       {
         "id": "fresh-install",
-        "label": "GitHub 冷启动",
+        "label": "冷启动与发布检查",
         "focus": [
+          "release_doctor",
           "web_portal",
-          "local_orchestrator",
+          "model_preflight",
+          "model_provider",
           "mcp_gateway",
           "skill_bootstrap",
-          "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "发行默认 local，不需要部署 Dify。下载者可在门户注册只存于内存且会过期的 BYOK profile，或通过环境变量配置长期 profile。"
+        "note": "下载后先用 Doctor 检查配置、Compose、安全边界和运行态，再在门户注册 BYOK profile 并做不执行模型代码的连接预检；Doctor 与预检都不输出密钥或模型正文，完整可用性仍由固定仿真套件验收。"
       }
     ]
   },
@@ -84,7 +86,7 @@
       "sublabel": "自然语言声学需求",
       "pos": [
         20,
-        280
+        300
       ],
       "size": [
         120,
@@ -98,7 +100,7 @@
       "sublabel": "聊天 / 技能库 / 看板",
       "pos": [
         170,
-        280
+        300
       ],
       "size": [
         140,
@@ -113,7 +115,7 @@
       "sublabel": "提取 / 检索 / 生成 / 重试 / 解读",
       "pos": [
         390,
-        280
+        300
       ],
       "size": [
         185,
@@ -128,13 +130,28 @@
       "sublabel": "既有 63 节点 / 70 边路径",
       "pos": [
         150,
-        500
+        570
       ],
       "size": [
         185,
         64
       ],
       "tag": "可选兼容"
+    },
+    {
+      "id": "model_preflight",
+      "type": "security",
+      "label": "模型连接预检",
+      "sublabel": "双任务解析 / 严格 JSON / AST 白名单",
+      "pos": [
+        390,
+        100
+      ],
+      "size": [
+        185,
+        64
+      ],
+      "tag": "不执行代码 · 不入技能库"
     },
     {
       "id": "model_provider",
@@ -152,13 +169,28 @@
       "tag": "临时会话 / 环境 profile"
     },
     {
+      "id": "release_doctor",
+      "type": "backend",
+      "label": "发布 Doctor",
+      "sublabel": "配置 / Compose / 运行态 / 安全边界",
+      "pos": [
+        390,
+        570
+      ],
+      "size": [
+        185,
+        64
+      ],
+      "tag": "脱敏诊断 · prepare/runtime"
+    },
+    {
       "id": "mcp_gateway",
       "type": "security",
       "label": "FastMCP 网关",
       "sublabel": "鉴权 / 技能读工具 / 执行报告",
       "pos": [
         630,
-        280
+        300
       ],
       "size": [
         170,
@@ -173,7 +205,7 @@
       "sublabel": "17 配方 / executor 实跑 / 物理门",
       "pos": [
         630,
-        500
+        570
       ],
       "size": [
         170,
@@ -188,7 +220,7 @@
       "sublabel": "检索 / 沙箱执行 / Q2-Q4 门 / 回退",
       "pos": [
         840,
-        280
+        300
       ],
       "size": [
         170,
@@ -203,7 +235,7 @@
       "sublabel": "技能 / 版本 / 学习 / 反馈 / 回执",
       "pos": [
         840,
-        500
+        570
       ],
       "size": [
         170,
@@ -218,7 +250,7 @@
       "sublabel": "Python / jwave 0.2.1 / CPU",
       "pos": [
         1040,
-        500
+        570
       ],
       "size": [
         170,
@@ -243,7 +275,8 @@
         "mcp_gateway",
         "simulation_pipeline",
         "state_store",
-        "skill_bootstrap"
+        "skill_bootstrap",
+        "model_preflight"
       ]
     },
     {
@@ -251,6 +284,13 @@
       "label": "隔离执行边界",
       "wraps": [
         "jwave_sandbox"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "安装与发布诊断",
+      "wraps": [
+        "release_doctor"
       ]
     }
   ],
@@ -283,6 +323,25 @@
       "variant": "dashed"
     },
     {
+      "id": "portal-to-preflight",
+      "from": "web_portal",
+      "to": "model_preflight",
+      "label": "POST 连接测试",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "preflight-to-model",
+      "from": "model_preflight",
+      "to": "model_provider",
+      "label": "一次受限探测",
+      "variant": "emphasis",
+      "labelAt": [
+        603,
+        178
+      ]
+    },
+    {
       "id": "local-to-model",
       "from": "local_orchestrator",
       "to": "model_provider",
@@ -296,8 +355,8 @@
       "to": "mcp_gateway",
       "label": "共享校验与执行入口",
       "labelAt": [
-        720,
-        390
+        600,
+        278
       ],
       "variant": "emphasis"
     },
@@ -305,7 +364,9 @@
       "id": "dify-to-mcp",
       "from": "dify_workflow",
       "to": "mcp_gateway",
-      "label": "MCP tool call"
+      "label": "MCP tool call",
+      "fromSide": "right",
+      "toSide": "bottom"
     },
     {
       "id": "mcp-to-pipeline",
@@ -326,7 +387,7 @@
       "label": "执行历史 + 分级学习 + 反馈",
       "labelAt": [
         925,
-        370
+        400
       ]
     },
     {
@@ -335,6 +396,19 @@
       "to": "simulation_pipeline",
       "label": "固定配方实跑与接纳",
       "variant": "emphasis"
+    },
+    {
+      "id": "doctor-to-mcp",
+      "from": "release_doctor",
+      "to": "mcp_gateway",
+      "label": "技能 / 审计 / 备份检查",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        600,
+        500
+      ]
     }
   ],
   "cards": [
@@ -343,7 +417,7 @@
       "title": "入口与编排",
       "items": [
         "发行默认 local；Dify 仅为显式兼容覆盖",
-        "门户密钥仅存网关内存；审计只写不可重放摘要",
+        "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话",
         "本地模式覆盖提取、检索、生成、执行、重试、审查和解释"
       ]
     },
@@ -360,6 +434,7 @@
       "dot": "rose",
       "title": "回退与信任边界",
       "items": [
+        "Doctor 诊断配置、Compose、运行态与 executor 边界且不输出密钥值",
         "模型响应限长且关闭重定向，客户端不接触密钥",
         "执行与分析按 run_id 绑定并独立审计",
         "自动学习默认关闭，executor 安全限制保持不变"
