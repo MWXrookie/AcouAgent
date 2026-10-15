@@ -20,8 +20,6 @@ from app import (
     model_profiles,
     skill_library_service,
 )
-from app.ui_chrome import render_page
-from app.workflow_client import workflow_events
 from app.dashboard import (
     CHAT_HTML,
     clear_executions,
@@ -31,6 +29,8 @@ from app.dashboard import (
     record_admin_event,
     record_execution,
 )
+from app.ui_chrome import render_page
+from app.workflow_client import workflow_events
 
 
 def _serve_html(filename: str) -> HTMLResponse:
@@ -55,7 +55,7 @@ def _extract_report(output) -> str:
 
 async def _merge_requirement(requirement: str, message: str,
                              model_profile: str | None = None) -> str:
-    """Merge turns through a server-owned profile; fail closed to concatenation."""
+    """Merge turns through the selected BYOK profile; fail closed to concatenation."""
     prompt = (
         "你是声学仿真需求整理助手。根据当前完整需求和用户新修改，输出更新后的完整需求。"
         "新修改覆盖旧值；只输出需求，不要解释。\n\n"
@@ -93,9 +93,48 @@ def register(mcp) -> None:
                        "error": str(exc)}
             status = 503
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
-                                 media_type="application/json")
+                                 media_type="application/json",
+                                 headers={"Cache-Control": "no-store"})
 
-    def require_admin(request: Request, action: str, target_id: str | None = None) -> PlainTextResponse | None:
+    @mcp.custom_route("/api/byok/session", methods=["POST"])
+    async def create_byok_session(request: Request) -> PlainTextResponse:
+        """Create an expiring in-memory model profile for this self-hosted portal."""
+        raw = await request.body()
+        if len(raw) > 8192:
+            payload, status = {"ok": False, "error": "byok_payload_too_large"}, 413
+        else:
+            try:
+                body = json.loads(raw)
+                created = model_profiles.register_session_profile(body)
+                payload, status = {"ok": True, **created}, 201
+            except (json.JSONDecodeError, UnicodeError):
+                payload, status = {"ok": False, "error": "byok_payload_invalid"}, 400
+            except model_profiles.ModelProfileError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+        return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
+                                 media_type="application/json",
+                                 headers={"Cache-Control": "no-store"})
+
+    @mcp.custom_route("/api/byok/session", methods=["DELETE"])
+    async def delete_byok_session(request: Request) -> PlainTextResponse:
+        raw = await request.body()
+        try:
+            body = json.loads(raw)
+            profile_id = body.get("profile_id") if isinstance(body, dict) else None
+        except (json.JSONDecodeError, UnicodeError):
+            profile_id = None
+        removed = model_profiles.remove_session_profile(profile_id)
+        return PlainTextResponse(
+            json.dumps({"ok": removed, "error": None if removed else "byok_session_unknown"},
+                       ensure_ascii=False),
+            status_code=200 if removed else 404,
+            media_type="application/json",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def require_admin(
+        request: Request, action: str, target_id: str | None = None
+    ) -> PlainTextResponse | None:
         """Fail closed for state-changing portal endpoints and audit every attempt."""
         supplied = request.headers.get("X-Admin-Token", "")
         expected = config.PORTAL_ADMIN_TOKEN
@@ -117,7 +156,7 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/chat", methods=["POST"])
     async def chat_api(request: Request) -> PlainTextResponse:
-        """多轮对话：合并历史需求 → 调用 Dify 工作流执行仿真。
+        """多轮对话：合并历史需求 → 调用本地或 Dify 兼容工作流。
 
         会话隔离：前端每次请求携带 session_id（浏览器 localStorage 持久化），
         Dify 侧 user 按会话区分（portal-<session>），避免多用户共享 Dify 会话上下文。
@@ -127,7 +166,9 @@ def register(mcp) -> None:
         requirement = (body.get("requirement") or "").strip()
         session_id = (body.get("session_id") or "").strip()[:24]
         model_profile = body.get("model_profile")
-        if model_profile is not None and (not isinstance(model_profile, str) or len(model_profile) > 64):
+        if model_profile is not None and (
+            not isinstance(model_profile, str) or len(model_profile) > 64
+        ):
             return PlainTextResponse(
                 json.dumps({"error": "invalid model_profile"}, ensure_ascii=False),
                 status_code=400, media_type="application/json",

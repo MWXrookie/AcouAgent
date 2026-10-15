@@ -179,7 +179,9 @@ def test_consistent_runtime_drift_is_observed_but_never_approved():
 def test_retry_records_final_attempt_environment_not_initial_attempt(tmp_path, monkeypatch, final_exit):
     monkeypatch.setattr(dashboard, "DB_PATH", str(tmp_path / "history.db"))
     dashboard.init_db()
-    monkeypatch.setattr(tools.config, "DEEPSEEK_API_KEY", "unit-test-only-not-a-real-key")
+    monkeypatch.setenv("MODEL_BASE_URL", "https://models.example.test/v1")
+    monkeypatch.setenv("MODEL_NAME", "test-model")
+    monkeypatch.setenv("MODEL_API_KEY", "unit-test-only-not-a-real-key")
     monkeypatch.setattr(tools.llm, "_llm_fix_code", lambda *a, **kw: "print('fixed')")
     attempts = []
     def execute(code, timeout):

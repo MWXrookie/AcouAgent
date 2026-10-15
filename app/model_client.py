@@ -1,4 +1,4 @@
-"""Bounded OpenAI-compatible chat transport for server-owned model profiles."""
+"""Bounded OpenAI-compatible chat transport for self-hosted BYOK profiles."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from app import dashboard, model_profiles
+from app import config, dashboard, model_profiles
 
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
@@ -35,6 +35,7 @@ def _content(payload: Any) -> str:
 async def complete(profile_id: str | None, task: str, messages: list[dict[str, str]],
                    *, run_id: str | None = None) -> dict[str, Any]:
     profile, settings = model_profiles.resolve(profile_id, task)
+    model_profiles.validate_runtime_endpoint(profile)
     if (not isinstance(messages, list) or not 1 <= len(messages) <= 16
             or any(not isinstance(item, dict) or set(item) != {"role", "content"}
                    or item["role"] not in {"system", "user", "assistant"}
@@ -49,10 +50,17 @@ async def complete(profile_id: str | None, task: str, messages: list[dict[str, s
     }
     if settings.thinking:
         body["thinking"] = True
-    headers = {"Authorization": f"Bearer {profile.api_key()}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {profile.api_key()}",
+        "Content-Type": "application/json",
+    }
     try:
-        async with httpx.AsyncClient(timeout=settings.timeout_seconds, follow_redirects=False) as client:
-            async with client.stream("POST", profile.endpoint(), headers=headers, json=body) as response:
+        async with httpx.AsyncClient(
+            timeout=settings.timeout_seconds, follow_redirects=False
+        ) as client:
+            async with client.stream(
+                "POST", profile.endpoint(), headers=headers, json=body
+            ) as response:
                 response.raise_for_status()
                 raw = bytearray()
                 async for chunk in response.aiter_bytes():
@@ -71,10 +79,10 @@ async def complete(profile_id: str | None, task: str, messages: list[dict[str, s
         dashboard.record_llm_usage(
             f"{profile.provider}:{profile.model}",
             usage if isinstance(usage, dict) else {},
-            0.0,
+            config.calc_llm_cost(usage if isinstance(usage, dict) else {}),
             run_id=actual_run_id,
             metadata={
-                "profile_id": profile.profile_id,
+                "profile_id": profile.audit_profile_id(),
                 "provider": profile.provider,
                 "model": profile.model,
                 "task": task,
@@ -88,7 +96,7 @@ async def complete(profile_id: str | None, task: str, messages: list[dict[str, s
         pass
     return {
         "content": text,
-        "profile_id": profile.profile_id,
+        "profile_id": profile.audit_profile_id(),
         "provider": profile.provider,
         "model": profile.model,
         "task": task,

@@ -2,6 +2,8 @@
 
 > ⚠️ **2026-10-07 起**：本文档早于 `DEVELOPMENT_PLAN.md` v3.0 的终点（本地可视化技能库系统）与编排层迁移决定，部分内容已过时（如 Gradio 前端、旧节点数、旧成功率）。规划与验收请以 v3.0 与 `SKILL_LIBRARY_ACCEPTANCE.md` 为准。
 
+> **2026-10-15 当前运行时**：发行默认使用项目内 `local` 编排。模型入口为统一 OpenAI-compatible BYOK：门户密钥只存网关内存并按期失效，长期配置使用通用环境变量或 profile；自动纠错与主编排共用同一 profile。下文出现的 DeepSeek 和 Dify 固定节点图是历史部署说明。当前组件事实图见 `diagrams/acouagent-runtime.architecture.html`。
+
 > 版本 v1.0 | 2026-08-08 | 关联: AGENTS.md, PRD.md
 
 ---

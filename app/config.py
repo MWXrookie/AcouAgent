@@ -7,30 +7,28 @@ import os
 
 MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN")
 EXECUTOR_SHARED_TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN")
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 CODE_RETRY_MAX = int(os.environ.get("CODE_RETRY_MAX", "7"))
 DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
 DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://nginx/v1").rstrip("/")
 PORTAL_ADMIN_TOKEN = os.environ.get("PORTAL_ADMIN_TOKEN", "")
-ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "dify").strip().lower()
+ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "local").strip().lower()
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"
 
-# DeepSeek 定价（元 / 百万 tokens），可用环境变量按官网最新价覆盖
-DEEPSEEK_PRICE_INPUT = float(os.environ.get("DEEPSEEK_PRICE_INPUT", "2.0"))           # 输入（缓存未命中）
-DEEPSEEK_PRICE_INPUT_CACHE = float(os.environ.get("DEEPSEEK_PRICE_INPUT_CACHE", "0.5"))  # 输入（缓存命中）
-DEEPSEEK_PRICE_OUTPUT = float(os.environ.get("DEEPSEEK_PRICE_OUTPUT", "8.0"))         # 输出
+# 可选的通用价格（部署者所用货币 / 百万 tokens）。默认 0 表示未知。
+MODEL_PRICE_INPUT = float(os.environ.get("MODEL_PRICE_INPUT", "0"))
+MODEL_PRICE_INPUT_CACHE = float(os.environ.get("MODEL_PRICE_INPUT_CACHE", "0"))
+MODEL_PRICE_OUTPUT = float(os.environ.get("MODEL_PRICE_OUTPUT", "0"))
 
 
 def calc_llm_cost(usage: dict) -> float:
-    """按 DeepSeek 定价估算单次调用成本（元）。usage 为 DeepSeek 返回的 usage 字段。"""
+    """Estimate one call using operator-provided generic per-million-token prices."""
     usage = usage or {}
     miss = usage.get("prompt_cache_miss_tokens") or usage.get("prompt_tokens") or 0
     hit = usage.get("prompt_cache_hit_tokens") or 0
     out = usage.get("completion_tokens") or 0
-    return (miss * DEEPSEEK_PRICE_INPUT + hit * DEEPSEEK_PRICE_INPUT_CACHE + out * DEEPSEEK_PRICE_OUTPUT) / 1_000_000
+    return (miss * MODEL_PRICE_INPUT + hit * MODEL_PRICE_INPUT_CACHE + out * MODEL_PRICE_OUTPUT) / 1_000_000
 
 
 def validate() -> None:

@@ -91,7 +91,7 @@ body{background:var(--bg)!important;color:var(--text)!important}
 <body>
 <div class="back"><a href="/">← 返回门户</a></div>
 <h1>纠错经验缓存</h1>
-<p class="subtitle">每次仿真失败后，DeepSeek 自动分析错误并生成修复代码。修复成功的经验沉淀在这里，同类错误再次出现时可以直接复用。</p>
+<p class="subtitle">每次仿真失败后，当前 BYOK 模型自动分析错误并生成修复代码。修复成功的经验沉淀在这里，同类错误再次出现时可以直接复用。</p>
 <div class="summary-row" id="summary"></div>
 <div class="section" id="bands-section"></div>
 <div class="section">
@@ -154,7 +154,7 @@ function tellStory(e) {
 
 // 从 hint 代码中提取修复的核心变化
 function extractFixChange(hint) {
-  if (!hint) return 'DeepSeek 分析错误后生成了修复代码。';
+  if (!hint) return '当前模型分析错误后生成了修复代码。';
   var lines = hint.split('\n');
 
   // Find all comments as they explain the fix
@@ -186,7 +186,7 @@ function extractFixChange(hint) {
   if (keyLines.length > 0) {
     return '修复后使用了 <code>' + esc(keyLines[0].slice(0,60)) + '</code>' + (keyLines.length > 1 ? ' 等关键调用。' : '。');
   }
-  return 'DeepSeek 重新生成了完整代码，修正了上述错误。';
+  return '当前模型重新生成了完整代码，修正了上述错误。';
 }
 
 function render(d) {

@@ -1,6 +1,6 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
-> 2026-10-14 当前状态：阶段六本地编排与服务端模型 profile 已通过候选验收。发行默认不依赖 Dify，网关从当前检出的源码构建，新数据卷通过原 executor 与物理门幂等自举17项 Q4 固定技能，自动学习默认关闭。第二模型固定集、批量 Dify/本地双跑和合并后全新机器终验仍未关闭。公开核对见 docs/validation/stage6/；不得把候选验收写成完整 v1.0 发布。
+> 2026-10-15 当前状态：发行默认使用本地编排，门户和环境变量均支持用户自带 OpenAI-compatible 模型；网关运行时无 DeepSeek 专用配置或传输路径。BYOK 密钥只存临时内存，审计写不可重放摘要。第二模型固定集、批量 Dify/本地双跑和全新机器自然语言首题终验仍未关闭；不得把代码完成写成完整 v1.0 发布。
 
 > 本文档面向项目中的所有 AI Agent。Agent 在执行任何任务之前，必须先阅读本文档以获取项目上下文、当前状态和可执行任务。
 
@@ -110,7 +110,7 @@ acouagent,dify-mcp-server,architecture,optimization
 | `app/config.py` | ~30 | 环境配置与校验 | 低 |
 | `app/cache_store.py` | ~200 | 纠错经验缓存 SQLite | 中 |
 | `app/execution.py` | ~150 | 代码清理/沙箱执行/报告生成 | 中 |
-| `app/llm.py` | ~100 | DeepSeek 自动纠错 | 低 |
+| `app/llm.py` | ~130 | BYOK profile 自动纠错 | 低 |
 | `app/tools.py` | ~330 | MCP 工具集（6 个） | 中（新增工具时） |
 | `app/portal.py` | ~170 | Web 门户路由 | 中 |
 | `app/analysis.py` | 占位 | 结果分析（T-007 落点） | 中（T-007 后） |

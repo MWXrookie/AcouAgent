@@ -277,7 +277,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "quality_level": analyzed.get("quality_level", "Q0"),
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}
     except model_profiles.ModelProfileError as exc:
-        yield {"event": "result", "report": "模型配置不可用，请让管理员检查服务端模型 profile。",
+        yield {"event": "result", "report": "模型配置不可用，请在模型设置中重新配置 BYOK，或检查环境变量模型 profile。",
                "workflow_status": "error", "request_id": request_id,
                "workflow_run_id": workflow_run_id, "skill_usage": [],
                "error_code": str(exc), "orchestration_backend": "local"}

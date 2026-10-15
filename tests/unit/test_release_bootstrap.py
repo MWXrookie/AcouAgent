@@ -167,7 +167,7 @@ def test_installers_do_not_print_or_overwrite_model_credentials():
     powershell = (root / "scripts" / "install.ps1").read_text(encoding="utf-8")
 
     assert "set -x" not in shell
-    assert "DEEPSEEK_API_KEY}" not in shell
+    assert "MODEL_API_KEY}" not in shell
     assert "Write-Output $" not in powershell
     assert "using existing .env without overwriting it" in shell
     assert "using existing .env without overwriting it" in powershell

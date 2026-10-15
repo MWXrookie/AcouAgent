@@ -123,3 +123,61 @@ def test_profile_capability_mismatch_fails_before_transport(monkeypatch):
     with pytest.raises(model_profiles.ModelProfileError, match="capability"):
         model_profiles.resolve("fast", "code_generation")
     assert model_profiles.resolve("fast", "parameter_extraction")[0].profile_id == "fast"
+
+
+def test_portal_byok_is_ephemeral_resolvable_and_revocable(monkeypatch):
+    monkeypatch.delenv("MODEL_PROFILES_JSON", raising=False)
+    monkeypatch.delenv("MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("MODEL_NAME", raising=False)
+    monkeypatch.delenv("DEFAULT_MODEL_PROFILE", raising=False)
+    monkeypatch.setattr(model_profiles, "validate_public_https_url", lambda value: value)
+
+    created = model_profiles.register_session_profile({
+        "base_url": "https://models.example.test/v1",
+        "model": "user-model",
+        "api_key": "user-owned-secret",
+    })
+    profile_id = created["profile_id"]
+    profile, _ = model_profiles.resolve(profile_id, "code_generation")
+    assert profile.model == "user-model"
+    assert profile.api_key() == "user-owned-secret"
+    assert profile_id not in profile.audit_profile_id()
+    assert profile.audit_profile_id().startswith("byok-session:")
+    assert "user-owned-secret" not in json.dumps(created)
+    assert model_profiles.public_profiles()["profiles"] == []
+    assert model_profiles.remove_session_profile(profile_id)
+    with pytest.raises(model_profiles.ModelProfileError, match="missing_or_expired"):
+        model_profiles.resolve(profile_id, "code_generation")
+
+
+def test_portal_byok_private_endpoint_requires_operator_opt_in(monkeypatch):
+    monkeypatch.delenv("BYOK_ALLOW_PRIVATE_ENDPOINTS", raising=False)
+    monkeypatch.setattr(
+        model_profiles, "validate_public_https_url",
+        lambda _value: (_ for _ in ()).throw(model_profiles.UnsafeOutboundUrl("unsafe")),
+    )
+    payload = {"base_url": "https://private.example/v1", "model": "local-model",
+               "api_key": "local-key"}
+    with pytest.raises(model_profiles.ModelProfileError, match="endpoint_unsafe"):
+        model_profiles.register_session_profile(payload)
+
+    monkeypatch.setenv("BYOK_ALLOW_PRIVATE_ENDPOINTS", "true")
+    payload["base_url"] = "http://host.docker.internal:11434/v1"
+    created = model_profiles.register_session_profile(payload)
+    profile, _ = model_profiles.resolve(created["profile_id"], "retry")
+    assert profile.endpoint() == "http://host.docker.internal:11434/v1/chat/completions"
+    model_profiles.remove_session_profile(created["profile_id"])
+
+
+def test_portal_byok_expires_fail_closed(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(model_profiles.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(model_profiles, "validate_public_https_url", lambda value: value)
+    created = model_profiles.register_session_profile({
+        "base_url": "https://models.example.test/v1",
+        "model": "user-model",
+        "api_key": "ephemeral-secret",
+    })
+    clock[0] += model_profiles.byok_session_ttl_seconds() + 1
+    with pytest.raises(model_profiles.ModelProfileError, match="missing_or_expired"):
+        model_profiles.resolve(created["profile_id"], "result_review")

@@ -71,7 +71,9 @@ class Registry:
 def test_retry_records_actual_final_code_without_model_call(history, monkeypatch, final_exit):
     registry = Registry()
     tools.register(registry)
-    monkeypatch.setattr(config, "DEEPSEEK_API_KEY", "test-placeholder")
+    monkeypatch.setenv("MODEL_BASE_URL", "https://models.example.test/v1")
+    monkeypatch.setenv("MODEL_NAME", "test-model")
+    monkeypatch.setenv("MODEL_API_KEY", "test-placeholder")
     results = iter([dict(exit_code=1, timed_out=False, stdout="bad", stderr="error"),
                     dict(exit_code=final_exit, timed_out=False, stdout="ok", stderr="")])
     monkeypatch.setattr(execution, "_execute_code", lambda *_: next(results))

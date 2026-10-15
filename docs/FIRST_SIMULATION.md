@@ -20,15 +20,19 @@ powershell -ExecutionPolicy Bypass -File scripts/install.ps1 -PrepareOnly
 
 安装器只在 `.env` 不存在时生成两个不同的本地 token，不会覆盖已有配置，也不会打印 token。
 
-## 2. 配置服务端模型 profile
+## 2. 选择 BYOK 方式
 
-默认模板已经声明 `deepseek-default`，只需在 `.env` 填写：
+最简单的方式是先启动，然后在门户“模型设置”中填写 OpenAI 兼容 API 地址、模型名和自己的 API Key。该配置只在网关内存中存在，默认 12 小时过期。
+
+需要运行命令行验收器或让配置在重启后仍可用时，在 `.env` 填写：
 
 ```dotenv
-DEEPSEEK_API_KEY=<你的服务端密钥>
+MODEL_BASE_URL=<你的 OpenAI 兼容 API 地址>
+MODEL_NAME=<模型 ID>
+MODEL_API_KEY=<你的 API Key>
 ```
 
-密钥只进入服务端容器环境。浏览器只看到和提交 profile id。若要使用其他 OpenAI-compatible 服务，按 [模型 profile 配置](MODEL_PROFILES.md) 新增 profile 和独立的凭据环境变量；不要把密钥直接写进 `MODEL_PROFILES_JSON`。
+多 profile、本地 Ollama/vLLM 和临时密钥生命周期见 [BYOK 模型配置](MODEL_PROFILES.md)。不要把密钥直接写进 `MODEL_PROFILES_JSON`。
 
 ## 3. 启动
 
@@ -48,7 +52,9 @@ powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 
 ## 4. 执行标准首题并保存回执
 
-验收器不保存报告、代码、提示词或密钥，只保存模型标识、质量等级、run id 和执行状态：
+门户临时 BYOK 用户直接输入“仿真 2 MHz 超声在水中传播”，完成后从报告或执行看板保存 `run_id`。
+
+下面的无界面验收器需要第 2 步的环境变量 profile。它不保存报告、代码、提示词或密钥，只保存模型标识、质量等级、run id 和执行状态：
 
 ```bash
 docker exec dify-mcp python /app/scripts/validation/first_simulation_acceptance.py \

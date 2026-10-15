@@ -39,8 +39,6 @@ services:
       - .env
     environment:
       EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       CODE_RETRY_MAX: ${CODE_RETRY_MAX:-7}
       DIFY_API_KEY: ${DIFY_API_KEY:-}
       DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
