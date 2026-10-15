@@ -1,3 +1,11 @@
+## 2026-10-15 · 阶段七诊断与模型基础预检
+
+新增纯标准库 AcouAgent Doctor，可分别检查安装前配置和运行态：主机空间、`.env`、本地令牌约束、Docker/Compose、网关健康、模型 profile、17 项技能、技能库审计、SQLite 在线备份入口、运行源码身份及 executor 的只读、降权、进程与 internal 网络边界。输出只含稳定检查编号与脱敏结论，不显示 token、模型密钥、endpoint 或响应正文；安装器本身仍只要求 Docker Compose。
+
+门户模型设置新增用户主动触发的“测试连接”。后端复用现有禁止重定向、限长的模型传输，仅允许一个并发小型调用，固定 160 token 与 30 秒，同时确认所选 profile 声明参数提取和代码生成能力；返回内容必须是严格 JSON，代码字段只接受单条 `print('acouagent')` AST。返回代码永不执行，也不写入技能库。通过只表示基础兼容，第二模型固定题、真实新操作者 UAT、本地/Dify 对照与 VM 回滚仍是 v1.0 开放门。
+
+新增 `docs/CURRENT_STATUS.md` 作为当前状态入口，并同步 README、模型指南、开发计划、已知缺口、历史验收边界、发布清单和干净安装 CI 触发范围。运行时 Archify 图加入模型预检与发布 Doctor，showcase 9/9、0 error、0 warning；四种桌面尺寸 containment 通过并完成明暗截图检查。
+
 ## 2026-10-15 · 模型运行时改为自部署 BYOK
 
 发行默认编排从 Dify 改为项目内 `local`，并移除网关、Compose、环境模板和安装器中的 DeepSeek 专用变量、端点、模型名与定价。所有参数提取、代码生成、结果审查、解释、需求合并和自动纠错统一解析 OpenAI-compatible profile。下载者可在门户填写 endpoint、model 和 API key，或通过通用环境变量、`MODEL_PROFILES_JSON` 配置长期 profile；未配置模型时安装与 17 项固定技能自举仍可完成，自然语言请求会在模型调用前失败关闭。

@@ -22,6 +22,8 @@
 
 ## 2. 用户与模型验收
 
+- [ ] `python3 -m scripts.diagnostics.acouagent_doctor --mode runtime --json` 无失败项，脱敏报告已保存。
+- [ ] 候选模型 profile 的门户“测试连接”三项基础检查通过。
 - [ ] 新操作者从全新检出开始，30 分钟内按 `docs/FIRST_SIMULATION.md` 完成标准首题。
 - [ ] 保存 `first_simulation_acceptance.py` 的脱敏回执和 run id。
 - [ ] 第二个模型 profile 对固定题集完成关闭式验收。

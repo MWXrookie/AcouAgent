@@ -115,6 +115,35 @@ def test_model_client_stops_stream_above_response_limit(monkeypatch):
             "fast", "code_generation", [{"role": "user", "content": "make code"}]))
 
 
+def test_model_probe_uses_fixed_low_cost_settings(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    captured = {}
+
+    async def fake_complete(profile, settings, task, messages, run_id=None):
+        captured.update(
+            profile=profile,
+            settings=settings,
+            task=task,
+            messages=messages,
+            run_id=run_id,
+        )
+        return {"content": "ok"}
+
+    monkeypatch.setattr(model_client, "_complete_resolved", fake_complete)
+    result = asyncio.run(model_client.probe(
+        "fast", [{"role": "user", "content": "probe"}], run_id="probe-run"
+    ))
+    assert result == {"content": "ok"}
+    assert captured["profile"].model == "acoustic-fast"
+    assert captured["task"] == "preflight"
+    assert captured["settings"].temperature == 0
+    assert captured["settings"].max_tokens == 160
+    assert captured["settings"].thinking is False
+    assert captured["settings"].timeout_seconds == 30
+    assert captured["run_id"] == "probe-run"
+
+
 def test_profile_capability_mismatch_fails_before_transport(monkeypatch):
     raw = json.loads(_profiles())
     raw["fast"]["capabilities"] = ["chat", "json"]

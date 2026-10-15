@@ -12,6 +12,16 @@ AcouAgent 的本地编排统一调用 OpenAI-compatible `/chat/completions` 接�
 
 浏览器把密钥提交给本机网关一次。网关只在进程内存中保存临时 profile，默认 12 小时后过期，重启也会立即失效；浏览器 `sessionStorage` 只保存不透明的临时 profile id。密钥不会写入 `localStorage`、SQLite、执行记录、模型审计或技能库。
 
+填写或选择 profile 后可以点击“测试连接”。该操作会产生一次小型模型调用，
+上限 160 token、30 秒，不执行模型返回的代码，也不形成技能候选。页面分别显示：
+
+- 端点是否返回有效聊天响应；
+- 是否能输出严格 JSON；
+- 是否能输出受控的最小 Python 代码结构。
+
+三项通过只代表“基础兼容”。完整仿真兼容仍需固定题、原 executor 和确定性
+物理门验收。测试响应正文、提示词、endpoint 和密钥均不写入返回或持久化存储。
+
 公网 BYOK 地址默认必须使用 HTTPS 443，并且 DNS 只能解析到公网地址。需要接入 Ollama、vLLM 或内网模型网关时，可由自部署操作者显式设置：
 
 ```dotenv

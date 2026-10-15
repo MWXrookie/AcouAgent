@@ -17,6 +17,7 @@ from app import (
     execution,
     local_workflow,
     model_client,
+    model_preflight,
     model_profiles,
     skill_library_service,
 )
@@ -114,6 +115,45 @@ def register(mcp) -> None:
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
                                  media_type="application/json",
                                  headers={"Cache-Control": "no-store"})
+
+    @mcp.custom_route("/api/model-profiles/test", methods=["POST"])
+    async def test_model_profile(request: Request) -> PlainTextResponse:
+        """Run one bounded model call without executing returned code."""
+        raw = await request.body()
+        if len(raw) > 1024:
+            payload, status = {"ok": False, "error": "model_preflight_payload_too_large"}, 413
+        else:
+            try:
+                body = json.loads(raw)
+                if not isinstance(body, dict) or set(body) != {"profile_id"}:
+                    raise ValueError("model_preflight_payload_invalid")
+                profile_id = body.get("profile_id")
+                if not isinstance(profile_id, str) or not 1 <= len(profile_id) <= 64:
+                    raise ValueError("model_preflight_profile_invalid")
+                payload = await model_preflight.run(profile_id)
+                status = 200
+            except (json.JSONDecodeError, UnicodeError):
+                payload, status = {"ok": False, "error": "model_preflight_payload_invalid"}, 400
+            except model_preflight.ModelPreflightBusy as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 429
+            except model_profiles.ModelProfileError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+            except ValueError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+            except model_client.ModelCallError as exc:
+                payload = {
+                    "ok": False,
+                    "connected": False,
+                    "error": str(exc),
+                    "full_simulation_validated": False,
+                }
+                status = 502
+        return PlainTextResponse(
+            json.dumps(payload, ensure_ascii=False),
+            status_code=status,
+            media_type="application/json",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @mcp.custom_route("/api/byok/session", methods=["DELETE"])
     async def delete_byok_session(request: Request) -> PlainTextResponse:
