@@ -28,6 +28,7 @@
 - [ ] 保存 `first_simulation_acceptance.py` 的脱敏回执和 run id。
 - [ ] 第二个模型 profile 对固定题集完成关闭式验收。
 - [ ] 本地编排与 Dify 的批量双跑完成，差异有解释且无合同回退。
+  执行和脱敏证据合同见 [MODEL_MATRIX.md](MODEL_MATRIX.md)。
 - [ ] 现有 Luna 会话在最终候选提交上完成全量测试，记录 collected/passed/skipped/warnings、耗时和退出码。
 
 ## 3. 数据备份

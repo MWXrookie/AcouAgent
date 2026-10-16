@@ -87,6 +87,9 @@ docker compose ps -a
 ```
 
 多 profile、分任务参数、内部模型网关和失败语义见 [模型 profile 配置](docs/MODEL_PROFILES.md)。
+发布前的第二模型固定题与本地/Dify 同题对照见
+[阶段七模型矩阵](docs/validation/stage7/MODEL_MATRIX.md)；运行器不会保存提示词、
+模型响应、生成代码、求解器输出或凭据。
 新操作者从下载到保存首个 `run_id` 的完整步骤见 [30 分钟首次仿真](docs/FIRST_SIMULATION.md)。
 
 首次启动的一次性 `skill-bootstrap` 会逐项执行 17 个服务端固定配方；只有通过原 executor 回执与确定性物理门的结果才进入 Q4。正常完成后它显示 `Exited (0)`：

@@ -4,6 +4,7 @@
 - `validation/`：服务端固定配方、物理验证及来源契约。被 app 导入，随网关镜像交付；改动固定代码或 validator 会使旧 pin 失效，不能随意整理或重命名。
 - `skill_library/local_basic.py`：显式初始化、准备、状态、实际参考执行 CLI，随镜像交付；仅服务端固定目录，不启用自动学习。
 - `diagnostics/acouagent_doctor.py`：可重复使用的主机与运行态诊断；只输出脱敏结论和稳定检查编号，支持人类文本与 JSON。
+- `validation/model_matrix_acceptance.py`：阶段一冻结 30 题的多模型与本地/Dify 矩阵运行器；追加写入脱敏合同证据，并提供关闭式离线评估。
 
 ## 开发与历史
 - `workflow/`：重复使用的离线图组合/契约更新，默认只生成审查副本；不随运行镜像交付。

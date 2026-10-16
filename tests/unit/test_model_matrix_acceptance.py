@@ -1,0 +1,216 @@
+import json
+import uuid
+
+import pytest
+
+from scripts.validation import model_matrix_acceptance as matrix
+
+
+def _tasks_document():
+    document, tasks_sha256 = matrix.load_tasks("docs/validation/stage1/tasks.json")
+    return document, tasks_sha256
+
+
+def test_frozen_tasks_contract_is_loaded():
+    document, tasks_sha256 = _tasks_document()
+    assert len(document["tasks"]) == 30
+    assert len(tasks_sha256) == 64
+
+
+def test_local_task_keeps_only_compact_evidence(monkeypatch):
+    document, tasks_sha256 = _tasks_document()
+    task = document["tasks"][0]
+    run_id = str(uuid.uuid4())
+    responses = iter((
+        {
+            "workflow_status": "succeeded",
+            "run_id": run_id,
+            "workflow_run_id": "workflow-1",
+            "quality_level": "Q4",
+            "model": "model-a",
+            "skill_usage": [{"stage": "reference_delivered", "skill_id": "safe"}],
+            "report": "must not persist",
+            "code": "must not persist",
+        },
+        {
+            "executions": [{
+                "id": 7,
+                "run_id": run_id,
+                "exit_code": 0,
+                "timed_out": False,
+                "code": "must not persist",
+                "stdout": "must not persist",
+            }]
+        },
+    ))
+    monkeypatch.setattr(matrix.first_uat, "_request_json", lambda *args, **kwargs: next(responses))
+
+    row = matrix.run_local_task(
+        "http://gateway:8001", "profile-a", "local-a", task, tasks_sha256, 30
+    )
+
+    assert row["deterministic_gate_pass"] is True
+    assert row["reference_delivered"] is True
+    assert row["run_id"] == run_id
+    encoded = json.dumps(row)
+    assert "must not persist" not in encoded
+    assert task["prompt"] not in encoded
+
+
+def test_local_missing_task_fails_closed_without_reference(monkeypatch):
+    document, tasks_sha256 = _tasks_document()
+    task = next(item for item in document["tasks"] if item["kind"] == "missing")
+    monkeypatch.setattr(
+        matrix.first_uat,
+        "_request_json",
+        lambda *args, **kwargs: {
+            "workflow_status": "error",
+            "error_code": "simulation_parameters_invalid",
+            "skill_usage": [],
+        },
+    )
+    row = matrix.run_local_task(
+        "http://gateway:8001", "profile-a", "local-a", task, tasks_sha256, 30
+    )
+    assert row["outcome"] == "failed"
+    assert row["reference_delivered"] is False
+    assert row["execution_pass"] is False
+
+
+def test_dify_normalization_discards_raw_payload_fields():
+    document, tasks_sha256 = _tasks_document()
+    task = document["tasks"][0]
+    row = matrix.normalize_dify_record(
+        {
+            "outcome": "completed",
+            "verdict": "normal",
+            "independent_numeric_pass": True,
+            "reference_delivered": True,
+            "duration_ms": 12.0,
+            "run_id": "run-1",
+            "workflow_run_id": "workflow-1",
+            "response": "must not persist",
+            "code": "must not persist",
+            "trace_authority": {"raw": "must not persist"},
+        },
+        "dify",
+        task,
+        tasks_sha256,
+    )
+    encoded = json.dumps(row)
+    assert row["deterministic_gate_pass"] is True
+    assert "must not persist" not in encoded
+    assert task["prompt"] not in encoded
+
+
+def test_validate_local_profile_requires_configured_profile_and_preflight(monkeypatch):
+    responses = iter((
+        {
+            "orchestration_backend": "local",
+            "profiles": [{"id": "profile-a", "configured": True, "model": "model-a"}],
+        },
+        {"ok": True, "status": "basic_compatible"},
+    ))
+    monkeypatch.setattr(matrix.first_uat, "_request_json", lambda *args, **kwargs: next(responses))
+    result = matrix.validate_local_profile("http://gateway:8001", "profile-a")
+    assert result == {
+        "profile_id": "profile-a",
+        "model": "model-a",
+        "preflight_status": "basic_compatible",
+    }
+
+
+def _complete_records(document, tasks_sha256, lanes):
+    rows = []
+    for lane in lanes:
+        for task in document["tasks"]:
+            positive = task["expected_reference"]
+            missing = task["kind"] == "missing"
+            rows.append({
+                "schema": matrix.SCHEMA,
+                "lane_id": lane,
+                "backend": "dify" if lane == "dify" else "local",
+                "profile_id": lane if lane != "dify" else None,
+                "model": lane,
+                "model_identity": lane,
+                "revision": "a" * 40 if lane != "dify" else "b" * 64,
+                "tasks_sha256": tasks_sha256,
+                "task_id": task["task_id"],
+                "task_kind": task["kind"],
+                "expected_behavior": task["expected_behavior"],
+                "prompt_sha256": matrix._sha_text(task["prompt"]),
+                "outcome": "failed" if missing else "completed",
+                "workflow_status": "error" if missing else "succeeded",
+                "duration_ms": 10.0,
+                "run_id": str(uuid.uuid4()),
+                "workflow_run_id": str(uuid.uuid4()),
+                "quality_level": "Q4" if positive else None,
+                "execution_pass": not missing,
+                "deterministic_gate_pass": positive,
+                "reference_delivered": positive,
+                "error_code": "parameters_missing" if missing else None,
+            })
+    return rows
+
+
+def test_matrix_evaluator_accepts_complete_matching_lanes():
+    document, tasks_sha256 = _tasks_document()
+    lanes = ["local-a", "local-b", "dify"]
+    report = matrix.evaluate_matrix(
+        document, tasks_sha256, _complete_records(document, tasks_sha256, lanes), lanes
+    )
+    assert report["complete"] is True
+    assert report["targets_met"] is True
+    assert report["formal_acceptance"] is False
+    assert report["cross_lane_mismatches"] == []
+
+
+def test_matrix_evaluator_reports_missing_and_negative_reference():
+    document, tasks_sha256 = _tasks_document()
+    lanes = ["local-a", "local-b"]
+    rows = _complete_records(document, tasks_sha256, lanes)
+    rows.pop()
+    outside = next(
+        row for row in rows if row["lane_id"] == "local-b" and row["task_kind"] == "outside"
+    )
+    outside["reference_delivered"] = True
+    report = matrix.evaluate_matrix(document, tasks_sha256, rows, lanes)
+    assert report["complete"] is False
+    assert report["targets_met"] is False
+    assert report["lane_metrics"]["local-b"]["negative_reference_count"] == 1
+
+
+def test_records_reject_duplicate_lane_task(tmp_path):
+    path = tmp_path / "records.jsonl"
+    row = {"lane_id": "local-a", "task_id": "exact-01"}
+    path.write_text(json.dumps(row) + "\n" + json.dumps(row) + "\n", encoding="utf-8")
+    with pytest.raises(matrix.MatrixError, match="duplicate_record"):
+        matrix.load_records(path)
+
+
+def test_records_reject_forbidden_payload_fields(tmp_path):
+    path = tmp_path / "records.jsonl"
+    path.write_text(
+        json.dumps({
+            "lane_id": "local-a",
+            "task_id": "exact-01",
+            "report": "must not persist",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(matrix.MatrixError, match="record_contains_forbidden_field"):
+        matrix.load_records(path)
+
+
+def test_records_reject_unknown_or_nested_fields(tmp_path):
+    path = tmp_path / "records.jsonl"
+    path.write_text(
+        json.dumps({
+            "lane_id": "local-a",
+            "task_id": "exact-01",
+            "metadata": {"safe": True},
+        }) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(matrix.MatrixError, match="record_contains_unknown_field"):
+        matrix.load_records(path)
