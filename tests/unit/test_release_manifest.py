@@ -41,8 +41,10 @@ def test_current_head_manifest_is_reproducible_and_safe():
         "app/model_preflight.py",
         "docs/CURRENT_STATUS.md",
         "docs/releases/v1.0.0-draft.md",
+        "docs/validation/stage7/MODEL_MATRIX.md",
         "docs/validation/stage7/RELEASE_CHECKLIST.md",
         "scripts/diagnostics/acouagent_doctor.py",
+        "scripts/validation/model_matrix_acceptance.py",
         "scripts/validation/release_manifest.py",
     }
     assert first["source"]["commit_sha"]

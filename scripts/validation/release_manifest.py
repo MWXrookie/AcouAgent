@@ -23,6 +23,7 @@ REQUIRED_FILES = (
     "compose.yaml",
     "docs/CURRENT_STATUS.md",
     "docs/FIRST_SIMULATION.md",
+    "docs/validation/stage7/MODEL_MATRIX.md",
     "docs/releases/v1.0.0-draft.md",
     "docs/validation/stage7/RELEASE_CHECKLIST.md",
     "executor/Dockerfile",
@@ -32,6 +33,7 @@ REQUIRED_FILES = (
     "scripts/diagnostics/acouagent_doctor.py",
     "scripts/skill_library/audit_report.py",
     "scripts/validation/first_simulation_acceptance.py",
+    "scripts/validation/model_matrix_acceptance.py",
     "scripts/validation/release_manifest.py",
 )
 KEY_FILES = REQUIRED_FILES
