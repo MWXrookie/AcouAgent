@@ -103,6 +103,60 @@ def test_dify_normalization_discards_raw_payload_fields():
     assert task["prompt"] not in encoded
 
 
+def test_dify_wall_deadline_stops_pinged_workflow(monkeypatch):
+    document, tasks_sha256 = _tasks_document()
+    task = document["tasks"][0]
+
+    class Response:
+        headers = {"content-type": "text/event-stream"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def raise_for_status(self):
+            return None
+
+        def iter_lines(self):
+            yield 'data: {"event":"ping","task_id":"dify-task-1"}'
+            yield ""
+            yield 'data: {"event":"ping","task_id":"dify-task-1"}'
+
+    class StopResponse:
+        def raise_for_status(self):
+            return None
+
+    class Client:
+        def __init__(self):
+            self.stop_calls = 0
+
+        def stream(self, *_args, **_kwargs):
+            return Response()
+
+        def post(self, *_args, **_kwargs):
+            self.stop_calls += 1
+            return StopResponse()
+
+    times = iter((0.0, 0.2, 0.4, 1.1, 1.2))
+    monkeypatch.setattr(matrix.time, "monotonic", lambda: next(times))
+    client = Client()
+    row = matrix.run_dify_task(
+        client,
+        "http://nginx/v1",
+        "secret-not-persisted",
+        "dify",
+        task,
+        tasks_sha256,
+        1.0,
+    )
+    assert row["outcome"] == "timeout"
+    assert row["error_code"] == "timeout"
+    assert row["deterministic_gate_pass"] is False
+    assert client.stop_calls == 1
+
+
 def test_validate_local_profile_requires_configured_profile_and_preflight(monkeypatch):
     responses = iter((
         {

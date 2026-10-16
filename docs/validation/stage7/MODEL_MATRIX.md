@@ -59,6 +59,9 @@ python3 -m scripts.validation.model_matrix_acceptance run \
 可以先用 `--dry-run`、`--limit` 或重复的 `--task-id` 检查调度；发布验收必须恢复并完成
 全部 30 题，试跑不能单独冒充完整矩阵。
 
+`--timeout`（默认 360 秒）同时限制单次网络等待和整条工作流墙钟时间。即使 Dify
+持续发送 ping，超过上限也会停止未完成任务、追加一条 `timeout` 记录并继续后续题目。
+
 ## 离线评估
 
 ```bash
