@@ -174,6 +174,81 @@ def test_validate_local_profile_requires_configured_profile_and_preflight(monkey
     }
 
 
+def test_validate_local_profile_accepts_session_without_persisting_replayable_id(monkeypatch):
+    responses = iter((
+        {"orchestration_backend": "local", "profiles": []},
+        {
+            "ok": True,
+            "status": "basic_compatible",
+            "profile_id": "byok-session:0123456789abcdef",
+            "model": "user-model-a",
+        },
+    ))
+    calls = []
+
+    def request(method, url, payload, timeout):
+        calls.append((method, url, payload, timeout))
+        return next(responses)
+
+    monkeypatch.setattr(matrix.first_uat, "_request_json", request)
+    replayable = "byok-0123456789abcdef0123456789abcdef"
+    result = matrix.validate_local_profile("http://gateway:8001", replayable)
+
+    assert calls[1][2] == {"profile_id": replayable}
+    assert result == {
+        "profile_id": "byok-session:0123456789abcdef",
+        "model": "user-model-a",
+        "preflight_status": "basic_compatible",
+    }
+    assert replayable not in json.dumps(result)
+
+
+def test_validate_local_profile_rejects_replayable_session_identity(monkeypatch):
+    responses = iter((
+        {"orchestration_backend": "local", "profiles": []},
+        {
+            "ok": True,
+            "status": "basic_compatible",
+            "profile_id": "byok-replayable",
+            "model": "user-model-a",
+        },
+    ))
+    monkeypatch.setattr(matrix.first_uat, "_request_json", lambda *args, **kwargs: next(responses))
+
+    with pytest.raises(matrix.MatrixError, match="model_preflight_identity_invalid"):
+        matrix.validate_local_profile("http://gateway:8001", "byok-secret-handle")
+
+
+def test_local_task_records_only_session_audit_identity(monkeypatch):
+    document, tasks_sha256 = _tasks_document()
+    task = next(item for item in document["tasks"] if item["kind"] == "missing")
+    requests = []
+
+    def request(method, url, payload, timeout):
+        requests.append(payload)
+        return {
+            "workflow_status": "error",
+            "error_code": "simulation_parameters_invalid",
+            "skill_usage": [],
+        }
+
+    monkeypatch.setattr(matrix.first_uat, "_request_json", request)
+    replayable = "byok-secret-handle"
+    row = matrix.run_local_task(
+        "http://gateway:8001", replayable, "local-a", task, tasks_sha256, 30,
+        record_profile_id="byok-session:0123456789abcdef",
+    )
+
+    assert requests[0]["model_profile"] == replayable
+    assert row["profile_id"] == "byok-session:0123456789abcdef"
+    assert replayable not in json.dumps(row)
+
+    with pytest.raises(matrix.MatrixError, match="byok_audit_identity_required"):
+        matrix.run_local_task(
+            "http://gateway:8001", replayable, "local-a", task, tasks_sha256, 30,
+        )
+
+
 def _complete_records(document, tasks_sha256, lanes):
     rows = []
     for lane in lanes:

@@ -33,6 +33,7 @@ _LANE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 _SAFE_ERROR = re.compile(r"[a-z0-9_.:-]{1,96}")
 _REVISION = re.compile(r"[0-9a-f]{7,64}")
 _MODEL_IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/+-]{0,127}")
+_BYOK_AUDIT_ID = re.compile(r"byok-session:[0-9a-f]{16}")
 _FORBIDDEN_RECORD_FIELDS = {
     "api_key", "code", "content", "endpoint", "prompt", "report",
     "response", "stderr", "stdout", "trace",
@@ -123,7 +124,10 @@ def validate_local_profile(base_url: str, profile_id: str) -> dict[str, Any]:
         ),
         None,
     )
-    if not profile or profile.get("configured") is not True:
+    is_session = profile is None and profile_id.startswith("byok-")
+    if profile is None and not is_session:
+        raise MatrixError("model_profile_unavailable")
+    if profile is not None and profile.get("configured") is not True:
         raise MatrixError("model_profile_unavailable")
     preflight = first_uat._request_json(
         "POST",
@@ -133,9 +137,18 @@ def validate_local_profile(base_url: str, profile_id: str) -> dict[str, Any]:
     )
     if preflight.get("ok") is not True:
         raise MatrixError("model_preflight_failed")
+    model = profile.get("model") if profile is not None else preflight.get("model")
+    record_profile_id = profile_id
+    if is_session:
+        record_profile_id = preflight.get("profile_id")
+        if (
+            not isinstance(record_profile_id, str)
+            or not _BYOK_AUDIT_ID.fullmatch(record_profile_id)
+        ):
+            raise MatrixError("model_preflight_identity_invalid")
     return {
-        "profile_id": profile_id,
-        "model": profile.get("model"),
+        "profile_id": record_profile_id,
+        "model": model,
         "preflight_status": preflight.get("status"),
     }
 
@@ -168,7 +181,14 @@ def run_local_task(
     task: dict[str, Any],
     tasks_sha256: str,
     timeout: float,
+    record_profile_id: str | None = None,
 ) -> dict[str, Any]:
+    if profile_id.startswith("byok-") and (
+        not isinstance(record_profile_id, str)
+        or not _BYOK_AUDIT_ID.fullmatch(record_profile_id)
+    ):
+        raise MatrixError("byok_audit_identity_required")
+    safe_profile_id = record_profile_id or profile_id
     started = time.monotonic()
     try:
         result = first_uat._request_json(
@@ -208,7 +228,7 @@ def run_local_task(
             "schema": SCHEMA,
             "lane_id": lane_id,
             "backend": "local",
-            "profile_id": profile_id,
+            "profile_id": safe_profile_id,
             "model": result.get("model"),
             "tasks_sha256": tasks_sha256,
             "task_id": task["task_id"],
@@ -233,7 +253,7 @@ def run_local_task(
             "schema": SCHEMA,
             "lane_id": lane_id,
             "backend": "local",
-            "profile_id": profile_id,
+            "profile_id": safe_profile_id,
             "model": None,
             "tasks_sha256": tasks_sha256,
             "task_id": task["task_id"],
@@ -625,7 +645,8 @@ def main(argv: list[str] | None = None) -> int:
         model_identity = args.model_label or profile_meta.get("model")
         def run_local_selected(task: dict[str, Any]) -> dict[str, Any]:
             return run_local_task(
-                args.base_url, args.profile, lane_id, task, tasks_sha256, args.timeout
+                args.base_url, args.profile, lane_id, task, tasks_sha256, args.timeout,
+                record_profile_id=profile_meta["profile_id"],
             )
 
         runner = run_local_selected
