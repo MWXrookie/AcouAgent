@@ -2,7 +2,7 @@
 
 自动纠错不再单独维护 OpenAI-compatible HTTP 请求、禁止重定向、响应限长、JSON 解析和用量审计代码，改为通过 `model_client.complete_sync` 复用门户、本地编排和模型预检使用的同一传输实现。同步适配器仅负责从 FastMCP 同步工作线程进入既有异步客户端；纠错提示词、缓存建议、模型任务参数和代码围栏清理保持不变。这样 BYOK 端点复检、2 MiB 响应上限、稳定错误码和脱敏审计字段只有一个实现来源。
 
-本次没有修改 executor、技能库、物理门、网络拓扑、数据库 schema 或自动学习策略，因此运行时 Archify 组件和连线不变。新增同步适配与纠错接线单测；Luna 独立运行 Windows 可收集的模型 profile、纠错、候选接纳和执行记录相关回归为 **67 passed**，语法检查与 `git diff --check` 通过。`test_executor_evidence.py` 因 Windows 缺少 Unix `resource` 模块无法收集，Linux 全量结果以 PR CI 为准。
+本次没有修改 executor、技能库、物理门、网络拓扑、数据库 schema 或自动学习策略，因此运行时 Archify 组件和连线不变。新增同步适配与纠错接线单测；Luna 独立运行 Windows 可收集的相关回归为 **67 passed**，语法检查与 `git diff --check` 通过，未收集项来自 Windows 缺少 Unix `resource` 模块。随后在 PR 精确代码提交的隔离 Linux 镜像中完成全量回归：**1530 passed、2 skipped、15 warnings、10 subtests passed**，退出码 0、用时 102.81 秒；GitHub 干净安装门同时通过源码身份、17 项技能库存与 executor 沙箱边界检查。
 
 ## 2026-10-16 · 阶段七矩阵支持门户临时 BYOK
 
