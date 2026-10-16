@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -294,6 +295,7 @@ def run_dify_task(
     lane_id: str,
     task: dict[str, Any],
     tasks_sha256: str,
+    wall_timeout: float,
 ) -> dict[str, Any]:
     headers = {"Authorization": "Bearer " + api_key}
     user = "stage7-matrix-" + task["task_id"] + "-" + uuid.uuid4().hex[:8]
@@ -309,6 +311,7 @@ def run_dify_task(
     task_id = None
     transport_error = None
     started = time.monotonic()
+    deadline = started + wall_timeout
     try:
         with client.stream(
             "POST", base_url.rstrip("/") + "/workflows/run",
@@ -318,6 +321,8 @@ def run_dify_task(
             if "text/event-stream" not in response.headers.get("content-type", ""):
                 raise ValueError("invalid_stream_content_type")
             for line in response.iter_lines():
+                if time.monotonic() > deadline:
+                    raise TimeoutError("dify_wall_timeout")
                 encoded = (line + "\n").encode("utf-8")
                 total += len(encoded)
                 if total > MAX_DIFY_BYTES:
@@ -338,7 +343,7 @@ def run_dify_task(
             value = dify_batch._frame(lines)
             if value is not None:
                 events.append(value)
-    except httpx.TimeoutException:
+    except (httpx.TimeoutException, TimeoutError):
         transport_error = "timeout"
     except (httpx.HTTPError, ValueError, TypeError, UnicodeError):
         transport_error = "dify_transport_failed"
@@ -593,6 +598,8 @@ def main(argv: list[str] | None = None) -> int:
     revision = args.revision.lower()
     if not _REVISION.fullmatch(revision):
         raise MatrixError("revision_invalid")
+    if not math.isfinite(args.timeout) or not 1 <= args.timeout <= 1800:
+        raise MatrixError("timeout_invalid")
     selected = _selected_tasks(document, args.task_id, args.limit)
     rows = load_records(args.output)
     if any(
@@ -636,7 +643,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         def run_dify_selected(task: dict[str, Any]) -> dict[str, Any]:
             return run_dify_task(
-                client, args.dify_base_url, api_key, lane_id, task, tasks_sha256
+                client, args.dify_base_url, api_key, lane_id, task, tasks_sha256,
+                args.timeout,
             )
 
         runner = run_dify_selected
