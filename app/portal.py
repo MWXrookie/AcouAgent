@@ -36,7 +36,7 @@ from app.workflow_client import workflow_events
 
 def _serve_html(filename: str) -> HTMLResponse:
     html = (_Path(__file__).resolve().parent / "web" / filename).read_text(encoding="utf-8")
-    return HTMLResponse(render_page(html))
+    return HTMLResponse(render_page(html), headers={"Cache-Control": "no-store"})
 
 
 def _extract_report(output) -> str:

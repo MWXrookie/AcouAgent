@@ -2,7 +2,7 @@
 const root=document.documentElement;
 function apply(t){root.dataset.theme=t;document.querySelectorAll('.design-theme').forEach(b=>{b.textContent=t==='dark'?'切换浅色':'切换深色';b.setAttribute('aria-label',b.textContent+'主题');b.setAttribute('aria-pressed',String(t==='light'))})}
 let saved;try{saved=localStorage.getItem('acouagent-theme')}catch(e){}
-apply(saved==='light'?'light':'dark');
+apply(saved==='dark'?'dark':'light');
 const nav=[['/portal','声学仿真'],['/dashboard','执行看板'],['/skills','技能库'],['/cache','纠错缓存']];
 const chat=!!document.getElementById('chat-log');document.body.classList.add(chat?'design-chat':'design-page');
 let side=document.querySelector('.app-sidebar');if(!side){side=document.createElement('aside');side.className='design-sidebar';side.setAttribute('aria-label','主导航');document.body.prepend(side)}
