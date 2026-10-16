@@ -372,7 +372,7 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
     if image_base64:
         lines.append("### 🖼 仿真图像")
         lines.append("")
-        lines.append("*(图像已在看板中保存)*")
+        lines.append(f"![仿真压力场热力图](data:image/png;base64,{image_base64})")
         lines.append("")
 
     return "\n".join(lines)
