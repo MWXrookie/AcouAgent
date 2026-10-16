@@ -1,20 +1,14 @@
 """模型无关的自动纠错：根据执行失败结果返回修正代码。"""
 
-import json
 from typing import Any
 
-import httpx
-
-from app import cache_store, config, dashboard, model_client, model_profiles
+from app import cache_store, model_client
 
 
 def _llm_fix_code(
     profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
 ) -> str:
     """Use the selected BYOK profile to fix failed code."""
-    profile, settings = model_profiles.resolve(profile_id, "retry")
-    model_profiles.validate_runtime_endpoint(profile)
-
     # ---- 提取错误签名，查缓存 ----
     stderr = result.get("stderr", "")
     stdout = result.get("stdout", "")
@@ -87,45 +81,12 @@ def _llm_fix_code(
         "\nReturn ONLY the fixed Python code:"
     )
 
-    body = {
-        "model": profile.model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": settings.temperature,
-        "max_tokens": settings.max_tokens,
-    }
-    if settings.thinking:
-        body["thinking"] = True
-    with httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False) as client:
-        with client.stream(
-            "POST",
-            profile.endpoint(),
-            headers={"Authorization": f"Bearer {profile.api_key()}",
-                     "Content-Type": "application/json"},
-            json=body,
-        ) as llm_response:
-            llm_response.raise_for_status()
-            raw = bytearray()
-            for chunk in llm_response.iter_bytes():
-                raw.extend(chunk)
-                if len(raw) > model_client.MAX_RESPONSE_BYTES:
-                    raise model_client.ModelCallError("model_response_too_large")
-    try:
-        data = json.loads(raw)
-        fixed = model_client._content(data)
-    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
-        raise model_client.ModelCallError("model_response_invalid") from exc
-
-    # 记录 token 用量与成本（费用看板）
-    try:
-        usage = data.get("usage")
-        dashboard.record_llm_usage(
-            f"{profile.provider}:{profile.model}", usage, config.calc_llm_cost(usage),
-            run_id=run_id,
-            metadata={"profile_id": profile.audit_profile_id(), "provider": profile.provider,
-                      "model": profile.model, "task": "retry"},
-        )
-    except Exception:
-        pass
+    fixed = model_client.complete_sync(
+        profile_id,
+        "retry",
+        [{"role": "user", "content": prompt}],
+        run_id=run_id,
+    )["content"]
 
     # 去掉可能的 markdown 代码块标记
     for prefix in ("```python\n", "```python", "```\n", "```"):

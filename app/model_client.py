@@ -1,6 +1,7 @@
 """Bounded OpenAI-compatible chat transport for self-hosted BYOK profiles."""
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import uuid
@@ -124,6 +125,12 @@ async def complete(profile_id: str | None, task: str, messages: list[dict[str, s
                    *, run_id: str | None = None) -> dict[str, Any]:
     profile, settings = model_profiles.resolve(profile_id, task)
     return await _complete_resolved(profile, settings, task, messages, run_id=run_id)
+
+
+def complete_sync(profile_id: str | None, task: str, messages: list[dict[str, str]],
+                  *, run_id: str | None = None) -> dict[str, Any]:
+    """Run the shared async transport from a synchronous FastMCP worker."""
+    return asyncio.run(complete(profile_id, task, messages, run_id=run_id))
 
 
 async def probe(profile_id: str | None, messages: list[dict[str, str]],

@@ -115,6 +115,35 @@ def test_model_client_stops_stream_above_response_limit(monkeypatch):
             "fast", "code_generation", [{"role": "user", "content": "make code"}]))
 
 
+def test_sync_model_client_reuses_async_transport(monkeypatch):
+    monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
+    monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
+    captured = {}
+
+    async def complete(profile, settings, task, messages, run_id=None):
+        captured.update(
+            profile=profile,
+            settings=settings,
+            task=task,
+            messages=messages,
+            run_id=run_id,
+        )
+        return {"content": "fixed"}
+
+    monkeypatch.setattr(model_client, "_complete_resolved", complete)
+
+    result = model_client.complete_sync(
+        "fast", "retry", [{"role": "user", "content": "repair code"}], run_id="retry-1"
+    )
+
+    assert result["content"] == "fixed"
+    assert captured["profile"].model == "acoustic-fast"
+    assert captured["settings"].max_tokens == 8192
+    assert captured["task"] == "retry"
+    assert captured["messages"] == [{"role": "user", "content": "repair code"}]
+    assert captured["run_id"] == "retry-1"
+
+
 def test_model_probe_uses_fixed_low_cost_settings(monkeypatch):
     monkeypatch.setenv("MODEL_PROFILES_JSON", _profiles())
     monkeypatch.setenv("TEST_MODEL_KEY", "unit-test-secret-value")
