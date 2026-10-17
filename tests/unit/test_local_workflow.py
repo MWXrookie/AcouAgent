@@ -156,6 +156,14 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monk
                 "has_signal": passed, "summary": "pass" if passed else "fail", "physics_checks": []}
 
     monkeypatch.setattr(local_workflow, "_model", fake_model)
+    async def fake_fix_code(profile_id, code, result, **kwargs):
+        model_tasks.append("retry")
+        return {"code": responses["retry"], "error_signature": "RuntimeError|general|boom"}
+    cache_updates = []
+    monkeypatch.setattr(local_workflow.llm, "fix_code", fake_fix_code)
+    monkeypatch.setattr(local_workflow.cache_store, "_update_cache",
+                        lambda signature, hint, was_successful: cache_updates.append(
+                            (signature, hint, was_successful)))
     monkeypatch.setattr(local_workflow, "_tool_functions", lambda: {
         "validate_simulation_params": lambda raw: {"valid": True, "errors": [], "warnings": []},
         "run_jwave_code": execute,
@@ -175,6 +183,7 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monk
     events = asyncio.run(run())
     assert execution_count["value"] == 2
     assert "retry" in model_tasks
+    assert cache_updates == [("RuntimeError|general|boom", responses["retry"][:500], True)]
     assert events[-1]["workflow_status"] == "succeeded"
 
 

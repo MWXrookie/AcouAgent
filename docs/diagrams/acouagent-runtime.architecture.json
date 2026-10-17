@@ -38,7 +38,7 @@
           "model_provider",
           "state_store"
         ],
-        "note": "模型负责提取、生成、审查、解释与修正；成功仍只由 executor 回执和确定性物理门决定。Q4 固定配方与普通 Q2 candidate 继续使用既有学习规则。"
+        "note": "模型负责提取、生成、审查、解释与修正；local 重试会按错误签名查询纠错经验，并在修正后根据确定性门结果更新置信度。成功仍只由 executor 回执和确定性物理门决定。"
       },
       {
         "id": "isolation-boundary",
@@ -97,7 +97,7 @@
       "id": "web_portal",
       "type": "frontend",
       "label": "Web 门户",
-      "sublabel": "聊天 / 技能库 / 看板",
+      "sublabel": "聊天 / 技能库 / 执行结论",
       "pos": [
         170,
         300
@@ -112,7 +112,7 @@
       "id": "local_orchestrator",
       "type": "backend",
       "label": "本地编排器",
-      "sublabel": "提取 / 检索 / 生成 / 重试 / 解读",
+      "sublabel": "提取 / 检索 / 生成 / 缓存纠错 / 解读",
       "pos": [
         390,
         300
@@ -232,7 +232,7 @@
       "id": "state_store",
       "type": "database",
       "label": "本地数据卷",
-      "sublabel": "技能 / 版本 / 学习 / 反馈 / 回执",
+      "sublabel": "技能 / 执行 / 分析 / 纠错 / 回执",
       "pos": [
         840,
         570
@@ -384,7 +384,7 @@
       "id": "pipeline-to-state",
       "from": "simulation_pipeline",
       "to": "state_store",
-      "label": "执行历史 + 分级学习 + 反馈",
+      "label": "执行历史 + 分析摘要 + 纠错经验 + 学习",
       "labelAt": [
         925,
         400
@@ -418,7 +418,7 @@
       "items": [
         "发行默认 local；Dify 仅为显式兼容覆盖",
         "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话",
-        "本地模式覆盖提取、检索、生成、执行、重试、审查和解释"
+        "本地模式覆盖提取、检索、生成、缓存纠错、执行、审查和解释"
       ]
     },
     {
@@ -427,7 +427,8 @@
       "items": [
         "生成代码继续通过原 executor 沙箱执行",
         "模型审查不能覆盖确定性物理门",
-        "重核固定配方可直达；普通运行最多进入 Q2 candidate"
+        "重核固定配方可直达；普通运行最多进入 Q2 candidate",
+        "看板按 run_id 关联确定性分析摘要，管理操作继续要求临时输入令牌"
       ]
     },
     {

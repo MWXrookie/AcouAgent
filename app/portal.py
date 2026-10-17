@@ -26,6 +26,7 @@ from app.dashboard import (
     clear_executions,
     get_execution,
     get_executions,
+    get_latest_analysis_by_run_ids,
     get_stats,
     record_admin_event,
     record_execution,
@@ -201,7 +202,20 @@ def register(mcp) -> None:
         会话隔离：前端每次请求携带 session_id（浏览器 localStorage 持久化），
         Dify 侧 user 按会话区分（portal-<session>），避免多用户共享 Dify 会话上下文。
         """
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+            return PlainTextResponse(
+                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
+                status_code=400,
+                media_type="application/json",
+            )
+        if not isinstance(body, dict):
+            return PlainTextResponse(
+                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
+                status_code=400,
+                media_type="application/json",
+            )
         message = (body.get("message") or "").strip()
         requirement = (body.get("requirement") or "").strip()
         session_id = (body.get("session_id") or "").strip()[:24]
@@ -274,6 +288,12 @@ def register(mcp) -> None:
         since = int(request.query_params.get("since", "0"))
         limit = min(int(request.query_params.get("limit", "100")), 500)
         executions = get_executions(limit=limit, since_id=since)
+        analyses = get_latest_analysis_by_run_ids([
+            row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
+        ])
+        for row in executions:
+            if row.get("run_id") in analyses:
+                row["analysis"] = analyses[row["run_id"]]
         if config.SKILL_LIBRARY_ENABLED is True:
             links = skill_library_service.STORE.read_execution_links([
                 row["run_id"] for row in executions if isinstance(row.get("run_id"), str)

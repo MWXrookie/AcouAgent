@@ -241,6 +241,40 @@ def get_analysis_events(limit: int = 100, since_id: int = 0) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
+    """Return one bounded, display-safe analysis summary for each execution run."""
+    unique_ids = list(dict.fromkeys(
+        value for value in run_ids
+        if isinstance(value, str) and 1 <= len(value) <= 128
+    ))[:500]
+    if not unique_ids:
+        return {}
+    placeholders = ",".join("?" for _ in unique_ids)
+    db = _get_db()
+    rows = db.execute(
+        f"""SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                   has_signal, summary
+            FROM analysis_events
+            WHERE run_id IN ({placeholders})
+            ORDER BY id DESC""",
+        unique_ids,
+    ).fetchall()
+    db.close()
+    result: dict[str, dict] = {}
+    for row in rows:
+        if row["run_id"] in result:
+            continue
+        item = dict(row)
+        item.pop("id", None)
+        item["has_signal"] = bool(item["has_signal"])
+        try:
+            item["field_shape"] = json.loads(item["field_shape"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            item["field_shape"] = []
+        result[row["run_id"]] = item
+    return result
+
+
 def get_executions(limit: int = 100, since_id: int = 0) -> list[dict]:
     db = _get_db()
     rows = db.execute(

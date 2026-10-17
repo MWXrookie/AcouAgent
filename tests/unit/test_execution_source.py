@@ -95,6 +95,27 @@ def test_analysis_event_keeps_resolved_run_id_and_timeout(history):
     assert dashboard.get_analysis_events()[0]["run_id"] == "run-source"
 
 
+def test_latest_analysis_summary_is_bounded_and_display_safe(history):
+    dashboard.record_analysis_event(
+        0, "normal", 1.25, 0.4, [64, 64], True, "first", None, None, "", "",
+        run_id="run-source",
+    )
+    dashboard.record_analysis_event(
+        0, "normal", 1.5, 0.5, [32, 32], True, "latest", None, None, "", "",
+        run_id="run-source",
+    )
+    got = dashboard.get_latest_analysis_by_run_ids(["run-source", "run-source"])
+    assert got["run-source"] == {
+        "run_id": "run-source",
+        "verdict": "normal",
+        "max_pressure": 1.5,
+        "rms_pressure": 0.5,
+        "field_shape": [32, 32],
+        "has_signal": True,
+        "summary": "latest",
+    }
+
+
 def test_forged_analysis_does_not_attach_to_requested_execution(history):
     registry = Registry()
     analysis.register(registry)

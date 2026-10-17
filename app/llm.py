@@ -5,11 +5,10 @@ from typing import Any
 from app import cache_store, model_client
 
 
-def _llm_fix_code(
-    profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
-) -> str:
-    """Use the selected BYOK profile to fix failed code."""
-    # ---- 提取错误签名，查缓存 ----
+def _fix_prompt(
+    code: str, result: dict[str, Any], requirements_context: str = ""
+) -> tuple[str, str | None]:
+    """Build one bounded retry prompt and return its cache signature."""
     stderr = result.get("stderr", "")
     stdout = result.get("stdout", "")
     exit_code = result.get("exit_code")
@@ -23,13 +22,14 @@ def _llm_fix_code(
         "corrected Python code. No markdown fences, no explanations — just raw, "
         "runnable Python.\n\n"
     )
+    if requirements_context:
+        prompt += "REQUIREMENTS THAT MUST BE PRESERVED:\n" + requirements_context[:4000] + "\n\n"
 
-    # ---- 注入缓存建议 ----
     if cache_hint:
         prompt += (
             "**KNOWN FIX EXPERIENCE** (confidence: {:.0f}%): {}"
             " If applicable, apply this fix directly.\n\n"
-        ).format(cache_hint['confidence'] * 100, cache_hint['fix_hint'])
+        ).format(cache_hint["confidence"] * 100, cache_hint["fix_hint"])
     else:
         prompt += (
             "**jwave common error cheat sheet (match by error message)**:\n"
@@ -80,15 +80,10 @@ def _llm_fix_code(
         f"```python\n{code}\n```\n"
         "\nReturn ONLY the fixed Python code:"
     )
+    return prompt, error_sig
 
-    fixed = model_client.complete_sync(
-        profile_id,
-        "retry",
-        [{"role": "user", "content": prompt}],
-        run_id=run_id,
-    )["content"]
 
-    # 去掉可能的 markdown 代码块标记
+def _clean_fixed_code(fixed: str) -> str:
     for prefix in ("```python\n", "```python", "```\n", "```"):
         if fixed.startswith(prefix):
             fixed = fixed[len(prefix):]
@@ -96,6 +91,40 @@ def _llm_fix_code(
         fixed = fixed[:-4]
     elif fixed.endswith("```"):
         fixed = fixed[:-3]
-    fixed = fixed.strip()
+    return fixed.strip()
 
-    return fixed
+
+def _llm_fix_code(
+    profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
+) -> str:
+    """Synchronous retry entry retained for MCP tool callers."""
+    prompt, _ = _fix_prompt(code, result)
+    fixed = model_client.complete_sync(
+        profile_id,
+        "retry",
+        [{"role": "user", "content": prompt}],
+        run_id=run_id,
+    )["content"]
+    return _clean_fixed_code(fixed)
+
+
+async def fix_code(
+    profile_id: str | None,
+    code: str,
+    result: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    requirements_context: str = "",
+) -> dict[str, str | None]:
+    """Async retry entry for local orchestration, including cache lookup metadata."""
+    prompt, error_signature = _fix_prompt(code, result, requirements_context)
+    response = await model_client.complete(
+        profile_id,
+        "retry",
+        [{"role": "user", "content": prompt}],
+        run_id=run_id,
+    )
+    return {
+        "code": _clean_fixed_code(response["content"]),
+        "error_signature": error_signature,
+    }
