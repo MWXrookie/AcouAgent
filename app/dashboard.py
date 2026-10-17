@@ -1676,6 +1676,7 @@ function renderMarkdown(md) {
 var conversation = [];
 var currentRequirement = '';
 var byokConfigDirty = false;
+var byokRegistrationConfirmed = false;
 
 var BYOK_PRESETS = {
   deepseek: {
@@ -1740,7 +1741,11 @@ function toggleByokFields() {
     applyByokProvider(true);
   }
   if (selected === '__byok__' && sessionStorage.getItem('acouagent_byok_profile') && !byokConfigDirty) {
-    setModelConnectionStatus('success', '本次会话模型已注册', '密钥已从输入框清除；可以再次测试连接或直接开始仿真。');
+    if (byokRegistrationConfirmed) {
+      setModelConnectionStatus('success', '本次会话模型已注册', '密钥已从输入框清除；可以再次测试连接或直接开始仿真。');
+    } else {
+      setModelConnectionStatus('warning', '发现本次浏览器会话配置', '请先测试连接；网关重启或配置到期后需要重新输入 API Key。');
+    }
   } else {
     clearModelPreflightResult();
   }
@@ -1813,6 +1818,7 @@ async function revokeByokProfile() {
   var profile = sessionStorage.getItem('acouagent_byok_profile');
   if (!profile) return;
   sessionStorage.removeItem('acouagent_byok_profile');
+  byokRegistrationConfirmed = false;
   try {
     await fetch('/api/byok/session', {method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({profile_id:profile})});
   } catch (_) {}
@@ -1832,6 +1838,7 @@ async function registerByokForCurrentSession() {
   document.getElementById('byok-api-key').value = '';
   document.getElementById('byok-api-key').placeholder = '本次会话已安全注册';
   byokConfigDirty = false;
+  byokRegistrationConfirmed = true;
   return data.profile_id;
 }
 
@@ -1864,6 +1871,7 @@ async function testModelConnection() {
     var passed = checks.filter(function(item) { return item.passed; }).length;
     var detail = String(data.model || '') + ' · ' + String(data.latency_ms) + ' ms · '
       + String(passed) + '/' + String(checks.length) + ' 项兼容检查通过';
+    if (selected === '__byok__') byokRegistrationConfirmed = true;
     setModelConnectionStatus(data.ok ? 'success' : 'warning',
       data.ok ? '连接成功' : '端点已连接，兼容检查未通过', detail);
   } catch (e) {
