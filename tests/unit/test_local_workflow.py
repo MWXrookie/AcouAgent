@@ -106,6 +106,18 @@ def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
     assert 'id="byok-api-key" type="password" autocomplete="new-password"' in source
 
 
+def test_portal_model_connection_feedback_uses_compact_state_box():
+    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+        encoding="utf-8"
+    )
+    for state in ("idle", "pending", "success", "warning", "error"):
+        assert f"'{state}'" in source or f'data-state="{state}"' in source
+    assert 'class="model-connection-status"' in source
+    assert "本次会话已安全注册" in source
+    assert "配置已修改，请输入这组配置对应的 API Key" in source
+    assert "项兼容检查通过" in source
+
+
 def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monkeypatch):
     responses = _responses()
     responses["parameter_extraction"] = json.dumps({
