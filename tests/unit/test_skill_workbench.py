@@ -51,15 +51,15 @@ def test_dashboard_api_adds_only_server_verified_skill_version_link(monkeypatch)
     asyncio.run(run())
 
 
-def test_stage_three_workbench_has_filters_states_trace_and_deep_links():
+def test_stage_three_workbench_has_filters_states_and_verified_deep_links():
     root=Path(__file__).resolve().parents[2]
     skills=(root/"app/web/skills.html").read_text(encoding="utf-8")
     design=(root/"app/web/design.js").read_text(encoding="utf-8")
     dashboard=(root/"app/web/dashboard.html").read_text(encoding="utf-8")
     for token in ("skill-search","scenario-filter","status-filter","list-state","permission-state","evidence-grid"):
         assert token in skills
-    for label in ("检索命中","参考交付","执行验证"):
-        assert label in design
+    assert "列表展示不代表本次仿真已调用" in design
+    assert "'/skills?skill_id='" in design
     assert "prefers-reduced-motion" in (root/"app/web/design.css").read_text(encoding="utf-8")
     assert "skill_id=" in dashboard and "version=" in dashboard
     assert "X-Admin-Token" in dashboard and 'id="admin-token" type="password"' in dashboard
