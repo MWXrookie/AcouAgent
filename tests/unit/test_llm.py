@@ -70,3 +70,20 @@ def test_async_retry_uses_shared_prompt_and_returns_cache_signature(monkeypatch)
     prompt = captured["messages"][0]["content"]
     assert "keep the pressure field marker" in prompt
     assert "print('broken')" in prompt
+
+
+def test_retry_prompt_is_bounded_by_utf8_bytes_for_multibyte_inputs(monkeypatch):
+    monkeypatch.setattr(cache_store, "_extract_error_signature", lambda *args: None)
+    prompt, _ = llm._fix_prompt(
+        "#" + "声" * 20_000,
+        {
+            "exit_code": 1,
+            "timed_out": False,
+            "stdout": "前" + "声" * 10_000 + "stdout-tail",
+            "stderr": "前" + "错" * 10_000 + "stderr-tail",
+        },
+        requirements_context="需求" * 10_000,
+    )
+
+    assert len(prompt.encode("utf-8")) < 100_000
+    assert "stdout-tail" in prompt and "stderr-tail" in prompt

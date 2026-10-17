@@ -6,6 +6,7 @@ dashboard with auto-refreshing history table and test analytics.
 
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import statistics
@@ -241,6 +242,12 @@ def get_analysis_events(limit: int = 100, since_id: int = 0) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _json_safe_metric(value: object) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value if math.isfinite(value) else None
+
+
 def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
     """Return one bounded, display-safe analysis summary for each execution run."""
     unique_ids = list(dict.fromkeys(
@@ -267,6 +274,8 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
         item = dict(row)
         item.pop("id", None)
         item["has_signal"] = bool(item["has_signal"])
+        for key in ("max_pressure", "rms_pressure"):
+            item[key] = _json_safe_metric(item.get(key))
         try:
             item["field_shape"] = json.loads(item["field_shape"] or "[]")
         except (json.JSONDecodeError, TypeError):
@@ -293,6 +302,8 @@ def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
         item = dict(row)
         item["analysis_id"] = item.pop("id")
         item["has_signal"] = bool(item["has_signal"])
+        for key in ("max_pressure", "rms_pressure"):
+            item[key] = _json_safe_metric(item.get(key))
         try:
             item["field_shape"] = json.loads(item["field_shape"] or "[]")
         except (json.JSONDecodeError, TypeError):
@@ -1802,8 +1813,8 @@ var BYOK_PRESETS = {
   deepseek: {
     baseUrl: 'https://api.deepseek.com',
     models: [
-      ['deepseek-v4-flash', 'DeepSeek V4 Flash'],
-      ['deepseek-v4-pro', 'DeepSeek V4 Pro']
+      ['deepseek-chat', 'DeepSeek Chat'],
+      ['deepseek-reasoner', 'DeepSeek Reasoner']
     ]
   },
   qwen: {
@@ -1858,7 +1869,11 @@ function toggleByokFields() {
   var fields = document.getElementById('byok-fields');
   fields.hidden = selected !== '__byok__';
   if (!fields.hidden && !document.getElementById('byok-model-preset').options.length) {
-    applyByokProvider(true);
+    if (sessionStorage.getItem('acouagent_byok_profile') && !byokConfigDirty) {
+      showRestoredByokHandle();
+    } else {
+      applyByokProvider(true);
+    }
   }
   if (selected === '__byok__' && sessionStorage.getItem('acouagent_byok_profile') && !byokConfigDirty) {
     if (byokRegistrationConfirmed) {
@@ -1871,11 +1886,32 @@ function toggleByokFields() {
   }
 }
 
+function showRestoredByokHandle() {
+  var providers = document.getElementById('byok-provider');
+  var restored = providers.querySelector('option[value="session"]');
+  if (!restored) {
+    restored = document.createElement('option');
+    restored.value = 'session';
+    restored.textContent = '本次会话已注册配置（详情已隐藏）';
+    providers.insertBefore(restored, providers.firstChild);
+  }
+  providers.value = 'session';
+  var baseUrl = document.getElementById('byok-base-url');
+  baseUrl.value = '';
+  baseUrl.placeholder = '已注册端点（不回显）';
+  var models = document.getElementById('byok-model-preset');
+  models.innerHTML = '<option value="__session__">已注册模型（不回显）</option>';
+  document.getElementById('byok-custom-model-wrap').hidden = true;
+}
+
 function applyByokProvider(initializing) {
   var provider = document.getElementById('byok-provider').value;
   var preset = BYOK_PRESETS[provider];
   var baseUrl = document.getElementById('byok-base-url');
   var models = document.getElementById('byok-model-preset');
+  var restored = document.querySelector('#byok-provider option[value="session"]');
+  if (restored) restored.remove();
+  baseUrl.placeholder = 'https://api.example.com/v1';
   models.innerHTML = '';
   if (preset) {
     baseUrl.value = preset.baseUrl;
@@ -1991,6 +2027,9 @@ async function testModelConnection() {
     var passed = checks.filter(function(item) { return item.passed; }).length;
     var detail = String(data.model || '') + ' · ' + String(data.latency_ms) + ' ms · '
       + String(passed) + '/' + String(checks.length) + ' 项兼容检查通过';
+    var failedDetails = checks.filter(function(item) { return !item.passed && item.detail; })
+      .map(function(item) { return String(item.detail); });
+    if (failedDetails.length) detail += '；未通过：' + failedDetails.join('；');
     if (selected === '__byok__') byokRegistrationConfirmed = true;
     setModelConnectionStatus(data.ok ? 'success' : 'warning',
       data.ok ? '连接成功' : '端点已连接，兼容检查未通过', detail);

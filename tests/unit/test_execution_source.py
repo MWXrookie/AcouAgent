@@ -127,6 +127,25 @@ def test_latest_analysis_summary_is_bounded_and_display_safe(history):
     }]
 
 
+def test_nonfinite_analysis_metrics_are_json_safe(history):
+    dashboard.record_analysis_event(
+        0, "abnormal", float("inf"), float("nan"), [32, 32], False,
+        "diverged", None, None, "", "", run_id="run-diverged",
+    )
+
+    latest = dashboard.get_latest_analysis_by_run_ids(["run-diverged"])["run-diverged"]
+    update = dashboard.get_analysis_updates()[0]
+    assert latest["max_pressure"] is None and latest["rms_pressure"] is None
+    assert update["max_pressure"] is None and update["rms_pressure"] is None
+
+
+def test_execution_code_limit_counts_utf8_bytes(history):
+    registry = Registry()
+    tools.register(registry)
+    with pytest.raises(ValueError, match="20000 UTF-8 bytes"):
+        registry.functions["run_jwave_code"]("#" + "声" * 7_000)
+
+
 def test_forged_analysis_does_not_attach_to_requested_execution(history):
     registry = Registry()
     analysis.register(registry)

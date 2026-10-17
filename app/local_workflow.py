@@ -107,11 +107,12 @@ def _retry_context(query: str, extracted: dict, analyzed: dict) -> str:
     evidence = {key: analyzed.get(key) for key in (
         "verdict", "quality_level", "summary", "timing_diagnostic", "physics_checks"
     )}
+    parameters = extracted.get("simulation_params", extracted)
     return (
         "不得删除压力场标记，不得联网、读取系统文件或启动子进程；保持用户参数不变。\n"
-        f"用户需求：{query}\n"
-        f"参数：{json.dumps(extracted, ensure_ascii=False, sort_keys=True)}\n"
-        f"确定性分析：{json.dumps(evidence, ensure_ascii=False, sort_keys=True)}"
+        f"参数：{llm._truncate_utf8(json.dumps(parameters, ensure_ascii=False, sort_keys=True), 8000)}\n"
+        f"确定性分析：{llm._truncate_utf8(json.dumps(evidence, ensure_ascii=False, sort_keys=True), 6000)}\n"
+        f"用户需求摘要：{llm._truncate_utf8(query, 1500)}"
     )
 
 
@@ -245,9 +246,14 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             passed = _passed(result, analyzed)
             if pending_cache_update is not None:
                 signature, fix_hint = pending_cache_update
-                await asyncio.to_thread(
-                    cache_store._update_cache, signature, fix_hint, was_successful=passed
-                )
+                try:
+                    await asyncio.to_thread(
+                        cache_store._update_cache, signature, fix_hint, was_successful=passed
+                    )
+                except Exception:
+                    # The cache is auxiliary; a locked/corrupt cache must not discard
+                    # an already completed deterministic simulation result.
+                    pass
                 pending_cache_update = None
             if passed or used_direct_reference or attempt >= MAX_RETRIES:
                 break

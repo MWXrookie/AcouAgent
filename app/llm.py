@@ -5,6 +5,16 @@ from typing import Any
 from app import cache_store, model_client
 
 
+def _truncate_utf8(value: object, limit: int, *, keep_tail: bool = False) -> str:
+    """Return a UTF-8 byte-bounded string without splitting a code point."""
+    text = value if isinstance(value, str) else str(value or "")
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
+        return text
+    bounded = encoded[-limit:] if keep_tail else encoded[:limit]
+    return bounded.decode("utf-8", errors="ignore")
+
+
 def _fix_prompt(
     code: str, result: dict[str, Any], requirements_context: str = ""
 ) -> tuple[str, str | None]:
@@ -23,7 +33,11 @@ def _fix_prompt(
         "runnable Python.\n\n"
     )
     if requirements_context:
-        prompt += "REQUIREMENTS THAT MUST BE PRESERVED:\n" + requirements_context[:4000] + "\n\n"
+        prompt += (
+            "REQUIREMENTS THAT MUST BE PRESERVED:\n"
+            + _truncate_utf8(requirements_context, 16000)
+            + "\n\n"
+        )
 
     if cache_hint:
         prompt += (
@@ -74,10 +88,10 @@ def _fix_prompt(
         "EXECUTION RESULT:\n"
         f"- exit_code: {result.get('exit_code')}\n"
         f"- timed_out: {result.get('timed_out')}\n"
-        f"- stdout (last 3000 chars):\n{result.get('stdout', '')[-3000:]}\n"
-        f"- stderr (last 3000 chars):\n{result.get('stderr', '')[-3000:]}\n"
+        f"- stdout (bounded tail):\n{_truncate_utf8(result.get('stdout', ''), 12000, keep_tail=True)}\n"
+        f"- stderr (bounded tail):\n{_truncate_utf8(result.get('stderr', ''), 12000, keep_tail=True)}\n"
         "\nFAILED CODE:\n"
-        f"```python\n{code}\n```\n"
+        f"```python\n{_truncate_utf8(code, 20000)}\n```\n"
         "\nReturn ONLY the fixed Python code:"
     )
     return prompt, error_sig

@@ -309,7 +309,7 @@ def register(mcp) -> None:
                 "executions": executions,
                 "analysis_updates": analysis_updates,
                 "stats": get_stats(),
-            }, ensure_ascii=False),
+            }, ensure_ascii=False, allow_nan=False),
             media_type="application/json",
         )
 
