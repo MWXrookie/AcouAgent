@@ -275,6 +275,32 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
     return result
 
 
+def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
+    """Return display-safe analysis events for incremental dashboard refreshes."""
+    db = _get_db()
+    rows = db.execute(
+        """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                  has_signal, summary
+           FROM analysis_events
+           WHERE id > ?
+           ORDER BY id ASC
+           LIMIT ?""",
+        (max(0, since_id), max(1, min(limit, 500))),
+    ).fetchall()
+    db.close()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["analysis_id"] = item.pop("id")
+        item["has_signal"] = bool(item["has_signal"])
+        try:
+            item["field_shape"] = json.loads(item["field_shape"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            item["field_shape"] = []
+        result.append(item)
+    return result
+
+
 def get_executions(limit: int = 100, since_id: int = 0) -> list[dict]:
     db = _get_db()
     rows = db.execute(

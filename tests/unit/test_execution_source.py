@@ -114,6 +114,17 @@ def test_latest_analysis_summary_is_bounded_and_display_safe(history):
         "has_signal": True,
         "summary": "latest",
     }
+    updates = dashboard.get_analysis_updates(since_id=1)
+    assert updates == [{
+        "run_id": "run-source",
+        "verdict": "normal",
+        "max_pressure": 1.5,
+        "rms_pressure": 0.5,
+        "field_shape": [32, 32],
+        "has_signal": True,
+        "summary": "latest",
+        "analysis_id": 2,
+    }]
 
 
 def test_forged_analysis_does_not_attach_to_requested_execution(history):

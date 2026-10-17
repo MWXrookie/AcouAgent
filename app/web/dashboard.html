@@ -162,6 +162,7 @@
 
 <script>
 var lastId = 0;
+var lastAnalysisId = 0;
 var firstLoad = true;
 var detailState = Object.create(null);
 
@@ -526,11 +527,22 @@ function applyFilters() {
 
 async function refresh() {
   try {
-    var resp = await fetch("/dashboard/api/executions?since=" + lastId + "&limit=100");
+    var resp = await fetch("/dashboard/api/executions?since=" + lastId + "&analysis_since=" + lastAnalysisId + "&limit=100");
     var data = await resp.json();
     if (data.executions && data.executions.length > 0) {
       data.executions.forEach(function(r) { window.__execs[r.id] = r; });  // 缓存供对比
       lastId = Math.max(lastId, Math.max.apply(null, data.executions.map(function(r) { return r.id; })));
+    }
+    if (data.analysis_updates && data.analysis_updates.length > 0) {
+      var executionsByRun = Object.create(null);
+      Object.keys(window.__execs || {}).forEach(function(id) {
+        var execution = window.__execs[id];
+        if (execution.run_id) executionsByRun[execution.run_id] = execution;
+      });
+      data.analysis_updates.forEach(function(update) {
+        lastAnalysisId = Math.max(lastAnalysisId, update.analysis_id || 0);
+        if (executionsByRun[update.run_id]) executionsByRun[update.run_id].analysis = update;
+      });
     }
     if (data.stats) {
       document.getElementById("stat-total").textContent = data.stats.total;
