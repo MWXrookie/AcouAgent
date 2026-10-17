@@ -121,18 +121,18 @@
 </div>
 
 <div class="fail-analysis" id="fail-analysis" style="display:none">
-  <div class="fa-header">🔍 失败分析 <span>最近失败记录按类型归类，点击展开详情</span></div>
+  <div class="fa-header">失败分析 <span>最近失败记录按类型归类，点击展开详情</span></div>
   <div class="fa-groups">
     <div class="fa-group timeout">
-      <div class="fa-group-head">⏱ 超时 <span class="fa-count" id="fa-count-timeout">0</span></div>
+      <div class="fa-group-head">超时 <span class="fa-count" id="fa-count-timeout">0</span></div>
       <div class="fa-items" id="fa-items-timeout"><div class="fa-empty">暂无</div></div>
     </div>
     <div class="fa-group exit">
-      <div class="fa-group-head">❌ 退出码非 0 <span class="fa-count" id="fa-count-exit">0</span></div>
+      <div class="fa-group-head">退出码非 0 <span class="fa-count" id="fa-count-exit">0</span></div>
       <div class="fa-items" id="fa-items-exit"><div class="fa-empty">暂无</div></div>
     </div>
     <div class="fa-group zero">
-      <div class="fa-group-head">⚠️ 结果异常（全零） <span class="fa-count" id="fa-count-zero">0</span></div>
+      <div class="fa-group-head">结果异常（全零） <span class="fa-count" id="fa-count-zero">0</span></div>
       <div class="fa-items" id="fa-items-zero"><div class="fa-empty">暂无</div></div>
     </div>
   </div>
@@ -287,7 +287,7 @@ function renderRow(r) {
     ? '<div class="detail-box code" id="codebox-' + r.id + '">' + esc(r.code) + '</div>'
     : '<div class="detail-box code"><span class="code-empty">（该工具不执行代码，仅分析上一步仿真输出）</span></div>';
   var expandBtn = r.code && r.code.split("\n").length > 12
-    ? '<button class="expand-btn" onclick="event.stopPropagation();toggleCodeExpand(' + r.id + ')">↕ 展开/收起</button>'
+    ? '<button class="expand-btn" onclick="event.stopPropagation();toggleCodeExpand(' + r.id + ')">展开/收起</button>'
     : '';
 
   return '<tr onclick="toggleDetail(' + r.id + ')" style="cursor:pointer">'
@@ -301,9 +301,9 @@ function renderRow(r) {
     + '</tr>'
     + '<tr class="detail-row" id="detail-' + r.id + '"><td colspan="7">'
     + '<div class="detail-tabs">'
-    + '<span class="detail-tab active" onclick="event.stopPropagation();switchTab(' + r.id + ',\'code\')">📝 代码</span>'
-    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stdout\')">📤 stdout</span>'
-    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stderr\')">📥 stderr</span>'
+    + '<span class="detail-tab active" onclick="event.stopPropagation();switchTab(' + r.id + ',\'code\')">代码</span>'
+    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stdout\')">stdout</span>'
+    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stderr\')">stderr</span>'
     + expandBtn
     + '</div>'
     + '<div class="detail-section active" id="sec-' + r.id + '-code">' + codeDetail + '</div>'
@@ -340,11 +340,11 @@ function onCompareToggle(cb) {
 }
 
 function _cmpStatus(r) {
-  if (r.timed_out) return '⏱ 超时';
-  if (r.exit_code !== 0) return '❌ 失败(' + r.exit_code + ')';
+  if (r.timed_out) return '超时';
+  if (r.exit_code !== 0) return '失败(' + r.exit_code + ')';
   var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
-  if (m && parseFloat(m[1]) === 0) return '⚠️ 全零';
-  return '✅ 成功';
+  if (m && parseFloat(m[1]) === 0) return '全零';
+  return '成功';
 }
 function _cmpMaxP(r) {
   var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
@@ -364,10 +364,10 @@ function renderCompare() {
   var row = function(k, va, vb) {
     return '<tr><td>' + k + '</td><td>' + (va == null || va === '' ? '-' : va) + '</td><td>' + (vb == null || vb === '' ? '-' : vb) + '</td></tr>';
   };
-  var hasImg = function(r) { return r.image_base64 && r.image_base64.length > 100 ? '🖼 有' : '无'; };
+  var hasImg = function(r) { return r.image_base64 && r.image_base64.length > 100 ? '有' : '无'; };
   box.innerHTML =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">'
-    + '<div style="font-weight:600;margin-bottom:10px;color:var(--blue)">🔀 结果对比 <span style="font-weight:400;color:var(--muted);font-size:12px">（勾选两条记录）</span></div>'
+    + '<div style="font-weight:600;margin-bottom:10px;color:var(--blue)">结果对比 <span style="font-weight:400;color:var(--muted);font-size:12px">（勾选两条记录）</span></div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
     + '<tr style="background:var(--surface-2)"><th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">指标</th>'
     + '<th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">#' + a.id + ' · ' + (a.tool_name || '执行') + '</th>'
@@ -520,7 +520,7 @@ async function clearHistory() {
     var resp = await fetch('/dashboard/api/executions', { method: 'DELETE' });
     var data = await resp.json();
     if (data.ok) {
-      document.getElementById('rows').innerHTML = '<tr><td colspan="5" class="empty"><div class="icon">📭</div>已清空 ' + data.deleted + ' 条记录</td></tr>';
+      document.getElementById('rows').innerHTML = '<tr><td colspan="5" class="empty">已清空 ' + data.deleted + ' 条记录</td></tr>';
       document.getElementById('stat-total').textContent = '0';
       document.getElementById('stat-ok').textContent = '0';
       document.getElementById('stat-fail').textContent = '0';
