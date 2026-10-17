@@ -1875,7 +1875,15 @@ async function testModelConnection() {
     setModelConnectionStatus(data.ok ? 'success' : 'warning',
       data.ok ? '连接成功' : '端点已连接，兼容检查未通过', detail);
   } catch (e) {
-    setModelConnectionStatus('error', '连接失败', String(e.message || e));
+    var message = String(e.message || e);
+    if (selected === '__byok__' && message.indexOf('byok_session_missing_or_expired') !== -1) {
+      sessionStorage.removeItem('acouagent_byok_profile');
+      byokRegistrationConfirmed = false;
+      byokConfigDirty = true;
+      document.getElementById('byok-api-key').placeholder = '仅发送到这台自部署服务器';
+      message = '本次会话配置已失效，请重新输入 API Key 后测试。';
+    }
+    setModelConnectionStatus('error', '连接失败', message);
   } finally {
     button.disabled = false;
   }

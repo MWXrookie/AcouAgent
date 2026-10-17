@@ -116,6 +116,8 @@ def test_portal_model_connection_feedback_uses_compact_state_box():
     assert "本次会话已安全注册" in source
     assert "发现本次浏览器会话配置" in source
     assert "请先测试连接；网关重启或配置到期后需要重新输入 API Key" in source
+    assert "本次会话配置已失效，请重新输入 API Key 后测试" in source
+    assert "byok_session_missing_or_expired" in source
     assert "配置已修改，请输入这组配置对应的 API Key" in source
     assert "项兼容检查通过" in source
 
