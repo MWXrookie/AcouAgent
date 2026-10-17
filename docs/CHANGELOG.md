@@ -1,3 +1,11 @@
+## 2026-10-18 · 门户聊天页 UI 优化与历史会话
+
+门户聊天页（`/`、`/portal`、`/chat` 多轮对话）整体 UI 优化：清理 `CHAT_HTML` 内联写死的深/浅色十六进制颜色与多套重复样式，统一改用 `design.css` 的 CSS 变量，深浅主题自动正确；气泡/按钮/空状态视觉美化；输入框由运行时替换 `<input>` 改为直接 `<textarea>` 并固定底部；删除运行时进度条「等待提交需求」、「本次技能调用」证据区与技能反馈小字；空状态新增三个物理合理的仿真示例（MHz 超声 + 厘米级区域 + ≤200×200 网格，满足 Nyquist 且不触发 executor 输出超限）。
+
+历史会话侧边栏融合此前 `116f0fd` 的 localStorage 多会话方案（`acouagent_sessions` + `acouagent_current`），支持切换、删除、按「30天内 / YYYY-MM」分组，替换掉后端 SQLite 会话方案（已移除 `chat_sessions` 表与 `/chat/session` 系列路由）。门户页 `/`、`/portal`、`/chat` 加 `Cache-Control:no-store` 防缓存旧页面；执行看板移除 14 处装饰 emoji 改纯文字标签。
+
+改动文件：`app/dashboard.py`、`app/portal.py`、`app/web/design.css`、`app/web/design.js`、`app/web/dashboard.html`。本机重建部署验证：health 200、dashboard/skills/cache 200，深浅主题与历史会话切换/删除/持久化浏览器手测通过。
+
 ## 2026-10-16 · 阶段七矩阵支持门户临时 BYOK
 
 矩阵运行器现在可直接预检并使用门户创建的临时 BYOK profile，允许操作者依次用两个不同模型完成本地 lane，不再强制把模型密钥写入长期环境配置。可重放的临时 profile id 仅用于当前网关调用；JSONL 只保存模型预检返回的 `byok-session:<摘要>`，并在摘要缺失或格式异常时失败关闭。真实 Dify lane 已恢复完成 30/30：20 个正例全部通过确定性门并交付参考，10 个负例零参考，唯一工作流失败为域外负例且没有超时；两个本地 BYOK lane 仍待执行。
