@@ -270,15 +270,15 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/", methods=["GET"])
     async def portal(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML))
+        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/portal", methods=["GET"])
     async def portal_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML))
+        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/chat", methods=["GET"])
     async def chat_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML))
+        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:
