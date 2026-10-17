@@ -1591,10 +1591,20 @@ body{background:var(--bg)!important;color:var(--text)!important}
     <label for="model-profile">模型来源</label>
     <select id="model-profile" onchange="toggleByokFields()"></select>
     <div id="byok-fields" hidden>
+      <label for="byok-provider">服务商快捷配置</label>
+      <select id="byok-provider" onchange="applyByokProvider()">
+        <option value="deepseek">DeepSeek 官方 API</option>
+        <option value="qwen">阿里云百炼 · Qwen（中国站）</option>
+        <option value="custom">自定义 OpenAI 兼容端点</option>
+      </select>
       <label for="byok-base-url">OpenAI 兼容 API 地址</label>
       <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" oninput="clearModelPreflightResult()">
-      <label for="byok-model">模型名称</label>
-      <input id="byok-model" type="text" autocomplete="off" placeholder="模型 ID" oninput="clearModelPreflightResult()">
+      <label for="byok-model-preset">模型名称</label>
+      <select id="byok-model-preset" onchange="toggleCustomByokModel()"></select>
+      <div id="byok-custom-model-wrap" hidden>
+        <label for="byok-model-custom">自定义模型 ID</label>
+        <input id="byok-model-custom" type="text" autocomplete="off" placeholder="模型 ID" oninput="clearModelPreflightResult()">
+      </div>
       <label for="byok-api-key">API Key</label>
       <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器" oninput="clearModelPreflightResult()">
     </div>
@@ -1655,6 +1665,24 @@ function renderMarkdown(md) {
 var conversation = [];
 var currentRequirement = '';
 
+var BYOK_PRESETS = {
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com',
+    models: [
+      ['deepseek-v4-flash', 'DeepSeek V4 Flash'],
+      ['deepseek-v4-pro', 'DeepSeek V4 Pro']
+    ]
+  },
+  qwen: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: [
+      ['qwen-plus', 'Qwen Plus'],
+      ['qwen-max', 'Qwen Max'],
+      ['qwen-turbo', 'Qwen Turbo']
+    ]
+  }
+};
+
 function getModelProfile() {
   return sessionStorage.getItem('acouagent_byok_profile') || localStorage.getItem('acouagent_model_profile') || null;
 }
@@ -1694,8 +1722,50 @@ async function loadModelProfiles() {
 
 function toggleByokFields() {
   var selected = document.getElementById('model-profile').value;
-  document.getElementById('byok-fields').hidden = selected !== '__byok__';
+  var fields = document.getElementById('byok-fields');
+  fields.hidden = selected !== '__byok__';
+  if (!fields.hidden && !document.getElementById('byok-model-preset').options.length) {
+    applyByokProvider();
+  }
   clearModelPreflightResult();
+}
+
+function applyByokProvider() {
+  var provider = document.getElementById('byok-provider').value;
+  var preset = BYOK_PRESETS[provider];
+  var baseUrl = document.getElementById('byok-base-url');
+  var models = document.getElementById('byok-model-preset');
+  models.innerHTML = '';
+  if (preset) {
+    baseUrl.value = preset.baseUrl;
+    preset.models.forEach(function(item) {
+      var option = document.createElement('option');
+      option.value = item[0];
+      option.textContent = item[1] + ' · ' + item[0];
+      models.appendChild(option);
+    });
+  } else {
+    baseUrl.value = '';
+  }
+  var custom = document.createElement('option');
+  custom.value = '__custom__';
+  custom.textContent = '自定义模型 ID';
+  models.appendChild(custom);
+  if (!preset) models.value = '__custom__';
+  toggleCustomByokModel();
+}
+
+function toggleCustomByokModel() {
+  var custom = document.getElementById('byok-model-preset').value === '__custom__';
+  document.getElementById('byok-custom-model-wrap').hidden = !custom;
+  clearModelPreflightResult();
+}
+
+function selectedByokModel() {
+  var selected = document.getElementById('byok-model-preset').value;
+  return selected === '__custom__'
+    ? document.getElementById('byok-model-custom').value.trim()
+    : selected;
 }
 
 function clearModelPreflightResult() {
@@ -1722,7 +1792,7 @@ async function revokeByokProfile() {
 
 async function registerByokForCurrentSession() {
   var baseUrl = document.getElementById('byok-base-url').value.trim();
-  var model = document.getElementById('byok-model').value.trim();
+  var model = selectedByokModel();
   var apiKey = document.getElementById('byok-api-key').value.trim();
   if (!baseUrl || !model || !apiKey) throw new Error('请填写 API 地址、模型名称和 API Key。');
   var resp = await fetch('/api/byok/session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({base_url:baseUrl, model:model, api_key:apiKey})});

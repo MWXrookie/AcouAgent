@@ -87,6 +87,25 @@ def test_portal_source_sends_only_profile_id_not_browser_secret_fields():
         assert forbidden not in source
 
 
+def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
+    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+        encoding="utf-8"
+    )
+    for expected in (
+        "DeepSeek 官方 API",
+        "https://api.deepseek.com",
+        "deepseek-v4-flash",
+        "阿里云百炼 · Qwen（中国站）",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen-plus",
+        "自定义 OpenAI 兼容端点",
+        "自定义模型 ID",
+    ):
+        assert expected in source
+    assert 'id="byok-base-url"' in source
+    assert 'id="byok-api-key" type="password" autocomplete="new-password"' in source
+
+
 def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monkeypatch):
     responses = _responses()
     responses["parameter_extraction"] = json.dumps({
