@@ -127,6 +127,19 @@ def test_latest_analysis_summary_is_bounded_and_display_safe(history):
     }]
 
 
+def test_initial_analysis_poll_starts_from_latest_page(history):
+    for index in range(5):
+        dashboard.record_analysis_event(
+            0, "normal", float(index), 0.5, [8, 8], True, f"event-{index}",
+            None, None, "", "", run_id=f"run-{index}",
+        )
+
+    updates = dashboard.get_analysis_updates(limit=2, since_id=0)
+
+    assert [item["analysis_id"] for item in updates] == [4, 5]
+    assert [item["run_id"] for item in updates] == ["run-3", "run-4"]
+
+
 def test_nonfinite_analysis_metrics_are_json_safe(history):
     dashboard.record_analysis_event(
         0, "abnormal", float("inf"), float("nan"), [32, 32], False,

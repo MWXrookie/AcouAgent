@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 
 from app import cache_store, llm, model_client
 
@@ -70,6 +71,30 @@ def test_async_retry_uses_shared_prompt_and_returns_cache_signature(monkeypatch)
     prompt = captured["messages"][0]["content"]
     assert "keep the pressure field marker" in prompt
     assert "print('broken')" in prompt
+
+
+def test_async_retry_treats_cache_lookup_failure_as_miss(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(cache_store, "_extract_error_signature", lambda *args: "signature")
+
+    def unavailable_cache(_signature):
+        raise sqlite3.OperationalError("database is locked")
+
+    async def complete(profile_id, task, messages, *, run_id=None):
+        captured["prompt"] = messages[0]["content"]
+        return {"content": "print('fixed without cache')"}
+
+    monkeypatch.setattr(cache_store, "_query_cache", unavailable_cache)
+    monkeypatch.setattr(model_client, "complete", complete)
+
+    fixed = asyncio.run(llm.fix_code(
+        "profile-b",
+        "print('broken')",
+        {"exit_code": 1, "timed_out": False, "stdout": "", "stderr": "failure"},
+    ))
+
+    assert fixed == {"code": "print('fixed without cache')", "error_signature": "signature"}
+    assert "jwave common error cheat sheet" in captured["prompt"]
 
 
 def test_retry_prompt_is_bounded_by_utf8_bytes_for_multibyte_inputs(monkeypatch):

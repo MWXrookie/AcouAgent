@@ -287,15 +287,27 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
 def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
     """Return display-safe analysis events for incremental dashboard refreshes."""
     db = _get_db()
-    rows = db.execute(
-        """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
-                  has_signal, summary
-           FROM analysis_events
-           WHERE id > ?
-           ORDER BY id ASC
-           LIMIT ?""",
-        (max(0, since_id), max(1, min(limit, 500))),
-    ).fetchall()
+    bounded_limit = max(1, min(limit, 500))
+    if since_id <= 0:
+        rows = db.execute(
+            """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                      has_signal, summary
+               FROM analysis_events
+               ORDER BY id DESC
+               LIMIT ?""",
+            (bounded_limit,),
+        ).fetchall()
+        rows = list(reversed(rows))
+    else:
+        rows = db.execute(
+            """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                      has_signal, summary
+               FROM analysis_events
+               WHERE id > ?
+               ORDER BY id ASC
+               LIMIT ?""",
+            (since_id, bounded_limit),
+        ).fetchall()
     db.close()
     result = []
     for row in rows:

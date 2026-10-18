@@ -1,8 +1,23 @@
 """模型无关的自动纠错：根据执行失败结果返回修正代码。"""
 
+import asyncio
+import sqlite3
 from typing import Any
 
 from app import cache_store, model_client
+
+
+_CACHE_LOOKUP_UNSET = object()
+
+
+def _safe_query_cache(error_signature: str | None) -> dict | None:
+    """Treat an unavailable auxiliary cache as a cache miss."""
+    if not error_signature:
+        return None
+    try:
+        return cache_store._query_cache(error_signature)
+    except (OSError, sqlite3.Error):
+        return None
 
 
 def _truncate_utf8(value: object, limit: int, *, keep_tail: bool = False) -> str:
@@ -16,14 +31,19 @@ def _truncate_utf8(value: object, limit: int, *, keep_tail: bool = False) -> str
 
 
 def _fix_prompt(
-    code: str, result: dict[str, Any], requirements_context: str = ""
+    code: str,
+    result: dict[str, Any],
+    requirements_context: str = "",
+    *,
+    cache_hint: object = _CACHE_LOOKUP_UNSET,
 ) -> tuple[str, str | None]:
     """Build one bounded retry prompt and return its cache signature."""
     stderr = result.get("stderr", "")
     stdout = result.get("stdout", "")
     exit_code = result.get("exit_code")
     error_sig = cache_store._extract_error_signature(stderr, exit_code, stdout)
-    cache_hint = cache_store._query_cache(error_sig) if error_sig else None
+    if cache_hint is _CACHE_LOOKUP_UNSET:
+        cache_hint = _safe_query_cache(error_sig)
 
     prompt = (
         "You are a Python debugging assistant. The following Python code was executed "
@@ -131,7 +151,16 @@ async def fix_code(
     requirements_context: str = "",
 ) -> dict[str, str | None]:
     """Async retry entry for local orchestration, including cache lookup metadata."""
-    prompt, error_signature = _fix_prompt(code, result, requirements_context)
+    error_signature = cache_store._extract_error_signature(
+        result.get("stderr", ""), result.get("exit_code"), result.get("stdout", "")
+    )
+    cache_hint = await asyncio.to_thread(_safe_query_cache, error_signature)
+    prompt, error_signature = _fix_prompt(
+        code,
+        result,
+        requirements_context,
+        cache_hint=cache_hint,
+    )
     response = await model_client.complete(
         profile_id,
         "retry",
