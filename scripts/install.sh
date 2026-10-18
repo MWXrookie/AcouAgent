@@ -37,6 +37,24 @@ read_env_value() {
     '$1 == wanted {sub(/^[^=]*=/, ""); sub(/\r$/, ""); print; exit}' .env
 }
 
+migrate_legacy_executor_image() {
+  local legacy="ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007"
+  local current="ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:c77bc27"
+  local count
+  count="$(grep -Fxc "$legacy" .env || true)"
+  if [[ "$count" -gt 1 ]]; then
+    echo "legacy ACOUAGENT_EXECUTOR_IMAGE appears more than once in .env" >&2
+    exit 1
+  fi
+  if [[ "$count" == 1 ]]; then
+    local backup=".env.bak.executor-image-$(date -u +%Y%m%dT%H%M%SZ)"
+    cp -- .env "$backup"
+    sed -i.bak "s|^${legacy}$|${current}|" .env
+    rm -f .env.bak
+    echo "migrated the obsolete executor image default; backup saved to $backup"
+  fi
+}
+
 if [[ ! -f .env ]]; then
   [[ -f .env.example ]] || { echo "missing .env.example" >&2; exit 1; }
   umask 077
@@ -54,8 +72,10 @@ if [[ ! -f .env ]]; then
   chmod 600 .env
   echo "created .env with independent local tokens"
 else
-  echo "using existing .env without overwriting it"
+  echo "using existing .env and preserving custom values"
 fi
+
+migrate_legacy_executor_image
 
 if [[ "$(grep -c '^MCP_AUTH_TOKEN=' .env || true)" != 1 || \
       "$(grep -c '^EXECUTOR_SHARED_TOKEN=' .env || true)" != 1 ]]; then

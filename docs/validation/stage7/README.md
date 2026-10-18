@@ -10,7 +10,7 @@
 
 ## F2 一键安装入口
 
-`scripts/install.sh` 与 `scripts/install.ps1` 覆盖常见 Docker Compose 宿主。它们只在 `.env` 不存在时从模板创建配置，生成两个不同的 64 位十六进制本地 token，已有配置一律原样保留；随后解析 Compose、拉取 executor、从当前源码构建并启动网关、等待健康与 17 项自举并复核库存。`prepare-only` 模式允许用户在启动前填写服务端模型凭据。脚本不回显 token 或模型密钥。
+`scripts/install.sh` 与 `scripts/install.ps1` 覆盖常见 Docker Compose 宿主。它们只在 `.env` 不存在时从模板创建配置，生成两个不同的 64 位十六进制本地 token；已有自定义配置保持不变，只有已知的旧发行默认 executor 镜像行会在本地备份后迁移。随后安装器解析 Compose、拉取 executor、从当前源码构建并启动网关、等待健康与 17 项自举并复核库存。`prepare-only` 模式允许用户在启动前填写服务端模型凭据。脚本不回显 token 或模型密钥。
 
 ## F3 新人首次仿真准备
 

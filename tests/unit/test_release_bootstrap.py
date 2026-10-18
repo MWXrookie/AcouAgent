@@ -173,6 +173,35 @@ def test_posix_installer_prepares_tokens_without_overwriting(tmp_path):
     assert env_path.read_text(encoding="utf-8") == initial
 
 
+def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path):
+    if os.name == "nt":
+        return
+    bash = shutil.which("bash")
+    if bash is None:
+        return
+    root = Path(__file__).resolve().parents[2]
+    (tmp_path / "scripts").mkdir()
+    shutil.copy2(root / "scripts" / "install.sh", tmp_path / "scripts" / "install.sh")
+    content = (root / ".env.example").read_text(encoding="utf-8")
+    content = content.replace("replace-with-at-least-32-random-characters", "a" * 64)
+    content = content.replace("replace-with-a-different-32-character-secret", "b" * 64)
+    content = content.replace("acouagent-executor:c77bc27", "acouagent-executor:feat-acouagent-evidence-gates-20261007")
+    (tmp_path / ".env").write_text(content, encoding="utf-8")
+
+    result = subprocess.run(
+        [bash, str(tmp_path / "scripts" / "install.sh"), "--prepare-only"],
+        cwd=tmp_path, text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    migrated = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "acouagent-executor:c77bc27" in migrated
+    assert "feat-acouagent-evidence-gates-20261007" not in migrated
+    assert "a" * 64 in migrated and "b" * 64 in migrated
+    backups = list(tmp_path.glob(".env.bak.executor-image-*"))
+    assert len(backups) == 1
+    assert "feat-acouagent-evidence-gates-20261007" in backups[0].read_text(encoding="utf-8")
+
+
 def test_installers_do_not_print_or_overwrite_model_credentials():
     root = Path(__file__).resolve().parents[2]
     shell = (root / "scripts" / "install.sh").read_text(encoding="utf-8")
@@ -181,8 +210,8 @@ def test_installers_do_not_print_or_overwrite_model_credentials():
     assert "set -x" not in shell
     assert "MODEL_API_KEY}" not in shell
     assert "Write-Output $" not in powershell
-    assert "using existing .env without overwriting it" in shell
-    assert "using existing .env without overwriting it" in powershell
+    assert "using existing .env and preserving custom values" in shell
+    assert "using existing .env and preserving custom values" in powershell
 
 
 def test_powershell_installer_prepares_tokens_without_overwriting(tmp_path):
@@ -209,3 +238,30 @@ def test_powershell_installer_prepares_tokens_without_overwriting(tmp_path):
                             errors="replace", capture_output=True, check=False)
     assert second.returncode == 0, second.stderr
     assert env_path.read_text(encoding="utf-8") == initial
+
+
+def test_powershell_installer_migrates_only_obsolete_executor_default(tmp_path):
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        return
+    root = Path(__file__).resolve().parents[2]
+    (tmp_path / "scripts").mkdir()
+    shutil.copy2(root / "scripts" / "install.ps1", tmp_path / "scripts" / "install.ps1")
+    content = (root / ".env.example").read_text(encoding="utf-8")
+    content = content.replace("replace-with-at-least-32-random-characters", "a" * 64)
+    content = content.replace("replace-with-a-different-32-character-secret", "b" * 64)
+    content = content.replace("acouagent-executor:c77bc27", "acouagent-executor:feat-acouagent-evidence-gates-20261007")
+    (tmp_path / ".env").write_text(content, encoding="utf-8")
+
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-File", str(tmp_path / "scripts" / "install.ps1"), "-PrepareOnly"],
+        cwd=tmp_path, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    migrated = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "acouagent-executor:c77bc27" in migrated
+    assert "feat-acouagent-evidence-gates-20261007" not in migrated
+    assert "a" * 64 in migrated and "b" * 64 in migrated
+    backups = list(tmp_path.glob(".env.bak.executor-image-*"))
+    assert len(backups) == 1
