@@ -20,6 +20,7 @@ from pathlib import Path
 TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN", "")
 MAX_CODE_BYTES = 20000
 MAX_OUTPUT_BYTES = 1024 * 1024
+PR_SET_CHILD_SUBREAPER = 36
 
 
 def _sha256(text: str) -> str:
@@ -85,8 +86,82 @@ def _limits(timeout_seconds: int) -> None:
     resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
 
 
+def _enable_child_subreaper() -> None:
+    """Make the trusted request supervisor adopt orphaned user descendants."""
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
+
+
+def _direct_child_pids() -> list[int]:
+    children = Path(f"/proc/{os.getpid()}/task/{os.getpid()}/children")
+    try:
+        return [int(pid) for pid in children.read_text(encoding="ascii").split()]
+    except FileNotFoundError:
+        return []
+
+
+def _reap_exited_children() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            return
+
+
+def _terminate_descendants() -> None:
+    """Kill and reap the complete user tree, including descendants that called setsid()."""
+    while True:
+        children = _direct_child_pids()
+        if not children:
+            _reap_exited_children()
+            if not _direct_child_pids():
+                return
+            continue
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        _reap_exited_children()
+        time.sleep(0.01)
+
+
+class _SupervisorShutdown(Exception):
+    pass
+
+
+def _supervise(script: str) -> None:
+    """Run one untrusted script and leave no descendant behind."""
+    _enable_child_subreaper()
+
+    def shutdown(*_args) -> None:
+        raise _SupervisorShutdown()
+
+    signal.signal(signal.SIGTERM, shutdown)
+    returncode = 124
+    try:
+        child = subprocess.Popen([sys.executable, "-I", script], stdin=subprocess.DEVNULL)
+        returncode = child.wait()
+    except _SupervisorShutdown:
+        pass
+    finally:
+        _terminate_descendants()
+
+    if returncode < 0:
+        terminating_signal = -returncode
+        signal.signal(terminating_signal, signal.SIG_DFL)
+        os.kill(os.getpid(), terminating_signal)
+    raise SystemExit(returncode)
+
+
 def _kill_process_group(process: subprocess.Popen) -> None:
-    """Terminate every process created for one request, including detached workers."""
+    """Last-resort cleanup if the trusted supervisor cannot exit normally."""
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
@@ -131,7 +206,7 @@ def execute(payload: dict) -> dict:
         timed_out = False
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
             process = subprocess.Popen(
-                [sys.executable, "-I", str(script)],
+                [sys.executable, "-I", str(Path(__file__).resolve()), "--supervise", str(script)],
                 cwd=workdir,
                 env=env,
                 stdin=subprocess.DEVNULL,
@@ -144,6 +219,11 @@ def execute(payload: dict) -> dict:
                 process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
                 timed_out = True
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
             finally:
                 _kill_process_group(process)
         stdout_text = stdout_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
@@ -214,6 +294,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    if len(TOKEN) < 32:
-        raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
-    HTTPServer(("0.0.0.0", 8010), Handler).serve_forever()
+    if len(sys.argv) == 3 and sys.argv[1] == "--supervise":
+        _supervise(sys.argv[2])
+    else:
+        if len(TOKEN) < 32:
+            raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+        HTTPServer(("0.0.0.0", 8010), Handler).serve_forever()

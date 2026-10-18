@@ -117,12 +117,15 @@ def test_actual_timeout_is_bound_to_server_envelope(monkeypatch):
     assert executor_evidence.verify_executor_receipt(result["executor_receipt"], result, code, 1, NONCE)["matched"]
 
 
-def test_completed_request_kills_descendant_process_group(tmp_path, monkeypatch):
+@pytest.mark.parametrize("detach", [False, True])
+def test_completed_request_kills_all_descendants(tmp_path, monkeypatch, detach):
     monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
-    marker = tmp_path / "escaped-worker.txt"
+    marker = tmp_path / f"escaped-worker-{detach}.txt"
+    detach_line = "    os.setsid()\n" if detach else ""
     code = (
         "import os, time\n"
         "if os.fork() == 0:\n"
+        f"{detach_line}"
         "    time.sleep(0.5)\n"
         f"    open({str(marker)!r}, 'w').write('escaped')\n"
         "else:\n"
@@ -134,6 +137,26 @@ def test_completed_request_kills_descendant_process_group(tmp_path, monkeypatch)
 
     assert result["exit_code"] == 0 and not result["timed_out"]
     assert result["stdout"] == "parent exited\n"
+    assert not marker.exists()
+
+
+def test_timed_out_request_kills_detached_descendants(tmp_path, monkeypatch):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    marker = tmp_path / "escaped-after-timeout.txt"
+    code = (
+        "import os, time\n"
+        "if os.fork() == 0:\n"
+        "    os.setsid()\n"
+        "    time.sleep(1.5)\n"
+        f"    open({str(marker)!r}, 'w').write('escaped')\n"
+        "else:\n"
+        "    time.sleep(5)\n"
+    )
+
+    result = executor.execute({"code": code, "timeout_seconds": 1, "request_nonce": NONCE})
+    time.sleep(0.8)
+
+    assert result["timed_out"] and result["exit_code"] != 0
     assert not marker.exists()
 
 
