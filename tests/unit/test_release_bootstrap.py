@@ -186,7 +186,7 @@ def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path):
     content = content.replace("replace-with-at-least-32-random-characters", "a" * 64)
     content = content.replace("replace-with-a-different-32-character-secret", "b" * 64)
     content = content.replace("acouagent-executor:c77bc27", "acouagent-executor:feat-acouagent-evidence-gates-20261007")
-    (tmp_path / ".env").write_text(content, encoding="utf-8")
+    (tmp_path / ".env").write_bytes(content.replace("\n", "\r\n").encode("utf-8"))
 
     result = subprocess.run(
         [bash, str(tmp_path / "scripts" / "install.sh"), "--prepare-only"],

@@ -41,16 +41,27 @@ migrate_legacy_executor_image() {
   local legacy="ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007"
   local current="ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:c77bc27"
   local count
-  count="$(grep -Fxc "$legacy" .env || true)"
+  count="$(awk -v wanted="$legacy" \
+    '{line=$0; sub(/\r$/, "", line); if (line == wanted) count++} END {print count + 0}' .env)"
   if [[ "$count" -gt 1 ]]; then
     echo "legacy ACOUAGENT_EXECUTOR_IMAGE appears more than once in .env" >&2
     exit 1
   fi
   if [[ "$count" == 1 ]]; then
     local backup=".env.bak.executor-image-$(date -u +%Y%m%dT%H%M%SZ)"
+    local staged
     cp -- .env "$backup"
-    sed -i.bak "s|^${legacy}$|${current}|" .env
-    rm -f .env.bak
+    staged="$(mktemp "${TMPDIR:-/tmp}/acouagent-env.XXXXXX")"
+    if ! awk -v legacy="$legacy" -v current="$current" \
+      '{sub(/\r$/, ""); if ($0 == legacy) $0=current; print}' .env > "$staged"; then
+      rm -f "$staged"
+      return 1
+    fi
+    if ! cat "$staged" > .env; then
+      rm -f "$staged"
+      return 1
+    fi
+    rm -f "$staged"
     echo "migrated the obsolete executor image default; backup saved to $backup"
   fi
 }
