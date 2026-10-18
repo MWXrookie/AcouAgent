@@ -117,6 +117,24 @@ def test_actual_timeout_is_bound_to_server_envelope(monkeypatch):
     assert executor_evidence.verify_executor_receipt(result["executor_receipt"], result, code, 1, NONCE)["matched"]
 
 
+def test_uncatchable_child_signal_preserves_negative_exit_code(monkeypatch):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    code = "import os, signal; os.kill(os.getpid(), signal.SIGKILL)"
+
+    result = executor.execute({"code": code, "timeout_seconds": 2, "request_nonce": NONCE})
+
+    assert result["exit_code"] == -9 and not result["timed_out"]
+    assert result["stderr"] == ""
+
+
+def test_executor_server_requires_pid_namespace_init(monkeypatch):
+    monkeypatch.setattr(executor.os, "getpid", lambda: 2)
+    with pytest.raises(RuntimeError, match="container PID 1"):
+        executor._require_pid_namespace_init()
+    monkeypatch.setattr(executor.os, "getpid", lambda: 1)
+    executor._require_pid_namespace_init()
+
+
 @pytest.mark.parametrize("detach", [False, True])
 def test_completed_request_kills_all_descendants(tmp_path, monkeypatch, detach):
     monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))

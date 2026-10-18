@@ -48,7 +48,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "生成代码经 run_jwave_code 进入内部 executor；30 秒墙钟不变，累计 CPU 按 cgroup 核数折算。可信 Linux subreaper 在父进程退出或超时后清理完整后代树，含另建会话的 worker；只读、降权、无外网等限制不变。"
+        "note": "生成代码经 run_jwave_code 进入内部 executor；30 秒墙钟不变，累计 CPU 按 cgroup 核数折算。executor 服务固定为容器 PID 1 并清理完整后代树，含另建会话的 worker；只读、降权、无外网等限制不变。"
       },
       {
         "id": "skill-workbench",

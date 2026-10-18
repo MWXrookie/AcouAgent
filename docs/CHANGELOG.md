@@ -7,14 +7,17 @@ PR #19 合并后的生产升级验收中，默认固定平面波技能在约 18.
 
 executor 现在读取 cgroup v2 `cpu.max`，并兼容 v1 quota/period；累计 CPU 上限按
 `timeout × 声明核数 + 2` 折算，核数向上取整且限制为 1–8，读取失败时保持旧的一核
-预算。每个请求由可信 Linux subreaper 监督，父进程正常退出或超时后逐层终止并回收
-完整后代树，调用 `setsid()` 的派生 worker 也不能越过请求生命周期。独立的
+预算。executor 服务必须作为容器 PID 1 运行，受 PID 命名空间保护而不能被同容器
+用户代码以 `SIGKILL` 终止；父进程正常退出或超时后逐层终止并回收完整后代树，调用
+`setsid()` 的派生 worker 也不能越过请求生命周期。独立的
 `process.wait(timeout)` 仍在 30 秒强制终止，输出、文件、进程、4 GiB
 内存、只读根、cap-drop、no-new-privileges 和 internal 网络均未放宽。
 
-Linux 相关回归 **44 passed**。在当前生产 executor 科学栈之上仅替换候选
+Linux 相关回归 **46 passed**。候选容器中 `/proc/1/cmdline` 确认为 executor 服务；
+恶意 worker 在父进程退出后调用 `setsid()` 并向 PID 1 发送 `SIGKILL`，请求保留
+`exit_code=-9`、服务继续健康且延迟 marker 未生成。在当前生产 executor 科学栈之上仅替换候选
 `executor.py`，并以相同 2 CPU / 4 GiB / 只读降权 / internal 网络运行原平面波配方，
-最新 subreaper 实现实测 `exit_code=0`、`timed_out=false`、8.73 秒、回执关联通过；旧实现同配方为
+最新 PID 1 reaper 实现实测 `exit_code=0`、`timed_out=false`、9.04 秒、回执关联通过；旧实现同配方为
 `exit_code=-9`。从 Dockerfile 全新重建时仍遇到已知的公网 wheel 下载超时，因此该
 网络失败不作为功能失败，也不伪装为完整源码冷构建通过。架构 JSON/HTML 同步更新。
 Archify showcase 校验 9/9、0 errors、0 warnings，`deliver` 与 1440×900、

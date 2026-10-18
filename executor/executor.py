@@ -87,7 +87,7 @@ def _limits(timeout_seconds: int) -> None:
 
 
 def _enable_child_subreaper() -> None:
-    """Make the trusted request supervisor adopt orphaned user descendants."""
+    """Make direct test callers adopt orphaned user descendants like container PID 1."""
     import ctypes
 
     libc = ctypes.CDLL(None, use_errno=True)
@@ -132,36 +132,8 @@ def _terminate_descendants() -> None:
         time.sleep(0.01)
 
 
-class _SupervisorShutdown(Exception):
-    pass
-
-
-def _supervise(script: str) -> None:
-    """Run one untrusted script and leave no descendant behind."""
-    _enable_child_subreaper()
-
-    def shutdown(*_args) -> None:
-        raise _SupervisorShutdown()
-
-    signal.signal(signal.SIGTERM, shutdown)
-    returncode = 124
-    try:
-        child = subprocess.Popen([sys.executable, "-I", script], stdin=subprocess.DEVNULL)
-        returncode = child.wait()
-    except _SupervisorShutdown:
-        pass
-    finally:
-        _terminate_descendants()
-
-    if returncode < 0:
-        terminating_signal = -returncode
-        signal.signal(terminating_signal, signal.SIG_DFL)
-        os.kill(os.getpid(), terminating_signal)
-    raise SystemExit(returncode)
-
-
 def _kill_process_group(process: subprocess.Popen) -> None:
-    """Last-resort cleanup if the trusted supervisor cannot exit normally."""
+    """Terminate the initial user process group before reaping escaped descendants."""
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
@@ -186,6 +158,7 @@ def execute(payload: dict) -> dict:
         raise ValueError("request_nonce must be 32 lowercase hex characters")
     runtime = _runtime_identity()
     started = time.monotonic()
+    _enable_child_subreaper()
     with tempfile.TemporaryDirectory(prefix="mcp-run-", dir="/tmp") as workdir:
         work = Path(workdir)
         script = work / "main.py"
@@ -206,7 +179,7 @@ def execute(payload: dict) -> dict:
         timed_out = False
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
             process = subprocess.Popen(
-                [sys.executable, "-I", str(Path(__file__).resolve()), "--supervise", str(script)],
+                [sys.executable, "-I", str(script)],
                 cwd=workdir,
                 env=env,
                 stdin=subprocess.DEVNULL,
@@ -219,13 +192,9 @@ def execute(payload: dict) -> dict:
                 process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
                 timed_out = True
-                process.terminate()
-                try:
-                    process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    pass
             finally:
                 _kill_process_group(process)
+                _terminate_descendants()
         stdout_text = stdout_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
         stderr_text = stderr_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
 
@@ -293,10 +262,13 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+def _require_pid_namespace_init() -> None:
+    if os.getpid() != 1:
+        raise RuntimeError("executor server must run as container PID 1 so user code cannot kill its reaper")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--supervise":
-        _supervise(sys.argv[2])
-    else:
-        if len(TOKEN) < 32:
-            raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
-        HTTPServer(("0.0.0.0", 8010), Handler).serve_forever()
+    if len(TOKEN) < 32:
+        raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+    _require_pid_namespace_init()
+    HTTPServer(("0.0.0.0", 8010), Handler).serve_forever()
