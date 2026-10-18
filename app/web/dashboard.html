@@ -40,6 +40,12 @@
   .toolbar input, .toolbar select { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12px; }
   .toolbar input { min-width: 220px; }
   .toolbar select { min-width: 120px; }
+  .admin-token-wrap { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 12px; }
+  .admin-token-wrap input { min-width: 180px; }
+  .analysis-summary { font-family: inherit; white-space: normal; word-break: break-word; line-height: 1.65; }
+  .analysis-summary dl { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin-bottom: 10px; }
+  .analysis-summary dt { color: var(--muted); }
+  .analysis-summary dd { margin: 0; }
   .action-btn { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; }
   .action-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   .result-img { width: 48px; height: 36px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--surface-2); cursor: zoom-in; }
@@ -86,6 +92,8 @@
     th:nth-child(1), td:nth-child(1) { display: none; }
     .dur, .metric-cell { display: none; }
     .toolbar input { min-width: 100%; }
+    .admin-token-wrap { width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .admin-token-wrap input { flex: 1; min-width: 0; }
   }
 </style>
 </head>
@@ -111,6 +119,10 @@
     <option value="zero">全零</option>
   </select>
   <span style="color:var(--muted);font-size:12px" id="filter-count">0 条</span>
+  <label class="admin-token-wrap" for="admin-token">
+    管理员令牌
+    <input id="admin-token" type="password" autocomplete="off" placeholder="仅本页内存，不保存">
+  </label>
 </div>
 
 <div class="stats" id="stats">
@@ -150,7 +162,9 @@
 
 <script>
 var lastId = 0;
+var lastAnalysisId = 0;
 var firstLoad = true;
+var detailState = Object.create(null);
 
 function timeAgo(ts) {
   var d = new Date(ts), now = new Date();
@@ -219,8 +233,21 @@ function downloadRecord(id) {
   URL.revokeObjectURL(a.href);
 }
 
-async function rerunExecution(id) {
-  var btn = event.currentTarget || event.srcElement;
+function adminHeaders(withJson) {
+  var token = document.getElementById('admin-token').value.trim();
+  if (!token) {
+    document.getElementById('admin-token').focus();
+    showToast('请输入管理员令牌');
+    return null;
+  }
+  var headers = {'X-Admin-Token': token};
+  if (withJson) headers['Content-Type'] = 'application/json';
+  return headers;
+}
+
+async function rerunExecution(id, btn) {
+  var headers = adminHeaders(true);
+  if (!headers) return;
   if (btn) {
     btn.disabled = true;
     btn.textContent = '运行中';
@@ -228,7 +255,7 @@ async function rerunExecution(id) {
   try {
     var resp = await fetch('/dashboard/api/rerun', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: JSON.stringify({id: id})
     });
     var data = await resp.json();
@@ -263,6 +290,8 @@ function showToast(msg) {
 }
 
 function renderRow(r) {
+  var state = detailState[r.id] || {open:false, tab:r.analysis ? 'report' : 'code', codeExpanded:false};
+  detailState[r.id] = state;
   var dur = r.duration_ms != null ? (r.duration_ms < 1000 ? r.duration_ms+"ms" : (r.duration_ms/1000).toFixed(1)+"s") : "-";
   var hasImg = r.image_base64 && r.image_base64.length > 100;
   var summary = smartSummary(r.code || '');
@@ -276,7 +305,7 @@ function renderRow(r) {
   var imgHtml = hasImg ? '<img class="result-img" src="data:image/png;base64,' + r.image_base64 + '" onclick="event.stopPropagation();showLightbox(this.src)" title="查看图像">' : '<span style="color:var(--muted)">无图</span>';
   var actions = '<button class="action-btn" onclick="event.stopPropagation();copyCode(' + r.id + ')" title="复制代码">复制</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();downloadRecord(' + r.id + ')" title="导出 JSON">导出</button>' +
-    '<button class="action-btn" onclick="event.stopPropagation();rerunExecution(' + r.id + ')" title="重新运行">重跑</button>';
+    '<button class="action-btn" onclick="event.stopPropagation();rerunExecution(' + r.id + ',this)" title="重新运行">重跑</button>';
   if (r.skill_reference && typeof r.skill_reference.skill_id === 'string' && Number.isSafeInteger(r.skill_reference.version)) {
     var skillHref = '/skills?skill_id=' + encodeURIComponent(r.skill_reference.skill_id) + '&version=' + encodeURIComponent(r.skill_reference.version);
     actions += '<a class="action-btn skill-evidence-link" href="' + skillHref + '" onclick="event.stopPropagation()" title="查看本次已验证固定配方的技能证据">技能证据 v' + r.skill_reference.version + '</a>';
@@ -284,7 +313,7 @@ function renderRow(r) {
   // 无代码工具（analyze_simulation_result 等）显示占位说明，不再空白
   var codeSummary = r.code ? esc(summary) : '<span class="code-empty">（结果分析 · 无代码）</span>';
   var codeDetail = r.code
-    ? '<div class="detail-box code" id="codebox-' + r.id + '">' + esc(r.code) + '</div>'
+    ? '<div class="detail-box code' + (state.codeExpanded ? ' expanded' : '') + '" id="codebox-' + r.id + '">' + esc(r.code) + '</div>'
     : '<div class="detail-box code"><span class="code-empty">（该工具不执行代码，仅分析上一步仿真输出）</span></div>';
   var expandBtn = r.code && r.code.split("\n").length > 12
     ? '<button class="expand-btn" onclick="event.stopPropagation();toggleCodeExpand(' + r.id + ')">展开/收起</button>'
@@ -299,25 +328,50 @@ function renderRow(r) {
     + '<td class="dur">' + dur + '</td>'
     + '<td>' + imgHtml + ' ' + actions + '</td>'
     + '</tr>'
-    + '<tr class="detail-row" id="detail-' + r.id + '"><td colspan="7">'
+    + '<tr class="detail-row' + (state.open ? ' open' : '') + '" id="detail-' + r.id + '"><td colspan="7">'
     + '<div class="detail-tabs">'
-    + '<span class="detail-tab active" onclick="event.stopPropagation();switchTab(' + r.id + ',\'code\')">代码</span>'
-    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stdout\')">stdout</span>'
-    + '<span class="detail-tab" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stderr\')">stderr</span>'
+    + '<span class="detail-tab' + (state.tab === 'report' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'report\')">结论</span>'
+    + '<span class="detail-tab' + (state.tab === 'code' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'code\')">代码</span>'
+    + '<span class="detail-tab' + (state.tab === 'stdout' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stdout\')">stdout</span>'
+    + '<span class="detail-tab' + (state.tab === 'stderr' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stderr\')">stderr</span>'
     + expandBtn
     + '</div>'
-    + '<div class="detail-section active" id="sec-' + r.id + '-code">' + codeDetail + '</div>'
-    + '<div class="detail-section" id="sec-' + r.id + '-stdout"><div class="detail-box stdout">' + (esc(r.stdout) || "(无输出)") + '</div></div>'
-    + '<div class="detail-section" id="sec-' + r.id + '-stderr"><div class="detail-box stderr">' + (esc(r.stderr) || "(无输出)") + '</div></div>'
+    + '<div class="detail-section' + (state.tab === 'report' ? ' active' : '') + '" id="sec-' + r.id + '-report">' + renderAnalysis(r.analysis) + '</div>'
+    + '<div class="detail-section' + (state.tab === 'code' ? ' active' : '') + '" id="sec-' + r.id + '-code">' + codeDetail + '</div>'
+    + '<div class="detail-section' + (state.tab === 'stdout' ? ' active' : '') + '" id="sec-' + r.id + '-stdout"><div class="detail-box stdout">' + (esc(r.stdout) || "(无输出)") + '</div></div>'
+    + '<div class="detail-section' + (state.tab === 'stderr' ? ' active' : '') + '" id="sec-' + r.id + '-stderr"><div class="detail-box stderr">' + (esc(r.stderr) || "(无输出)") + '</div></div>'
     + '</td></tr>';
 }
 
-function toggleDetail(id) { document.getElementById("detail-" + id).classList.toggle("open"); }
+function renderAnalysis(a) {
+  if (!a) return '<div class="detail-box analysis-summary">本次记录没有可关联的物理分析摘要。</div>';
+  var shape = Array.isArray(a.field_shape) && a.field_shape.length ? a.field_shape.join(' × ') : '-';
+  var maxPressure = a.max_pressure == null ? '-' : Number(a.max_pressure).toPrecision(6) + ' Pa';
+  var rmsPressure = a.rms_pressure == null ? '-' : Number(a.rms_pressure).toPrecision(6) + ' Pa';
+  return '<div class="detail-box analysis-summary"><dl>'
+    + '<dt>物理判定</dt><dd>' + esc(a.verdict || '-') + '</dd>'
+    + '<dt>最大压力</dt><dd>' + esc(maxPressure) + '</dd>'
+    + '<dt>RMS 压力</dt><dd>' + esc(rmsPressure) + '</dd>'
+    + '<dt>场形状</dt><dd>' + esc(shape) + '</dd>'
+    + '<dt>检测到信号</dt><dd>' + (a.has_signal ? '是' : '否') + '</dd>'
+    + '</dl><strong>确定性分析摘要</strong><p>' + esc(a.summary || '暂无摘要') + '</p></div>';
+}
+
+function toggleDetail(id) {
+  var row = document.getElementById("detail-" + id);
+  row.classList.toggle("open");
+  var state = detailState[id] || {open:false, tab:'code', codeExpanded:false};
+  state.open = row.classList.contains("open");
+  detailState[id] = state;
+}
 
 function toggleCodeExpand(id) {
   var box = document.getElementById("codebox-" + id);
   if (!box) return;
   box.classList.toggle("expanded");
+  var state = detailState[id] || {open:true, tab:'code', codeExpanded:false};
+  state.codeExpanded = box.classList.contains("expanded");
+  detailState[id] = state;
 }
 
 // ===== P0-3 结果对比：勾选两条执行记录，对比工具/状态/耗时/尝试/最大压力/图像 =====
@@ -382,9 +436,12 @@ function renderCompare() {
 }
 
 function switchTab(id, tab) {
-  ["code","stdout","stderr"].forEach(function(t) { document.getElementById("sec-"+id+"-"+t).classList.toggle("active", t===tab); });
+  ["report","code","stdout","stderr"].forEach(function(t) { document.getElementById("sec-"+id+"-"+t).classList.toggle("active", t===tab); });
   var tabs = document.querySelectorAll("#detail-"+id+" .detail-tab");
-  tabs.forEach(function(el,i) { el.classList.toggle("active", ["code","stdout","stderr"][i]===tab); });
+  tabs.forEach(function(el,i) { el.classList.toggle("active", ["report","code","stdout","stderr"][i]===tab); });
+  var state = detailState[id] || {open:true, tab:'code', codeExpanded:false};
+  state.tab = tab;
+  detailState[id] = state;
 }
 
 // ===== T-014 失败分析：失败记录按类型归类（超时 / 退出码非0 / 结果异常全零） =====
@@ -400,6 +457,9 @@ function revealFailure(id) {
   var detailRow = document.getElementById('detail-' + id);
   if (detailRow) {
     detailRow.classList.add('open');
+    var state = detailState[id] || {open:false, tab:'code', codeExpanded:false};
+    state.open = true;
+    detailState[id] = state;
     detailRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
@@ -467,11 +527,22 @@ function applyFilters() {
 
 async function refresh() {
   try {
-    var resp = await fetch("/dashboard/api/executions?since=" + lastId + "&limit=100");
+    var resp = await fetch("/dashboard/api/executions?since=" + lastId + "&analysis_since=" + lastAnalysisId + "&limit=100");
     var data = await resp.json();
     if (data.executions && data.executions.length > 0) {
       data.executions.forEach(function(r) { window.__execs[r.id] = r; });  // 缓存供对比
       lastId = Math.max(lastId, Math.max.apply(null, data.executions.map(function(r) { return r.id; })));
+    }
+    if (data.analysis_updates && data.analysis_updates.length > 0) {
+      var executionsByRun = Object.create(null);
+      Object.keys(window.__execs || {}).forEach(function(id) {
+        var execution = window.__execs[id];
+        if (execution.run_id) executionsByRun[execution.run_id] = execution;
+      });
+      data.analysis_updates.forEach(function(update) {
+        lastAnalysisId = Math.max(lastAnalysisId, update.analysis_id || 0);
+        if (executionsByRun[update.run_id]) executionsByRun[update.run_id].analysis = update;
+      });
     }
     if (data.stats) {
       document.getElementById("stat-total").textContent = data.stats.total;
@@ -515,9 +586,11 @@ refresh();
 setInterval(refresh, 3000);
 
 async function clearHistory() {
+  var headers = adminHeaders(false);
+  if (!headers) return;
   if (!confirm('确定要清空所有执行历史吗？此操作不可撤销。')) return;
   try {
-    var resp = await fetch('/dashboard/api/executions', { method: 'DELETE' });
+    var resp = await fetch('/dashboard/api/executions', { method: 'DELETE', headers: headers });
     var data = await resp.json();
     if (data.ok) {
       document.getElementById('rows').innerHTML = '<tr><td colspan="5" class="empty">已清空 ' + data.deleted + ' 条记录</td></tr>';

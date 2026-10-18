@@ -171,8 +171,8 @@ def register(mcp) -> None:
         if not isinstance(code, str) or not code.strip():
             raise ValueError("code must be a non-empty Python string")
         code = execution._clean_code(code)
-        if len(code) > 20000:
-            raise ValueError("code is limited to 20000 characters")
+        if len(code.encode("utf-8")) > 20000:
+            raise ValueError("code is limited to 20000 UTF-8 bytes")
         if not 1 <= timeout_seconds <= 30:
             raise ValueError("timeout_seconds must be between 1 and 30")
         run_id = run_id or str(uuid.uuid4())
@@ -224,8 +224,8 @@ def register(mcp) -> None:
         if not isinstance(code, str) or not code.strip():
             raise ValueError("code must be a non-empty Python string")
         code = execution._clean_code(code)
-        if len(code) > 20000:
-            raise ValueError("code is limited to 20000 characters")
+        if len(code.encode("utf-8")) > 20000:
+            raise ValueError("code is limited to 20000 UTF-8 bytes")
         if not 1 <= timeout_seconds <= 30:
             raise ValueError("timeout_seconds must be between 1 and 30")
         if not 0 <= max_retries <= 7:

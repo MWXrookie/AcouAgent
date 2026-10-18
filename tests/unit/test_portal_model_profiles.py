@@ -86,6 +86,19 @@ def test_chat_dispatches_local_backend_and_rejects_non_string_profile(monkeypatc
     assert calls == [("simulate", "portal-s1", "fast")]
 
 
+def test_chat_rejects_malformed_json_as_invalid_request():
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app()),
+                                     base_url="http://isolated") as client:
+            response = await client.post(
+                "/chat", content=b"{bad", headers={"Content-Type": "application/json"}
+            )
+            assert response.status_code == 400
+            assert response.json() == {"error": "invalid_request"}
+
+    asyncio.run(run())
+
+
 def test_byok_session_routes_never_return_or_persist_secret(monkeypatch):
     monkeypatch.delenv("MODEL_PROFILES_JSON", raising=False)
     monkeypatch.delenv("MODEL_BASE_URL", raising=False)

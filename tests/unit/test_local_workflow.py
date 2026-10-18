@@ -2,6 +2,8 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
+
 from app import local_workflow, skill_retrieval
 
 PARAMS = {
@@ -87,7 +89,61 @@ def test_portal_source_sends_only_profile_id_not_browser_secret_fields():
         assert forbidden not in source
 
 
-def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monkeypatch):
+def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
+    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+        encoding="utf-8"
+    )
+    for expected in (
+        "DeepSeek 官方 API",
+        "https://api.deepseek.com",
+        "deepseek-chat",
+        "deepseek-reasoner",
+        "阿里云百炼 · Qwen（中国站）",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen-plus",
+        "自定义 OpenAI 兼容端点",
+        "自定义模型 ID",
+    ):
+        assert expected in source
+    assert 'id="byok-base-url"' in source
+    assert 'id="byok-api-key" type="password" autocomplete="new-password"' in source
+
+
+def test_portal_model_connection_feedback_uses_compact_state_box():
+    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+        encoding="utf-8"
+    )
+    for state in ("idle", "pending", "success", "warning", "error"):
+        assert f"'{state}'" in source or f'data-state="{state}"' in source
+    assert 'class="model-connection-status"' in source
+    assert "本次会话已安全注册" in source
+    assert "发现本次浏览器会话配置" in source
+    assert "请先测试连接；网关重启或配置到期后需要重新输入 API Key" in source
+    assert "本次会话配置已失效，请重新输入 API Key 后测试" in source
+    assert "byok_session_missing_or_expired" in source
+    assert "配置已修改，请输入这组配置对应的 API Key" in source
+    assert "项兼容检查通过" in source
+    assert "未通过：" in source
+    assert "本次会话已注册配置（详情已隐藏）" in source
+
+
+def test_retry_context_keeps_parameters_and_analysis_ahead_of_long_query():
+    context = local_workflow._retry_context(
+        "用户需求" * 4_000,
+        {"simulation_params": PARAMS, "description": "ignored" * 4_000},
+        {"verdict": "abnormal", "quality_level": "Q0", "summary": "failed"},
+    )
+
+    assert context.index("参数：") < context.index("确定性分析：") < context.index("用户需求摘要：")
+    assert '"source_frequency": 1000000.0' in context
+    assert '"verdict": "abnormal"' in context
+    assert len(context.encode("utf-8")) <= 16_000
+
+
+@pytest.mark.parametrize("cache_write_fails", [False, True])
+def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(
+    monkeypatch, cache_write_fails
+):
     responses = _responses()
     responses["parameter_extraction"] = json.dumps({
         "scenario_type": "point_source_2d",
@@ -121,6 +177,16 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monk
                 "has_signal": passed, "summary": "pass" if passed else "fail", "physics_checks": []}
 
     monkeypatch.setattr(local_workflow, "_model", fake_model)
+    async def fake_fix_code(profile_id, code, result, **kwargs):
+        model_tasks.append("retry")
+        return {"code": responses["retry"], "error_signature": "RuntimeError|general|boom"}
+    cache_updates = []
+    monkeypatch.setattr(local_workflow.llm, "fix_code", fake_fix_code)
+    def update_cache(signature, hint, was_successful):
+        if cache_write_fails:
+            raise OSError("cache unavailable")
+        cache_updates.append((signature, hint, was_successful))
+    monkeypatch.setattr(local_workflow.cache_store, "_update_cache", update_cache)
     monkeypatch.setattr(local_workflow, "_tool_functions", lambda: {
         "validate_simulation_params": lambda raw: {"valid": True, "errors": [], "warnings": []},
         "run_jwave_code": execute,
@@ -140,6 +206,9 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(monk
     events = asyncio.run(run())
     assert execution_count["value"] == 2
     assert "retry" in model_tasks
+    assert cache_updates == ([] if cache_write_fails else [
+        ("RuntimeError|general|boom", responses["retry"][:500], True)
+    ])
     assert events[-1]["workflow_status"] == "succeeded"
 
 

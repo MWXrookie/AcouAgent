@@ -1,26 +1,49 @@
 """模型无关的自动纠错：根据执行失败结果返回修正代码。"""
 
-import json
+import asyncio
+import sqlite3
 from typing import Any
 
-import httpx
-
-from app import cache_store, config, dashboard, model_client, model_profiles
+from app import cache_store, model_client
 
 
-def _llm_fix_code(
-    profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
-) -> str:
-    """Use the selected BYOK profile to fix failed code."""
-    profile, settings = model_profiles.resolve(profile_id, "retry")
-    model_profiles.validate_runtime_endpoint(profile)
+_CACHE_LOOKUP_UNSET = object()
 
-    # ---- 提取错误签名，查缓存 ----
+
+def _safe_query_cache(error_signature: str | None) -> dict | None:
+    """Treat an unavailable auxiliary cache as a cache miss."""
+    if not error_signature:
+        return None
+    try:
+        return cache_store._query_cache(error_signature)
+    except (OSError, sqlite3.Error):
+        return None
+
+
+def _truncate_utf8(value: object, limit: int, *, keep_tail: bool = False) -> str:
+    """Return a UTF-8 byte-bounded string without splitting a code point."""
+    text = value if isinstance(value, str) else str(value or "")
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
+        return text
+    bounded = encoded[-limit:] if keep_tail else encoded[:limit]
+    return bounded.decode("utf-8", errors="ignore")
+
+
+def _fix_prompt(
+    code: str,
+    result: dict[str, Any],
+    requirements_context: str = "",
+    *,
+    cache_hint: object = _CACHE_LOOKUP_UNSET,
+) -> tuple[str, str | None]:
+    """Build one bounded retry prompt and return its cache signature."""
     stderr = result.get("stderr", "")
     stdout = result.get("stdout", "")
     exit_code = result.get("exit_code")
     error_sig = cache_store._extract_error_signature(stderr, exit_code, stdout)
-    cache_hint = cache_store._query_cache(error_sig) if error_sig else None
+    if cache_hint is _CACHE_LOOKUP_UNSET:
+        cache_hint = _safe_query_cache(error_sig)
 
     prompt = (
         "You are a Python debugging assistant. The following Python code was executed "
@@ -29,13 +52,18 @@ def _llm_fix_code(
         "corrected Python code. No markdown fences, no explanations — just raw, "
         "runnable Python.\n\n"
     )
+    if requirements_context:
+        prompt += (
+            "REQUIREMENTS THAT MUST BE PRESERVED:\n"
+            + _truncate_utf8(requirements_context, 16000)
+            + "\n\n"
+        )
 
-    # ---- 注入缓存建议 ----
     if cache_hint:
         prompt += (
             "**KNOWN FIX EXPERIENCE** (confidence: {:.0f}%): {}"
             " If applicable, apply this fix directly.\n\n"
-        ).format(cache_hint['confidence'] * 100, cache_hint['fix_hint'])
+        ).format(cache_hint["confidence"] * 100, cache_hint["fix_hint"])
     else:
         prompt += (
             "**jwave common error cheat sheet (match by error message)**:\n"
@@ -80,54 +108,16 @@ def _llm_fix_code(
         "EXECUTION RESULT:\n"
         f"- exit_code: {result.get('exit_code')}\n"
         f"- timed_out: {result.get('timed_out')}\n"
-        f"- stdout (last 3000 chars):\n{result.get('stdout', '')[-3000:]}\n"
-        f"- stderr (last 3000 chars):\n{result.get('stderr', '')[-3000:]}\n"
+        f"- stdout (bounded tail):\n{_truncate_utf8(result.get('stdout', ''), 12000, keep_tail=True)}\n"
+        f"- stderr (bounded tail):\n{_truncate_utf8(result.get('stderr', ''), 12000, keep_tail=True)}\n"
         "\nFAILED CODE:\n"
-        f"```python\n{code}\n```\n"
+        f"```python\n{_truncate_utf8(code, 20000)}\n```\n"
         "\nReturn ONLY the fixed Python code:"
     )
+    return prompt, error_sig
 
-    body = {
-        "model": profile.model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": settings.temperature,
-        "max_tokens": settings.max_tokens,
-    }
-    if settings.thinking:
-        body["thinking"] = True
-    with httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False) as client:
-        with client.stream(
-            "POST",
-            profile.endpoint(),
-            headers={"Authorization": f"Bearer {profile.api_key()}",
-                     "Content-Type": "application/json"},
-            json=body,
-        ) as llm_response:
-            llm_response.raise_for_status()
-            raw = bytearray()
-            for chunk in llm_response.iter_bytes():
-                raw.extend(chunk)
-                if len(raw) > model_client.MAX_RESPONSE_BYTES:
-                    raise model_client.ModelCallError("model_response_too_large")
-    try:
-        data = json.loads(raw)
-        fixed = model_client._content(data)
-    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
-        raise model_client.ModelCallError("model_response_invalid") from exc
 
-    # 记录 token 用量与成本（费用看板）
-    try:
-        usage = data.get("usage")
-        dashboard.record_llm_usage(
-            f"{profile.provider}:{profile.model}", usage, config.calc_llm_cost(usage),
-            run_id=run_id,
-            metadata={"profile_id": profile.audit_profile_id(), "provider": profile.provider,
-                      "model": profile.model, "task": "retry"},
-        )
-    except Exception:
-        pass
-
-    # 去掉可能的 markdown 代码块标记
+def _clean_fixed_code(fixed: str) -> str:
     for prefix in ("```python\n", "```python", "```\n", "```"):
         if fixed.startswith(prefix):
             fixed = fixed[len(prefix):]
@@ -135,6 +125,49 @@ def _llm_fix_code(
         fixed = fixed[:-4]
     elif fixed.endswith("```"):
         fixed = fixed[:-3]
-    fixed = fixed.strip()
+    return fixed.strip()
 
-    return fixed
+
+def _llm_fix_code(
+    profile_id: str | None, code: str, result: dict[str, Any], run_id: str | None = None
+) -> str:
+    """Synchronous retry entry retained for MCP tool callers."""
+    prompt, _ = _fix_prompt(code, result)
+    fixed = model_client.complete_sync(
+        profile_id,
+        "retry",
+        [{"role": "user", "content": prompt}],
+        run_id=run_id,
+    )["content"]
+    return _clean_fixed_code(fixed)
+
+
+async def fix_code(
+    profile_id: str | None,
+    code: str,
+    result: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    requirements_context: str = "",
+) -> dict[str, str | None]:
+    """Async retry entry for local orchestration, including cache lookup metadata."""
+    error_signature = cache_store._extract_error_signature(
+        result.get("stderr", ""), result.get("exit_code"), result.get("stdout", "")
+    )
+    cache_hint = await asyncio.to_thread(_safe_query_cache, error_signature)
+    prompt, error_signature = _fix_prompt(
+        code,
+        result,
+        requirements_context,
+        cache_hint=cache_hint,
+    )
+    response = await model_client.complete(
+        profile_id,
+        "retry",
+        [{"role": "user", "content": prompt}],
+        run_id=run_id,
+    )
+    return {
+        "code": _clean_fixed_code(response["content"]),
+        "error_signature": error_signature,
+    }

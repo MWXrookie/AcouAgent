@@ -13,7 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from app import analysis, dashboard, execution, model_client, model_profiles
+from app import analysis, cache_store, dashboard, execution, llm, model_client, model_profiles
 
 MAX_QUERY_BYTES = 65536
 MAX_CODE_BYTES = 20000
@@ -103,19 +103,17 @@ __ACOU_FIELD_END__
 {_knowledge()}"""
 
 
-def _retry_prompt(query: str, extracted: dict, code: str, result: dict, analyzed: dict) -> str:
-    evidence = {
-        "exit_code": result.get("exit_code"), "timed_out": result.get("timed_out"),
-        "stderr_tail": str(result.get("stderr", ""))[-2500:],
-        "stdout_tail": str(result.get("stdout", ""))[-1500:],
-        "verdict": analyzed.get("verdict"), "quality_level": analyzed.get("quality_level"),
-        "summary": analyzed.get("summary"),
-    }
-    return f"""修复下面的 jwave 0.2.1 Python 代码。只输出完整源码。不得删除压力场标记，不得联网、读取系统文件或启动子进程。保持用户参数不变。
-用户需求：{query}
-参数：{json.dumps(extracted, ensure_ascii=False, sort_keys=True)}
-失败证据：{json.dumps(evidence, ensure_ascii=False, sort_keys=True)}
-原代码：\n{code}"""
+def _retry_context(query: str, extracted: dict, analyzed: dict) -> str:
+    evidence = {key: analyzed.get(key) for key in (
+        "verdict", "quality_level", "summary", "timing_diagnostic", "physics_checks"
+    )}
+    parameters = extracted.get("simulation_params", extracted)
+    return (
+        "不得删除压力场标记，不得联网、读取系统文件或启动子进程；保持用户参数不变。\n"
+        f"参数：{llm._truncate_utf8(json.dumps(parameters, ensure_ascii=False, sort_keys=True), 8000)}\n"
+        f"确定性分析：{llm._truncate_utf8(json.dumps(evidence, ensure_ascii=False, sort_keys=True), 6000)}\n"
+        f"用户需求摘要：{llm._truncate_utf8(query, 1500)}"
+    )
 
 
 def _safe_analysis(analyzed: dict) -> dict:
@@ -233,6 +231,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 raise LocalWorkflowError("generated_code_invalid")
 
         analyzed: dict[str, Any] = {}
+        pending_cache_update: tuple[str, str] | None = None
         first_code = code
         for attempt in range(MAX_RETRIES + 1):
             if result is None:
@@ -244,15 +243,34 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 result.get("stderr", "") or "",
                 int(result.get("exit_code") if result.get("exit_code") is not None else 1),
                 params_json, result.get("run_id", "") or "")
-            if _passed(result, analyzed) or used_direct_reference or attempt >= MAX_RETRIES:
+            passed = _passed(result, analyzed)
+            if pending_cache_update is not None:
+                signature, fix_hint = pending_cache_update
+                try:
+                    await asyncio.to_thread(
+                        cache_store._update_cache, signature, fix_hint, was_successful=passed
+                    )
+                except Exception:
+                    # The cache is auxiliary; a locked/corrupt cache must not discard
+                    # an already completed deterministic simulation result.
+                    pass
+                pending_cache_update = None
+            if passed or used_direct_reference or attempt >= MAX_RETRIES:
                 break
             yield {"event": "progress", "stage": "本地编排：修正代码", "request_id": request_id,
                    "workflow_run_id": workflow_run_id}
-            repaired = await _model(profile_id, "retry",
-                _retry_prompt(query, extracted, code, result, analyzed), workflow_run_id)
-            code = execution._clean_code(repaired["content"])
+            repaired = await llm.fix_code(
+                profile_id,
+                code,
+                result,
+                run_id=workflow_run_id,
+                requirements_context=_retry_context(query, extracted, analyzed),
+            )
+            code = execution._clean_code(str(repaired["code"] or ""))
             if not code or len(code.encode("utf-8")) > MAX_CODE_BYTES:
                 raise LocalWorkflowError("repaired_code_invalid")
+            if repaired.get("error_signature"):
+                pending_cache_update = (str(repaired["error_signature"]), code[:500])
             result = None
 
         yield {"event": "progress", "stage": "本地编排：审查与解释", "request_id": request_id,

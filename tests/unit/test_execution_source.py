@@ -95,6 +95,70 @@ def test_analysis_event_keeps_resolved_run_id_and_timeout(history):
     assert dashboard.get_analysis_events()[0]["run_id"] == "run-source"
 
 
+def test_latest_analysis_summary_is_bounded_and_display_safe(history):
+    dashboard.record_analysis_event(
+        0, "normal", 1.25, 0.4, [64, 64], True, "first", None, None, "", "",
+        run_id="run-source",
+    )
+    dashboard.record_analysis_event(
+        0, "normal", 1.5, 0.5, [32, 32], True, "latest", None, None, "", "",
+        run_id="run-source",
+    )
+    got = dashboard.get_latest_analysis_by_run_ids(["run-source", "run-source"])
+    assert got["run-source"] == {
+        "run_id": "run-source",
+        "verdict": "normal",
+        "max_pressure": 1.5,
+        "rms_pressure": 0.5,
+        "field_shape": [32, 32],
+        "has_signal": True,
+        "summary": "latest",
+    }
+    updates = dashboard.get_analysis_updates(since_id=1)
+    assert updates == [{
+        "run_id": "run-source",
+        "verdict": "normal",
+        "max_pressure": 1.5,
+        "rms_pressure": 0.5,
+        "field_shape": [32, 32],
+        "has_signal": True,
+        "summary": "latest",
+        "analysis_id": 2,
+    }]
+
+
+def test_initial_analysis_poll_starts_from_latest_page(history):
+    for index in range(5):
+        dashboard.record_analysis_event(
+            0, "normal", float(index), 0.5, [8, 8], True, f"event-{index}",
+            None, None, "", "", run_id=f"run-{index}",
+        )
+
+    updates = dashboard.get_analysis_updates(limit=2, since_id=0)
+
+    assert [item["analysis_id"] for item in updates] == [4, 5]
+    assert [item["run_id"] for item in updates] == ["run-3", "run-4"]
+
+
+def test_nonfinite_analysis_metrics_are_json_safe(history):
+    dashboard.record_analysis_event(
+        0, "abnormal", float("inf"), float("nan"), [32, 32], False,
+        "diverged", None, None, "", "", run_id="run-diverged",
+    )
+
+    latest = dashboard.get_latest_analysis_by_run_ids(["run-diverged"])["run-diverged"]
+    update = dashboard.get_analysis_updates()[0]
+    assert latest["max_pressure"] is None and latest["rms_pressure"] is None
+    assert update["max_pressure"] is None and update["rms_pressure"] is None
+
+
+def test_execution_code_limit_counts_utf8_bytes(history):
+    registry = Registry()
+    tools.register(registry)
+    with pytest.raises(ValueError, match="20000 UTF-8 bytes"):
+        registry.functions["run_jwave_code"]("#" + "声" * 7_000)
+
+
 def test_forged_analysis_does_not_attach_to_requested_execution(history):
     registry = Registry()
     analysis.register(registry)

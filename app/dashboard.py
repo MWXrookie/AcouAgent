@@ -6,6 +6,7 @@ dashboard with auto-refreshing history table and test analytics.
 
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import statistics
@@ -239,6 +240,88 @@ def get_analysis_events(limit: int = 100, since_id: int = 0) -> list[dict]:
     ).fetchall()
     db.close()
     return [dict(r) for r in rows]
+
+
+def _json_safe_metric(value: object) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
+    """Return one bounded, display-safe analysis summary for each execution run."""
+    unique_ids = list(dict.fromkeys(
+        value for value in run_ids
+        if isinstance(value, str) and 1 <= len(value) <= 128
+    ))[:500]
+    if not unique_ids:
+        return {}
+    placeholders = ",".join("?" for _ in unique_ids)
+    db = _get_db()
+    rows = db.execute(
+        f"""SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                   has_signal, summary
+            FROM analysis_events
+            WHERE run_id IN ({placeholders})
+            ORDER BY id DESC""",
+        unique_ids,
+    ).fetchall()
+    db.close()
+    result: dict[str, dict] = {}
+    for row in rows:
+        if row["run_id"] in result:
+            continue
+        item = dict(row)
+        item.pop("id", None)
+        item["has_signal"] = bool(item["has_signal"])
+        for key in ("max_pressure", "rms_pressure"):
+            item[key] = _json_safe_metric(item.get(key))
+        try:
+            item["field_shape"] = json.loads(item["field_shape"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            item["field_shape"] = []
+        result[row["run_id"]] = item
+    return result
+
+
+def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
+    """Return display-safe analysis events for incremental dashboard refreshes."""
+    db = _get_db()
+    bounded_limit = max(1, min(limit, 500))
+    if since_id <= 0:
+        rows = db.execute(
+            """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                      has_signal, summary
+               FROM analysis_events
+               ORDER BY id DESC
+               LIMIT ?""",
+            (bounded_limit,),
+        ).fetchall()
+        rows = list(reversed(rows))
+    else:
+        rows = db.execute(
+            """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
+                      has_signal, summary
+               FROM analysis_events
+               WHERE id > ?
+               ORDER BY id ASC
+               LIMIT ?""",
+            (since_id, bounded_limit),
+        ).fetchall()
+    db.close()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["analysis_id"] = item.pop("id")
+        item["has_signal"] = bool(item["has_signal"])
+        for key in ("max_pressure", "rms_pressure"):
+            item[key] = _json_safe_metric(item.get(key))
+        try:
+            item["field_shape"] = json.loads(item["field_shape"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            item["field_shape"] = []
+        result.append(item)
+    return result
 
 
 def get_executions(limit: int = 100, since_id: int = 0) -> list[dict]:
@@ -1556,6 +1639,14 @@ CHAT_HTML = r"""<!DOCTYPE html>
   .modal-actions button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
   .modal-actions button:disabled { opacity: .55; cursor: wait; }
   .modal-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .model-connection-status { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); display: grid; gap: 3px; }
+  .model-connection-status strong { font-size: 13px; }
+  .model-connection-status span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .model-connection-status[data-state="pending"], .model-connection-status[data-state="warning"] { border-color: var(--yellow); background: var(--yellow-soft); }
+  .model-connection-status[data-state="success"] { border-color: var(--green); background: var(--green-soft); }
+  .model-connection-status[data-state="success"] strong { color: var(--green); }
+  .model-connection-status[data-state="error"] { border-color: var(--red); background: var(--red-soft); }
+  .model-connection-status[data-state="error"] strong { color: var(--red); }
 
   .chat-log { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 900px; width: 100%; margin: 0 auto; }
   .chat-empty { color: var(--muted); font-size: 15px; text-align: center; padding: 70px 16px; line-height: 1.7; }
@@ -1652,15 +1743,28 @@ CHAT_HTML = r"""<!DOCTYPE html>
     <label for="model-profile">模型来源</label>
     <select id="model-profile" onchange="toggleByokFields()"></select>
     <div id="byok-fields" hidden>
+      <label for="byok-provider">服务商快捷配置</label>
+      <select id="byok-provider" onchange="applyByokProvider(false)">
+        <option value="deepseek">DeepSeek 官方 API</option>
+        <option value="qwen">阿里云百炼 · Qwen（中国站）</option>
+        <option value="custom">自定义 OpenAI 兼容端点</option>
+      </select>
       <label for="byok-base-url">OpenAI 兼容 API 地址</label>
-      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" oninput="clearModelPreflightResult()">
-      <label for="byok-model">模型名称</label>
-      <input id="byok-model" type="text" autocomplete="off" placeholder="模型 ID" oninput="clearModelPreflightResult()">
+      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" oninput="markByokConfigDirty()">
+      <label for="byok-model-preset">模型名称</label>
+      <select id="byok-model-preset" onchange="toggleCustomByokModel(false)"></select>
+      <div id="byok-custom-model-wrap" hidden>
+        <label for="byok-model-custom">自定义模型 ID</label>
+        <input id="byok-model-custom" type="text" autocomplete="off" placeholder="模型 ID" oninput="markByokConfigDirty()">
+      </div>
       <label for="byok-api-key">API Key</label>
-      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器" oninput="clearModelPreflightResult()">
+      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器" oninput="markByokConfigDirty()">
     </div>
     <p id="model-profile-detail" style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">正在读取服务端配置…</p>
-    <p id="model-preflight-result" role="status" aria-live="polite" style="color:var(--muted);font-size:12px;line-height:1.6;white-space:pre-line"></p>
+    <div id="model-preflight-result" class="model-connection-status" data-state="idle" role="status" aria-live="polite">
+      <strong id="model-preflight-title">等待测试连接</strong>
+      <span id="model-preflight-detail">输入 API Key 后测试；注册成功后 Key 会从输入框清除。</span>
+    </div>
     <p style="color:var(--muted);font-size:12px;line-height:1.6">密钥仅保存在当前网关进程的临时内存中，到期或重启后失效；不会写入浏览器持久存储、SQLite、日志或技能库。</p>
     <div class="modal-actions">
       <button onclick="closeModelSettings()">取消</button>
@@ -1714,6 +1818,26 @@ function renderMarkdown(md) {
 
 var conversation = [];
 var currentRequirement = '';
+var byokConfigDirty = false;
+var byokRegistrationConfirmed = false;
+
+var BYOK_PRESETS = {
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com',
+    models: [
+      ['deepseek-chat', 'DeepSeek Chat'],
+      ['deepseek-reasoner', 'DeepSeek Reasoner']
+    ]
+  },
+  qwen: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: [
+      ['qwen-plus', 'Qwen Plus'],
+      ['qwen-max', 'Qwen Max'],
+      ['qwen-turbo', 'Qwen Turbo']
+    ]
+  }
+};
 
 function getModelProfile() {
   return sessionStorage.getItem('acouagent_byok_profile') || localStorage.getItem('acouagent_model_profile') || null;
@@ -1754,12 +1878,99 @@ async function loadModelProfiles() {
 
 function toggleByokFields() {
   var selected = document.getElementById('model-profile').value;
-  document.getElementById('byok-fields').hidden = selected !== '__byok__';
-  clearModelPreflightResult();
+  var fields = document.getElementById('byok-fields');
+  fields.hidden = selected !== '__byok__';
+  if (!fields.hidden && !document.getElementById('byok-model-preset').options.length) {
+    if (sessionStorage.getItem('acouagent_byok_profile') && !byokConfigDirty) {
+      showRestoredByokHandle();
+    } else {
+      applyByokProvider(true);
+    }
+  }
+  if (selected === '__byok__' && sessionStorage.getItem('acouagent_byok_profile') && !byokConfigDirty) {
+    if (byokRegistrationConfirmed) {
+      setModelConnectionStatus('success', '本次会话模型已注册', '密钥已从输入框清除；可以再次测试连接或直接开始仿真。');
+    } else {
+      setModelConnectionStatus('warning', '发现本次浏览器会话配置', '请先测试连接；网关重启或配置到期后需要重新输入 API Key。');
+    }
+  } else {
+    clearModelPreflightResult();
+  }
+}
+
+function showRestoredByokHandle() {
+  var providers = document.getElementById('byok-provider');
+  var restored = providers.querySelector('option[value="session"]');
+  if (!restored) {
+    restored = document.createElement('option');
+    restored.value = 'session';
+    restored.textContent = '本次会话已注册配置（详情已隐藏）';
+    providers.insertBefore(restored, providers.firstChild);
+  }
+  providers.value = 'session';
+  var baseUrl = document.getElementById('byok-base-url');
+  baseUrl.value = '';
+  baseUrl.placeholder = '已注册端点（不回显）';
+  var models = document.getElementById('byok-model-preset');
+  models.innerHTML = '<option value="__session__">已注册模型（不回显）</option>';
+  document.getElementById('byok-custom-model-wrap').hidden = true;
+}
+
+function applyByokProvider(initializing) {
+  var provider = document.getElementById('byok-provider').value;
+  var preset = BYOK_PRESETS[provider];
+  var baseUrl = document.getElementById('byok-base-url');
+  var models = document.getElementById('byok-model-preset');
+  var restored = document.querySelector('#byok-provider option[value="session"]');
+  if (restored) restored.remove();
+  baseUrl.placeholder = 'https://api.example.com/v1';
+  models.innerHTML = '';
+  if (preset) {
+    baseUrl.value = preset.baseUrl;
+    preset.models.forEach(function(item) {
+      var option = document.createElement('option');
+      option.value = item[0];
+      option.textContent = item[1] + ' · ' + item[0];
+      models.appendChild(option);
+    });
+  } else {
+    baseUrl.value = '';
+  }
+  var custom = document.createElement('option');
+  custom.value = '__custom__';
+  custom.textContent = '自定义模型 ID';
+  models.appendChild(custom);
+  if (!preset) models.value = '__custom__';
+  toggleCustomByokModel(true);
+  if (!initializing) markByokConfigDirty();
+}
+
+function toggleCustomByokModel(initializing) {
+  var custom = document.getElementById('byok-model-preset').value === '__custom__';
+  document.getElementById('byok-custom-model-wrap').hidden = !custom;
+  if (!initializing) markByokConfigDirty();
+}
+
+function selectedByokModel() {
+  var selected = document.getElementById('byok-model-preset').value;
+  return selected === '__custom__'
+    ? document.getElementById('byok-model-custom').value.trim()
+    : selected;
 }
 
 function clearModelPreflightResult() {
-  document.getElementById('model-preflight-result').textContent = '';
+  setModelConnectionStatus('idle', '等待测试连接', '输入 API Key 后测试；注册成功后 Key 会从输入框清除。');
+}
+
+function setModelConnectionStatus(state, title, detail) {
+  document.getElementById('model-preflight-result').dataset.state = state;
+  document.getElementById('model-preflight-title').textContent = title;
+  document.getElementById('model-preflight-detail').textContent = detail;
+}
+
+function markByokConfigDirty() {
+  byokConfigDirty = true;
+  setModelConnectionStatus('idle', '配置已修改', '输入这组配置对应的 API Key，然后测试连接。');
 }
 
 function openModelSettings() {
@@ -1775,6 +1986,7 @@ async function revokeByokProfile() {
   var profile = sessionStorage.getItem('acouagent_byok_profile');
   if (!profile) return;
   sessionStorage.removeItem('acouagent_byok_profile');
+  byokRegistrationConfirmed = false;
   try {
     await fetch('/api/byok/session', {method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({profile_id:profile})});
   } catch (_) {}
@@ -1782,7 +1994,7 @@ async function revokeByokProfile() {
 
 async function registerByokForCurrentSession() {
   var baseUrl = document.getElementById('byok-base-url').value.trim();
-  var model = document.getElementById('byok-model').value.trim();
+  var model = selectedByokModel();
   var apiKey = document.getElementById('byok-api-key').value.trim();
   if (!baseUrl || !model || !apiKey) throw new Error('请填写 API 地址、模型名称和 API Key。');
   var resp = await fetch('/api/byok/session', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({base_url:baseUrl, model:model, api_key:apiKey})});
@@ -1792,19 +2004,24 @@ async function registerByokForCurrentSession() {
   sessionStorage.setItem('acouagent_byok_profile', data.profile_id);
   localStorage.removeItem('acouagent_model_profile');
   document.getElementById('byok-api-key').value = '';
+  document.getElementById('byok-api-key').placeholder = '本次会话已安全注册';
+  byokConfigDirty = false;
+  byokRegistrationConfirmed = true;
   return data.profile_id;
 }
 
 async function testModelConnection() {
   var selected = document.getElementById('model-profile').value;
-  var result = document.getElementById('model-preflight-result');
   var button = document.getElementById('model-test-btn');
   button.disabled = true;
-  result.textContent = '正在执行一次小型模型调用，不会执行返回的代码…';
+  setModelConnectionStatus('pending', '正在测试连接', '只执行小型兼容性检查，不运行模型返回的代码。');
   try {
     var profile = selected;
     if (selected === '__byok__') {
       var hasNewCredential = document.getElementById('byok-api-key').value.trim();
+      if (!hasNewCredential && byokConfigDirty) {
+        throw new Error('配置已修改，请输入这组配置对应的 API Key。');
+      }
       profile = hasNewCredential ? await registerByokForCurrentSession() : getModelProfile();
       if (!profile || !String(profile).startsWith('byok-')) {
         throw new Error('请填写并测试 BYOK 配置。');
@@ -1818,18 +2035,26 @@ async function testModelConnection() {
     });
     var data = await resp.json();
     if (!resp.ok) throw new Error(data.error || '模型测试失败');
-    var lines = [
-      data.ok ? '基础兼容测试通过。' : '端点已连接，但基础兼容测试未通过。',
-      '模型：' + String(data.model || ''),
-      '耗时：' + String(data.latency_ms) + ' ms'
-    ];
-    (data.checks || []).forEach(function(item) {
-      lines.push((item.passed ? '通过 · ' : '失败 · ') + String(item.detail || item.id));
-    });
-    lines.push('完整仿真仍需固定题、executor 与物理质量门验收。');
-    result.textContent = lines.join('\n');
+    var checks = Array.isArray(data.checks) ? data.checks : [];
+    var passed = checks.filter(function(item) { return item.passed; }).length;
+    var detail = String(data.model || '') + ' · ' + String(data.latency_ms) + ' ms · '
+      + String(passed) + '/' + String(checks.length) + ' 项兼容检查通过';
+    var failedDetails = checks.filter(function(item) { return !item.passed && item.detail; })
+      .map(function(item) { return String(item.detail); });
+    if (failedDetails.length) detail += '；未通过：' + failedDetails.join('；');
+    if (selected === '__byok__') byokRegistrationConfirmed = true;
+    setModelConnectionStatus(data.ok ? 'success' : 'warning',
+      data.ok ? '连接成功' : '端点已连接，兼容检查未通过', detail);
   } catch (e) {
-    result.textContent = '模型测试失败：' + String(e.message || e);
+    var message = String(e.message || e);
+    if (selected === '__byok__' && message.indexOf('byok_session_missing_or_expired') !== -1) {
+      sessionStorage.removeItem('acouagent_byok_profile');
+      byokRegistrationConfirmed = false;
+      byokConfigDirty = true;
+      document.getElementById('byok-api-key').placeholder = '仅发送到这台自部署服务器';
+      message = '本次会话配置已失效，请重新输入 API Key 后测试。';
+    }
+    setModelConnectionStatus('error', '连接失败', message);
   } finally {
     button.disabled = false;
   }
@@ -1837,18 +2062,20 @@ async function testModelConnection() {
 
 async function saveModelSettings() {
   var selected = document.getElementById('model-profile').value;
-  var detail = document.getElementById('model-profile-detail');
   if (selected === '__byok__') {
     var existing = sessionStorage.getItem('acouagent_byok_profile');
-    if (existing && !document.getElementById('byok-api-key').value.trim()) {
+    if (existing && !document.getElementById('byok-api-key').value.trim() && !byokConfigDirty) {
       closeModelSettings();
       return;
     }
-    detail.textContent = '正在注册临时 BYOK 配置…';
+    setModelConnectionStatus('pending', '正在保存模型配置', '密钥只会写入当前网关进程的临时内存。');
     try {
       await registerByokForCurrentSession();
+      setModelConnectionStatus('success', '本次会话模型已注册', '密钥已从输入框清除；关闭设置后即可开始仿真。');
       closeModelSettings();
-    } catch (e) { detail.textContent = 'BYOK 配置失败：' + String(e.message || e); }
+    } catch (e) {
+      setModelConnectionStatus('error', '保存失败', String(e.message || e));
+    }
     return;
   }
   await revokeByokProfile();

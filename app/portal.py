@@ -24,8 +24,10 @@ from app import (
 from app.dashboard import (
     CHAT_HTML,
     clear_executions,
+    get_analysis_updates,
     get_execution,
     get_executions,
+    get_latest_analysis_by_run_ids,
     get_stats,
     record_admin_event,
     record_execution,
@@ -201,7 +203,20 @@ def register(mcp) -> None:
         会话隔离：前端每次请求携带 session_id（浏览器 localStorage 持久化），
         Dify 侧 user 按会话区分（portal-<session>），避免多用户共享 Dify 会话上下文。
         """
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+            return PlainTextResponse(
+                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
+                status_code=400,
+                media_type="application/json",
+            )
+        if not isinstance(body, dict):
+            return PlainTextResponse(
+                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
+                status_code=400,
+                media_type="application/json",
+            )
         message = (body.get("message") or "").strip()
         requirement = (body.get("requirement") or "").strip()
         session_id = (body.get("session_id") or "").strip()[:24]
@@ -272,8 +287,16 @@ def register(mcp) -> None:
     @mcp.custom_route("/dashboard/api/executions", methods=["GET"])
     async def dashboard_api(request: Request) -> PlainTextResponse:
         since = int(request.query_params.get("since", "0"))
+        analysis_since = int(request.query_params.get("analysis_since", "0"))
         limit = min(int(request.query_params.get("limit", "100")), 500)
         executions = get_executions(limit=limit, since_id=since)
+        analysis_updates = get_analysis_updates(limit=limit, since_id=analysis_since)
+        analyses = get_latest_analysis_by_run_ids([
+            row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
+        ])
+        for row in executions:
+            if row.get("run_id") in analyses:
+                row["analysis"] = analyses[row["run_id"]]
         if config.SKILL_LIBRARY_ENABLED is True:
             links = skill_library_service.STORE.read_execution_links([
                 row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
@@ -282,7 +305,11 @@ def register(mcp) -> None:
                 if row.get("run_id") in links:
                     row["skill_reference"] = links[row["run_id"]]
         return PlainTextResponse(
-            json.dumps({"executions": executions, "stats": get_stats()}, ensure_ascii=False),
+            json.dumps({
+                "executions": executions,
+                "analysis_updates": analysis_updates,
+                "stats": get_stats(),
+            }, ensure_ascii=False, allow_nan=False),
             media_type="application/json",
         )
 
