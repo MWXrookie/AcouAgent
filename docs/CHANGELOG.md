@@ -1,3 +1,23 @@
+## 2026-10-18 · executor 多核 CPU 预算与墙钟截止对齐
+
+PR #19 合并后的生产升级验收中，默认固定平面波技能在约 18.8 秒返回 `-9`，但
+30 秒墙钟尚未到期，executor cgroup 的 `oom` / `oom_kill` 均为 0。根因是
+`RLIMIT_CPU` 统计进程所有线程的累计 CPU 时间：旧实现固定为 `timeout + 2`，
+在 Compose 声明的双核 JAX 任务上会以接近两倍墙钟速度提前耗尽。
+
+executor 现在读取 cgroup v2 `cpu.max`，并兼容 v1 quota/period；累计 CPU 上限按
+`timeout × 声明核数 + 2` 折算，核数向上取整且限制为 1–8，读取失败时保持旧的一核
+预算。独立的 `process.wait(timeout)` 仍在 30 秒强制终止，输出、文件、进程、4 GiB
+内存、只读根、cap-drop、no-new-privileges 和 internal 网络均未放宽。
+
+Linux 相关回归 **41 passed**。在当前生产 executor 科学栈之上仅替换候选
+`executor.py`，并以相同 2 CPU / 4 GiB / 只读降权 / internal 网络运行原平面波配方，
+实测 `exit_code=0`、`timed_out=false`、18.65 秒、回执关联通过；旧实现同配方为
+`exit_code=-9`。从 Dockerfile 全新重建时仍遇到已知的公网 wheel 下载超时，因此该
+网络失败不作为功能失败，也不伪装为完整源码冷构建通过。架构 JSON/HTML 同步更新。
+Archify showcase 校验 9/9、0 errors、0 warnings，`deliver` 与 1440×900、
+1600×1000、1920×1080、2048×1320 四档 `visual-check` 均通过，明暗截图已人工检查。
+
 ## 2026-10-18 · PR #19 合并冲突与审查问题收敛
 
 同步最新 `main` 后保留门户聊天页的主题、历史会话和防缓存改动，同时保留执行看板的独立分析事件游标与“结论”标签。模型设置修正 DeepSeek 官方 OpenAI-compatible 模型 ID 为 `deepseek-chat` / `deepseek-reasoner`；恢复仅有临时 BYOK 句柄的页面时改为显示“已注册配置（详情已隐藏）”，不再假装该句柄属于 DeepSeek。模型预检现在直接显示未通过检查的服务端安全详情。

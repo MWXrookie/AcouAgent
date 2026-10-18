@@ -43,9 +43,43 @@ def _runtime_identity() -> dict:
             "machine": platform.machine(), "library_versions": versions}
 
 
+def _quota_cores(quota: int, period: int) -> int:
+    """Return a small whole-core budget for a cgroup CPU quota.
+
+    RLIMIT_CPU counts aggregate process CPU time across threads.  A two-core
+    container can therefore consume roughly two CPU seconds per wall second.
+    Keep the independent wall timeout unchanged while allowing that declared
+    parallelism.  The upper bound prevents a malformed host quota from turning
+    the secondary CPU guard into an effectively unbounded value.
+    """
+    if quota <= 0 or period <= 0:
+        return 1
+    return max(1, min(8, (quota + period - 1) // period))
+
+
+def _cgroup_cpu_cores() -> int:
+    """Read cgroup v2/v1 CPU quota, failing closed to the legacy one-core budget."""
+    try:
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text(encoding="ascii").split()
+        if quota != "max":
+            return _quota_cores(int(quota), int(period))
+    except (OSError, ValueError):
+        pass
+    try:
+        quota = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text(encoding="ascii"))
+        period = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text(encoding="ascii"))
+        return _quota_cores(quota, period)
+    except (OSError, ValueError):
+        return 1
+
+
+def _cpu_limit_seconds(timeout_seconds: int) -> int:
+    return timeout_seconds * _cgroup_cpu_cores() + 2
+
 
 def _limits(timeout_seconds: int) -> None:
-    resource.setrlimit(resource.RLIMIT_CPU, (timeout_seconds + 2, timeout_seconds + 2))
+    cpu_seconds = _cpu_limit_seconds(timeout_seconds)
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES))
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
     resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))

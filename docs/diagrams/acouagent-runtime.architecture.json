@@ -48,7 +48,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "生成代码仍经原 run_jwave_code 路径进入内部 executor；只读、降权、无外网和资源限制保持不变。"
+        "note": "生成代码仍经原 run_jwave_code 路径进入内部 executor；30 秒墙钟截止保持不变，累计 CPU 限额按 cgroup 声明核数折算，避免双核任务在墙钟到期前被误杀。只读、降权、无外网和其他资源限制保持不变。"
       },
       {
         "id": "skill-workbench",
@@ -256,7 +256,7 @@
         170,
         76
       ],
-      "tag": "无外网 + 资源限额"
+      "tag": "无外网 + 30s墙钟/核数CPU"
     }
   ],
   "boundaries": [

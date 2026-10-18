@@ -127,6 +127,33 @@ def test_request_limits_preserved(payload):
         executor.execute(payload)
 
 
+@pytest.mark.parametrize("quota,period,expected", [
+    (100000, 100000, 1),
+    (150000, 100000, 2),
+    (200000, 100000, 2),
+    (900000, 100000, 8),
+    (0, 100000, 1),
+    (100000, 0, 1),
+])
+def test_cgroup_quota_maps_to_bounded_whole_core_budget(quota, period, expected):
+    assert executor._quota_cores(quota, period) == expected
+
+
+def test_cpu_rlimit_counts_declared_parallelism_without_extending_wall_timeout(monkeypatch):
+    limits = []
+    monkeypatch.setattr(executor, "_cgroup_cpu_cores", lambda: 2)
+    monkeypatch.setattr(executor.resource, "setrlimit", lambda kind, value: limits.append((kind, value)))
+
+    executor._limits(30)
+
+    assert limits[0] == (executor.resource.RLIMIT_CPU, (62, 62))
+    assert limits[1:] == [
+        (executor.resource.RLIMIT_FSIZE, (executor.MAX_OUTPUT_BYTES, executor.MAX_OUTPUT_BYTES)),
+        (executor.resource.RLIMIT_NOFILE, (128, 128)),
+        (executor.resource.RLIMIT_NPROC, (128, 128)),
+    ]
+
+
 def test_additive_database_column_keeps_old_row_null_and_records_new_receipt(tmp_path, monkeypatch):
     database = tmp_path / "history.db"
     monkeypatch.setattr(dashboard, "DB_PATH", str(database))
