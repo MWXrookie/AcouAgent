@@ -1,1 +1,2 @@
 scripts/validation/** text eol=lf
+executor/executor.py text eol=lf

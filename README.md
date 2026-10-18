@@ -73,7 +73,7 @@ Doctor 的 `prepare` 模式检查主机、`.env`、Docker、Compose 和端口；
 在线备份入口、源码身份及 executor 隔离。它是诊断工具，安装器仍只要求
 Docker Compose。
 
-安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有 `.env` 不会被覆盖。未配置环境变量模型时，健康检查、技能库和固定技能自举仍可用；启动后可直接在门户“模型设置”中填写自己的 API 地址、模型名和密钥。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
+安装器仅在 `.env` 不存在时创建它并生成两个不同的本地 token；已有自定义配置会保留。若 `.env` 仍使用已知的旧发行默认 executor 镜像，安装器会先创建带 UTC 时间的本地备份，再只迁移该镜像行。未配置环境变量模型时，健康检查、技能库和固定技能自举仍可用；启动后可直接在门户“模型设置”中填写自己的 API 地址、模型名和密钥。需要先编辑配置时使用 `--prepare-only` 或 PowerShell 的 `-PrepareOnly`。
 
 对应的手工命令为：
 

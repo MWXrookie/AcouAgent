@@ -8,7 +8,7 @@
 bash scripts/install.sh
 ```
 
-Windows Docker Desktop 可从 PowerShell 运行 `powershell -ExecutionPolicy Bypass -File scripts/install.ps1`。安装器只在 `.env` 不存在时创建安全随机 token，重复运行不会覆盖已有配置。使用 `--prepare-only` / `-PrepareOnly` 可以先生成配置，填写模型凭据后再启动。
+Windows Docker Desktop 可从 PowerShell 运行 `powershell -ExecutionPolicy Bypass -File scripts/install.ps1`。安装器只在 `.env` 不存在时创建安全随机 token；重复运行保留自定义配置。若检测到已知的旧发行默认 executor 镜像，会先创建 `.env.bak.executor-image-<UTC时间>`，再只迁移这一行到匹配当前网关身份的 `c77bc27` 镜像。使用 `--prepare-only` / `-PrepareOnly` 可以先生成配置，填写模型凭据后再启动。
 
 手工步骤：
 
@@ -33,7 +33,7 @@ curl http://127.0.0.1:8001/skills
 
 ## 已有克隆升级
 
-`git pull` 不会覆盖现有 `.env`。如果旧环境曾关闭技能开关，请把以下值写入自己的 `.env`：
+`git pull` 不会覆盖现有 `.env`。重新运行安装器会自动备份并迁移旧发行默认镜像；自定义 executor 镜像不会被替换。如果旧环境曾关闭技能开关，请把以下值写入自己的 `.env`：
 
 ```dotenv
 SKILL_LIBRARY_ENABLED=true

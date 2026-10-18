@@ -24,6 +24,28 @@ function Get-EnvValue([string]$Name) {
     return $line.Substring($Name.Length + 1)
 }
 
+function Update-LegacyExecutorImage {
+    $legacy = 'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007'
+    $current = 'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:c77bc27'
+    $lines = Get-Content -LiteralPath '.env'
+    $matches = @($lines | Where-Object { $_ -eq $legacy })
+    if ($matches.Count -gt 1) { throw 'legacy ACOUAGENT_EXECUTOR_IMAGE appears more than once in .env' }
+    if ($matches.Count -eq 1) {
+        $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+        $backup = ".env.bak.executor-image-$stamp"
+        Copy-Item -LiteralPath '.env' -Destination $backup
+        $content = [System.IO.File]::ReadAllText((Join-Path $repoRoot '.env'))
+        $pattern = '(?m)^' + [Regex]::Escape($legacy) + '\r?$'
+        $content = [Regex]::Replace($content, $pattern, $current)
+        [System.IO.File]::WriteAllText(
+            (Join-Path $repoRoot '.env'),
+            $content,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        Write-Output "migrated the obsolete executor image default; backup saved to $backup"
+    }
+}
+
 if (-not (Test-Path -LiteralPath '.env')) {
     if (-not (Test-Path -LiteralPath '.env.example')) { throw 'missing .env.example' }
     $mcpToken = New-RandomToken
@@ -38,8 +60,10 @@ if (-not (Test-Path -LiteralPath '.env')) {
     )
     Write-Output 'created .env with independent local tokens'
 } else {
-    Write-Output 'using existing .env without overwriting it'
+    Write-Output 'using existing .env and preserving custom values'
 }
+
+Update-LegacyExecutorImage
 
 $envLines = Get-Content -LiteralPath '.env'
 $mcpCount = @($envLines | Where-Object { $_ -like 'MCP_AUTH_TOKEN=*' }).Count

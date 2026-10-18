@@ -1,4 +1,5 @@
-import copy,json,sqlite3,uuid
+import copy,hashlib,json,sqlite3,uuid
+from pathlib import Path
 import pytest
 from app import config,dashboard,executor_evidence,skill_library_service as service
 from app import skill_local_profile as local,skill_retrieval,skill_generation_decision as decisions
@@ -6,6 +7,11 @@ from app.skill_store import SkillStore
 from scripts.validation.host_forward_signature import canonical
 from tests.unit.test_plane_wave_evidence import evidence
 from tests.unit.test_executor_evidence import RUNTIME
+
+def test_executor_source_pin_matches_packaged_executor():
+    source=Path(__file__).resolve().parents[2]/"executor"/"executor.py"
+    packaged=source.read_bytes()
+    assert local.EXECUTOR_SOURCE_SHA256==hashlib.sha256(packaged).hexdigest()
 
 @pytest.fixture
 def ready(tmp_path,monkeypatch):

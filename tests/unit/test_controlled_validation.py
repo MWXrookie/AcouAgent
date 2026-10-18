@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNTIME = json.loads((ROOT / "tests/fixtures/executor_runtime_identity.json").read_text())
 NONCE = "a"*32
 
+def test_isolated_runtime_pin_matches_fixture():
+    encoded=json.dumps(RUNTIME,sort_keys=True,separators=(",",":"))
+    assert binding.ISOLATED_RUNTIME_SHA256==binding.digest(encoded)
+
 
 @pytest.fixture
 def history(tmp_path, monkeypatch):

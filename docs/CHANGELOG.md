@@ -1,3 +1,22 @@
+## 2026-10-18 · executor 身份固定值与技能实际复用恢复
+
+PR #20 部署验收发现：新版 executor 已正常完成周期水介质配方并返回 `exit_code=0`，
+但网关仍将固定技能可信运行身份绑定到上一版 `executor.py` 的 SHA-256，导致
+`local_basic verify-reuse` 在物理输出正确时仍记录 `local_reference_execution_failed`。
+可信白名单、隔离运行时合同摘要与测试运行身份现同步更新到合并后 executor 源码摘要，
+并新增直接计算仓库内 `executor/executor.py` 及运行时 fixture 合同的防漂移测试；后续修改
+executor 而漏更任一绑定时，单元回归会立即失败。
+运行时组件、网络拓扑、资源限制、技能等级和自动学习策略均未改变。
+
+干净安装使用的 executor 默认镜像同步固定到包含该源码身份的已发布主分支镜像
+`ghcr.io/mwxrookie/acouagent-executor:c77bc27`，避免新网关与旧 executor 镜像因身份
+不一致而使 17 项固定技能自举全部失败。`executor/executor.py` 在 Git checkout 中强制
+使用 LF，摘要测试直接读取构建上下文的原始字节，防止 Windows `core.autocrlf` 让测试
+通过而 Docker 镜像中的运行时摘要发生漂移。
+安装器会识别旧发行模板留下的唯一旧 executor 镜像行，先在本机备份 `.env` 再迁移
+到 `c77bc27`；用户自定义镜像、模型凭据和其他配置不参与替换。这样已有克隆执行升级
+命令时不会继续运行与新网关身份合同不匹配的旧 executor。
+
 ## 2026-10-18 · executor 多核 CPU 预算与墙钟截止对齐
 
 PR #19 合并后的生产升级验收中，默认固定平面波技能在约 18.8 秒返回 `-9`，但
