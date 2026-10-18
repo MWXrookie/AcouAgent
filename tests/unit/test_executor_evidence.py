@@ -1,6 +1,7 @@
 import copy
 import json
 import sqlite3
+import time
 
 import pytest
 from app import dashboard, execution, executor_evidence, tools
@@ -114,6 +115,26 @@ def test_actual_timeout_is_bound_to_server_envelope(monkeypatch):
     result = executor.execute({"code": code, "timeout_seconds": 1, "request_nonce": NONCE})
     assert result["timed_out"] and result["exit_code"] != 0
     assert executor_evidence.verify_executor_receipt(result["executor_receipt"], result, code, 1, NONCE)["matched"]
+
+
+def test_completed_request_kills_descendant_process_group(tmp_path, monkeypatch):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    marker = tmp_path / "escaped-worker.txt"
+    code = (
+        "import os, time\n"
+        "if os.fork() == 0:\n"
+        "    time.sleep(0.5)\n"
+        f"    open({str(marker)!r}, 'w').write('escaped')\n"
+        "else:\n"
+        "    print('parent exited')\n"
+    )
+
+    result = executor.execute({"code": code, "timeout_seconds": 2, "request_nonce": NONCE})
+    time.sleep(0.8)
+
+    assert result["exit_code"] == 0 and not result["timed_out"]
+    assert result["stdout"] == "parent exited\n"
+    assert not marker.exists()
 
 
 @pytest.mark.parametrize("payload", [

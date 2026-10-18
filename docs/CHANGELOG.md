@@ -7,7 +7,8 @@ PR #19 合并后的生产升级验收中，默认固定平面波技能在约 18.
 
 executor 现在读取 cgroup v2 `cpu.max`，并兼容 v1 quota/period；累计 CPU 上限按
 `timeout × 声明核数 + 2` 折算，核数向上取整且限制为 1–8，读取失败时保持旧的一核
-预算。独立的 `process.wait(timeout)` 仍在 30 秒强制终止，输出、文件、进程、4 GiB
+预算。请求结束时无论父进程正常退出或超时，executor 都会清理该请求的整个进程组，
+避免派生 worker 越过请求生命周期。独立的 `process.wait(timeout)` 仍在 30 秒强制终止，输出、文件、进程、4 GiB
 内存、只读根、cap-drop、no-new-privileges 和 internal 网络均未放宽。
 
 Linux 相关回归 **41 passed**。在当前生产 executor 科学栈之上仅替换候选

@@ -85,6 +85,16 @@ def _limits(timeout_seconds: int) -> None:
     resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
 
 
+def _kill_process_group(process: subprocess.Popen) -> None:
+    """Terminate every process created for one request, including detached workers."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    if process.poll() is None:
+        process.wait()
+
+
 def execute(payload: dict) -> dict:
     code = payload.get("code")
     timeout_seconds = int(payload.get("timeout_seconds", 15))
@@ -134,8 +144,8 @@ def execute(payload: dict) -> dict:
                 process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
                 timed_out = True
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
+            finally:
+                _kill_process_group(process)
         stdout_text = stdout_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
         stderr_text = stderr_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
 
