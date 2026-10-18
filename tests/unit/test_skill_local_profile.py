@@ -10,7 +10,7 @@ from tests.unit.test_executor_evidence import RUNTIME
 
 def test_executor_source_pin_matches_packaged_executor():
     source=Path(__file__).resolve().parents[2]/"executor"/"executor.py"
-    packaged=source.read_text(encoding="utf-8").encode("utf-8")
+    packaged=source.read_bytes()
     assert local.EXECUTOR_SOURCE_SHA256==hashlib.sha256(packaged).hexdigest()
 
 @pytest.fixture

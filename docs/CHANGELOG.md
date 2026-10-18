@@ -8,6 +8,12 @@ PR #20 部署验收发现：新版 executor 已正常完成周期水介质配方
 executor 而漏更任一绑定时，单元回归会立即失败。
 运行时组件、网络拓扑、资源限制、技能等级和自动学习策略均未改变。
 
+干净安装使用的 executor 默认镜像同步固定到包含该源码身份的已发布主分支镜像
+`ghcr.io/mwxrookie/acouagent-executor:c77bc27`，避免新网关与旧 executor 镜像因身份
+不一致而使 17 项固定技能自举全部失败。`executor/executor.py` 在 Git checkout 中强制
+使用 LF，摘要测试直接读取构建上下文的原始字节，防止 Windows `core.autocrlf` 让测试
+通过而 Docker 镜像中的运行时摘要发生漂移。
+
 ## 2026-10-18 · executor 多核 CPU 预算与墙钟截止对齐
 
 PR #19 合并后的生产升级验收中，默认固定平面波技能在约 18.8 秒返回 `-9`，但

@@ -106,6 +106,18 @@ def test_release_compose_builds_gateway_from_checked_out_source():
     assert "feat-acouagent-evidence-gates-20261007" not in gateway
 
 
+def test_release_compose_pins_executor_image_with_matching_source_identity():
+    root = Path(__file__).resolve().parents[2]
+    compose = (root / "compose.yaml").read_text(encoding="utf-8")
+    env_example = (root / ".env.example").read_text(encoding="utf-8")
+    expected = "ghcr.io/mwxrookie/acouagent-executor:c77bc27"
+
+    assert expected in compose
+    assert f"ACOUAGENT_EXECUTOR_IMAGE={expected}" in env_example
+    assert "feat-acouagent-evidence-gates-20261007" not in compose
+    assert "feat-acouagent-evidence-gates-20261007" not in env_example
+
+
 def test_clean_install_workflow_checks_source_skills_and_cleanup():
     workflow_path = (
         Path(__file__).resolve().parents[2]
