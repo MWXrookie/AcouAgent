@@ -3,8 +3,9 @@
 PR #20 部署验收发现：新版 executor 已正常完成周期水介质配方并返回 `exit_code=0`，
 但网关仍将固定技能可信运行身份绑定到上一版 `executor.py` 的 SHA-256，导致
 `local_basic verify-reuse` 在物理输出正确时仍记录 `local_reference_execution_failed`。
-可信白名单与测试运行身份现同步更新到合并后 executor 源码摘要，并新增直接计算仓库内
-`executor/executor.py` 的防漂移测试；后续修改 executor 而漏更网关绑定时，单元回归会立即失败。
+可信白名单、隔离运行时合同摘要与测试运行身份现同步更新到合并后 executor 源码摘要，
+并新增直接计算仓库内 `executor/executor.py` 及运行时 fixture 合同的防漂移测试；后续修改
+executor 而漏更任一绑定时，单元回归会立即失败。
 运行时组件、网络拓扑、资源限制、技能等级和自动学习策略均未改变。
 
 ## 2026-10-18 · executor 多核 CPU 预算与墙钟截止对齐
