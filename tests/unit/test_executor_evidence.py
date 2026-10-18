@@ -1,6 +1,7 @@
 import copy
 import json
 import sqlite3
+import time
 
 import pytest
 from app import dashboard, execution, executor_evidence, tools
@@ -116,6 +117,67 @@ def test_actual_timeout_is_bound_to_server_envelope(monkeypatch):
     assert executor_evidence.verify_executor_receipt(result["executor_receipt"], result, code, 1, NONCE)["matched"]
 
 
+def test_uncatchable_child_signal_preserves_negative_exit_code(monkeypatch):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    code = "import os, signal; os.kill(os.getpid(), signal.SIGKILL)"
+
+    result = executor.execute({"code": code, "timeout_seconds": 2, "request_nonce": NONCE})
+
+    assert result["exit_code"] == -9 and not result["timed_out"]
+    assert result["stderr"] == ""
+
+
+def test_executor_server_requires_pid_namespace_init(monkeypatch):
+    monkeypatch.setattr(executor.os, "getpid", lambda: 2)
+    with pytest.raises(RuntimeError, match="container PID 1"):
+        executor._require_pid_namespace_init()
+    monkeypatch.setattr(executor.os, "getpid", lambda: 1)
+    executor._require_pid_namespace_init()
+
+
+@pytest.mark.parametrize("detach", [False, True])
+def test_completed_request_kills_all_descendants(tmp_path, monkeypatch, detach):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    marker = tmp_path / f"escaped-worker-{detach}.txt"
+    detach_line = "    os.setsid()\n" if detach else ""
+    code = (
+        "import os, time\n"
+        "if os.fork() == 0:\n"
+        f"{detach_line}"
+        "    time.sleep(0.5)\n"
+        f"    open({str(marker)!r}, 'w').write('escaped')\n"
+        "else:\n"
+        "    print('parent exited')\n"
+    )
+
+    result = executor.execute({"code": code, "timeout_seconds": 2, "request_nonce": NONCE})
+    time.sleep(0.8)
+
+    assert result["exit_code"] == 0 and not result["timed_out"]
+    assert result["stdout"] == "parent exited\n"
+    assert not marker.exists()
+
+
+def test_timed_out_request_kills_detached_descendants(tmp_path, monkeypatch):
+    monkeypatch.setattr(executor, "_runtime_identity", lambda: copy.deepcopy(RUNTIME))
+    marker = tmp_path / "escaped-after-timeout.txt"
+    code = (
+        "import os, time\n"
+        "if os.fork() == 0:\n"
+        "    os.setsid()\n"
+        "    time.sleep(1.5)\n"
+        f"    open({str(marker)!r}, 'w').write('escaped')\n"
+        "else:\n"
+        "    time.sleep(5)\n"
+    )
+
+    result = executor.execute({"code": code, "timeout_seconds": 1, "request_nonce": NONCE})
+    time.sleep(0.8)
+
+    assert result["timed_out"] and result["exit_code"] != 0
+    assert not marker.exists()
+
+
 @pytest.mark.parametrize("payload", [
     {"code": "print(1)", "request_nonce": "short"},
     {"code": "print(1)", "request_nonce": True},
@@ -125,6 +187,33 @@ def test_actual_timeout_is_bound_to_server_envelope(monkeypatch):
 def test_request_limits_preserved(payload):
     with pytest.raises(ValueError):
         executor.execute(payload)
+
+
+@pytest.mark.parametrize("quota,period,expected", [
+    (100000, 100000, 1),
+    (150000, 100000, 2),
+    (200000, 100000, 2),
+    (900000, 100000, 8),
+    (0, 100000, 1),
+    (100000, 0, 1),
+])
+def test_cgroup_quota_maps_to_bounded_whole_core_budget(quota, period, expected):
+    assert executor._quota_cores(quota, period) == expected
+
+
+def test_cpu_rlimit_counts_declared_parallelism_without_extending_wall_timeout(monkeypatch):
+    limits = []
+    monkeypatch.setattr(executor, "_cgroup_cpu_cores", lambda: 2)
+    monkeypatch.setattr(executor.resource, "setrlimit", lambda kind, value: limits.append((kind, value)))
+
+    executor._limits(30)
+
+    assert limits[0] == (executor.resource.RLIMIT_CPU, (62, 62))
+    assert limits[1:] == [
+        (executor.resource.RLIMIT_FSIZE, (executor.MAX_OUTPUT_BYTES, executor.MAX_OUTPUT_BYTES)),
+        (executor.resource.RLIMIT_NOFILE, (128, 128)),
+        (executor.resource.RLIMIT_NPROC, (128, 128)),
+    ]
 
 
 def test_additive_database_column_keeps_old_row_null_and_records_new_receipt(tmp_path, monkeypatch):

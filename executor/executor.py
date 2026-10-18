@@ -20,6 +20,7 @@ from pathlib import Path
 TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN", "")
 MAX_CODE_BYTES = 20000
 MAX_OUTPUT_BYTES = 1024 * 1024
+PR_SET_CHILD_SUBREAPER = 36
 
 
 def _sha256(text: str) -> str:
@@ -43,12 +44,102 @@ def _runtime_identity() -> dict:
             "machine": platform.machine(), "library_versions": versions}
 
 
+def _quota_cores(quota: int, period: int) -> int:
+    """Return a small whole-core budget for a cgroup CPU quota.
+
+    RLIMIT_CPU counts aggregate process CPU time across threads.  A two-core
+    container can therefore consume roughly two CPU seconds per wall second.
+    Keep the independent wall timeout unchanged while allowing that declared
+    parallelism.  The upper bound prevents a malformed host quota from turning
+    the secondary CPU guard into an effectively unbounded value.
+    """
+    if quota <= 0 or period <= 0:
+        return 1
+    return max(1, min(8, (quota + period - 1) // period))
+
+
+def _cgroup_cpu_cores() -> int:
+    """Read cgroup v2/v1 CPU quota, failing closed to the legacy one-core budget."""
+    try:
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text(encoding="ascii").split()
+        if quota != "max":
+            return _quota_cores(int(quota), int(period))
+    except (OSError, ValueError):
+        pass
+    try:
+        quota = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text(encoding="ascii"))
+        period = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text(encoding="ascii"))
+        return _quota_cores(quota, period)
+    except (OSError, ValueError):
+        return 1
+
+
+def _cpu_limit_seconds(timeout_seconds: int) -> int:
+    return timeout_seconds * _cgroup_cpu_cores() + 2
+
 
 def _limits(timeout_seconds: int) -> None:
-    resource.setrlimit(resource.RLIMIT_CPU, (timeout_seconds + 2, timeout_seconds + 2))
+    cpu_seconds = _cpu_limit_seconds(timeout_seconds)
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES))
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
     resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
+
+
+def _enable_child_subreaper() -> None:
+    """Make direct test callers adopt orphaned user descendants like container PID 1."""
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
+
+
+def _direct_child_pids() -> list[int]:
+    children = Path(f"/proc/{os.getpid()}/task/{os.getpid()}/children")
+    try:
+        return [int(pid) for pid in children.read_text(encoding="ascii").split()]
+    except FileNotFoundError:
+        return []
+
+
+def _reap_exited_children() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            return
+
+
+def _terminate_descendants() -> None:
+    """Kill and reap the complete user tree, including descendants that called setsid()."""
+    while True:
+        children = _direct_child_pids()
+        if not children:
+            _reap_exited_children()
+            if not _direct_child_pids():
+                return
+            continue
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        _reap_exited_children()
+        time.sleep(0.01)
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    """Terminate the initial user process group before reaping escaped descendants."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    if process.poll() is None:
+        process.wait()
 
 
 def execute(payload: dict) -> dict:
@@ -67,6 +158,7 @@ def execute(payload: dict) -> dict:
         raise ValueError("request_nonce must be 32 lowercase hex characters")
     runtime = _runtime_identity()
     started = time.monotonic()
+    _enable_child_subreaper()
     with tempfile.TemporaryDirectory(prefix="mcp-run-", dir="/tmp") as workdir:
         work = Path(workdir)
         script = work / "main.py"
@@ -100,8 +192,9 @@ def execute(payload: dict) -> dict:
                 process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
                 timed_out = True
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
+            finally:
+                _kill_process_group(process)
+                _terminate_descendants()
         stdout_text = stdout_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
         stderr_text = stderr_path.read_bytes()[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
 
@@ -169,7 +262,13 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+def _require_pid_namespace_init() -> None:
+    if os.getpid() != 1:
+        raise RuntimeError("executor server must run as container PID 1 so user code cannot kill its reaper")
+
+
 if __name__ == "__main__":
     if len(TOKEN) < 32:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+    _require_pid_namespace_init()
     HTTPServer(("0.0.0.0", 8010), Handler).serve_forever()
