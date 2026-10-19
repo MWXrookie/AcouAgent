@@ -48,7 +48,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "生成代码经 run_jwave_code 进入内部 executor；30 秒墙钟不变，累计 CPU 按 cgroup 核数折算。executor 服务固定为容器 PID 1 并清理完整后代树，含另建会话的 worker；只读、降权、无外网等限制不变。"
+        "note": "run_jwave_code 进入内部 executor；XLA Eigen 双核开启、线程固定 2，仍受 2 CPU、30 秒墙钟和累计 CPU 限额约束。PID 1 回收完整后代树；只读、降权、无外网不变。"
       },
       {
         "id": "skill-workbench",
@@ -247,7 +247,7 @@
       "id": "jwave_sandbox",
       "type": "security",
       "label": "jwave 沙箱",
-      "sublabel": "Python / jwave 0.2.1 / CPU",
+      "sublabel": "Python / jwave 0.2.1 / 2核 Eigen",
       "pos": [
         1040,
         570
@@ -256,7 +256,7 @@
         170,
         76
       ],
-      "tag": "无外网 + 30s墙钟/核数CPU"
+      "tag": "无外网 + 30s墙钟/2 CPU"
     }
   ],
   "boundaries": [
