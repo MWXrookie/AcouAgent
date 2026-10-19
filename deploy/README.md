@@ -8,7 +8,7 @@
 bash scripts/install.sh
 ```
 
-Windows Docker Desktop 可从 PowerShell 运行 `powershell -ExecutionPolicy Bypass -File scripts/install.ps1`。安装器只在 `.env` 不存在时创建安全随机 token；重复运行保留自定义配置。若检测到已知的旧发行默认 executor 镜像，会先创建 `.env.bak.executor-image-<UTC时间>`，再只迁移这一行到匹配当前网关身份的 `c77bc27` 镜像。使用 `--prepare-only` / `-PrepareOnly` 可以先生成配置，填写模型凭据后再启动。
+Windows Docker Desktop 可从 PowerShell 运行 `powershell -ExecutionPolicy Bypass -File scripts/install.ps1`。安装器只在 `.env` 不存在时创建安全随机 token；重复运行保留自定义配置。若检测到已知的旧发行默认 executor 镜像，会先创建 `.env.bak.executor-image-<UTC时间>`，再只迁移这一行到匹配当前网关身份的不可变 `f65addf` 镜像。使用 `--prepare-only` / `-PrepareOnly` 可以先生成配置，填写模型凭据后再启动。
 
 手工步骤：
 
