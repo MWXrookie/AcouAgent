@@ -6,7 +6,7 @@ x-gateway-build: &gateway-build
 
 services:
   jwave-executor:
-    image: ${ACOUAGENT_EXECUTOR_IMAGE:-ghcr.io/mwxrookie/acouagent-executor:c77bc27}
+    image: ${ACOUAGENT_EXECUTOR_IMAGE:-ghcr.io/mwxrookie/acouagent-executor:f65addf}
     container_name: jwave-executor
     restart: unless-stopped
     environment:
