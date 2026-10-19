@@ -25,17 +25,23 @@ function Get-EnvValue([string]$Name) {
 }
 
 function Update-LegacyExecutorImage {
-    $legacy = 'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007'
-    $current = 'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:c77bc27'
+    $legacyValues = @(
+        'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:feat-acouagent-evidence-gates-20261007',
+        'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:c77bc27'
+    )
+    $current = 'ACOUAGENT_EXECUTOR_IMAGE=ghcr.io/mwxrookie/acouagent-executor:f65addf'
     $lines = Get-Content -LiteralPath '.env'
-    $matches = @($lines | Where-Object { $_ -eq $legacy })
-    if ($matches.Count -gt 1) { throw 'legacy ACOUAGENT_EXECUTOR_IMAGE appears more than once in .env' }
+    $matches = @($lines | Where-Object { $legacyValues -contains $_ })
+    $imageLines = @($lines | Where-Object { $_ -like 'ACOUAGENT_EXECUTOR_IMAGE=*' })
+    if ($matches.Count -gt 0 -and $imageLines.Count -ne 1) {
+        throw 'managed legacy ACOUAGENT_EXECUTOR_IMAGE requires exactly one image setting in .env'
+    }
     if ($matches.Count -eq 1) {
         $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
         $backup = ".env.bak.executor-image-$stamp"
         Copy-Item -LiteralPath '.env' -Destination $backup
         $content = [System.IO.File]::ReadAllText((Join-Path $repoRoot '.env'))
-        $pattern = '(?m)^' + [Regex]::Escape($legacy) + '\r?$'
+        $pattern = '(?m)^(' + (($legacyValues | ForEach-Object { [Regex]::Escape($_) }) -join '|') + ')\r?$'
         $content = [Regex]::Replace($content, $pattern, $current)
         [System.IO.File]::WriteAllText(
             (Join-Path $repoRoot '.env'),

@@ -1,3 +1,22 @@
+## 2026-10-19 · 默认平面波恢复双核 JAX 计算
+
+生产终验发现固定平面波配方在当前 2 CPU VM 上约 30.06 秒触发既有 30 秒墙钟，
+而相同代码直接启用 XLA Eigen 双核后约 14.99 秒完成。executor 子进程原先同时声明
+`intra_op_parallelism_threads=2` 和 `xla_cpu_multi_thread_eigen=false`，实际关闭了对应
+并行路径。现改为 `xla_cpu_multi_thread_eigen=true`，仍只使用 Compose 声明的 2 CPU；
+30 秒墙钟、按 cgroup 折算的累计 CPU 上限、内存、进程、输出、只读根、降权和隔离网络
+均保持不变。executor 源码身份、固定技能白名单和隔离运行时合同同步更新。
+
+全新安装的默认 executor 镜像同步固定到已发布的不可变标签
+`ghcr.io/mwxrookie/acouagent-executor:f65addf`。安装器仅将项目曾发布过的两个旧默认值
+迁移到该镜像，迁移前备份 `.env`；用户自定义镜像和其他配置继续原样保留。若旧默认值
+与重复的镜像配置同时出现，安装器会拒绝猜测，避免静默覆盖不明确的部署设置。
+
+运行时架构资产同步标注 XLA Eigen 双核、固定 2 线程和既有 2 CPU / 30 秒 / 累计 CPU
+约束。Archify showcase 校验 9/9、0 errors、0 warnings；交付及 1440×900、1600×1000、
+1920×1080、2048×1320 明暗视口检查通过，四张深浅截图已人工检查，回执记录
+`visualReview=passed`。
+
 ## 2026-10-18 · executor 身份固定值与技能实际复用恢复
 
 PR #20 部署验收发现：新版 executor 已正常完成周期水介质配方并返回 `exit_code=0`，

@@ -3,6 +3,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from app import config, dashboard
 from app import skill_local_profile as local
 from scripts.skill_library import local_basic
@@ -110,7 +112,7 @@ def test_release_compose_pins_executor_image_with_matching_source_identity():
     root = Path(__file__).resolve().parents[2]
     compose = (root / "compose.yaml").read_text(encoding="utf-8")
     env_example = (root / ".env.example").read_text(encoding="utf-8")
-    expected = "ghcr.io/mwxrookie/acouagent-executor:c77bc27"
+    expected = "ghcr.io/mwxrookie/acouagent-executor:f65addf"
 
     assert expected in compose
     assert f"ACOUAGENT_EXECUTOR_IMAGE={expected}" in env_example
@@ -173,7 +175,11 @@ def test_posix_installer_prepares_tokens_without_overwriting(tmp_path):
     assert env_path.read_text(encoding="utf-8") == initial
 
 
-def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path):
+@pytest.mark.parametrize("obsolete_tag", [
+    "feat-acouagent-evidence-gates-20261007",
+    "c77bc27",
+])
+def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path, obsolete_tag):
     if os.name == "nt":
         return
     bash = shutil.which("bash")
@@ -185,7 +191,7 @@ def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path):
     content = (root / ".env.example").read_text(encoding="utf-8")
     content = content.replace("replace-with-at-least-32-random-characters", "a" * 64)
     content = content.replace("replace-with-a-different-32-character-secret", "b" * 64)
-    content = content.replace("acouagent-executor:c77bc27", "acouagent-executor:feat-acouagent-evidence-gates-20261007")
+    content = content.replace("acouagent-executor:f65addf", f"acouagent-executor:{obsolete_tag}")
     (tmp_path / ".env").write_bytes(content.replace("\n", "\r\n").encode("utf-8"))
 
     result = subprocess.run(
@@ -194,12 +200,12 @@ def test_posix_installer_migrates_only_obsolete_executor_default(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     migrated = (tmp_path / ".env").read_text(encoding="utf-8")
-    assert "acouagent-executor:c77bc27" in migrated
-    assert "feat-acouagent-evidence-gates-20261007" not in migrated
+    assert "acouagent-executor:f65addf" in migrated
+    assert f"acouagent-executor:{obsolete_tag}" not in migrated
     assert "a" * 64 in migrated and "b" * 64 in migrated
     backups = list(tmp_path.glob(".env.bak.executor-image-*"))
     assert len(backups) == 1
-    assert "feat-acouagent-evidence-gates-20261007" in backups[0].read_text(encoding="utf-8")
+    assert f"acouagent-executor:{obsolete_tag}" in backups[0].read_text(encoding="utf-8")
 
 
 def test_installers_do_not_print_or_overwrite_model_credentials():
@@ -240,7 +246,11 @@ def test_powershell_installer_prepares_tokens_without_overwriting(tmp_path):
     assert env_path.read_text(encoding="utf-8") == initial
 
 
-def test_powershell_installer_migrates_only_obsolete_executor_default(tmp_path):
+@pytest.mark.parametrize("obsolete_tag", [
+    "feat-acouagent-evidence-gates-20261007",
+    "c77bc27",
+])
+def test_powershell_installer_migrates_only_obsolete_executor_default(tmp_path, obsolete_tag):
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:
         return
@@ -250,7 +260,7 @@ def test_powershell_installer_migrates_only_obsolete_executor_default(tmp_path):
     content = (root / ".env.example").read_text(encoding="utf-8")
     content = content.replace("replace-with-at-least-32-random-characters", "a" * 64)
     content = content.replace("replace-with-a-different-32-character-secret", "b" * 64)
-    content = content.replace("acouagent-executor:c77bc27", "acouagent-executor:feat-acouagent-evidence-gates-20261007")
+    content = content.replace("acouagent-executor:f65addf", f"acouagent-executor:{obsolete_tag}")
     (tmp_path / ".env").write_text(content, encoding="utf-8")
 
     result = subprocess.run(
@@ -260,8 +270,8 @@ def test_powershell_installer_migrates_only_obsolete_executor_default(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     migrated = (tmp_path / ".env").read_text(encoding="utf-8")
-    assert "acouagent-executor:c77bc27" in migrated
-    assert "feat-acouagent-evidence-gates-20261007" not in migrated
+    assert "acouagent-executor:f65addf" in migrated
+    assert f"acouagent-executor:{obsolete_tag}" not in migrated
     assert "a" * 64 in migrated and "b" * 64 in migrated
     backups = list(tmp_path.glob(".env.bak.executor-image-*"))
     assert len(backups) == 1

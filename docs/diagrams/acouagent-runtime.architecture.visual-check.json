@@ -3,11 +3,11 @@
   "ok": true,
   "command": "visual-check",
   "status": "pass",
-  "visualReview": "pending",
+  "visualReview": "passed",
   "artifact": {
-    "path": "C:\\Users\\ASUS\\Documents\\Codex\\2026-10-12\\codex-threads-01a11722-34ed-7362-bd4f\\work\\pr8-remote-snapshot\\docs\\diagrams\\acouagent-runtime.architecture.html",
-    "sha256": "07d679f1f68ebb46c533acf0ef114cdbd3dffb709dab0d8345e9bc86cf55e744",
-    "bytes": 726823
+    "path": "docs/diagrams/acouagent-runtime.architecture.html",
+    "sha256": "bb73ec1608ddc2ec797eba325c42f7c363e859ab2f3c0f55cf78de35722e034f",
+    "bytes": 726794
   },
   "state": {
     "detail": "read",
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    "executable": "<local Chrome path redacted>"
   },
   "diagnostics": [],
   "containment": {
@@ -543,5 +543,18 @@
   "sidecars": {
     "receipt": "acouagent-runtime.architecture.visual-check.json",
     "contactSheet": "acouagent-runtime.architecture.visual-check.html"
-  }
+  },
+  "manualReview": {
+    "status": "passed",
+    "inspected_at_utc": "2026-10-19T00:44:01Z",
+    "captures": [
+      "1440x900 light",
+      "1440x900 dark",
+      "2048x1320 light",
+      "2048x1320 dark"
+    ],
+    "result": "No clipping, overlap, ambiguous routing, unreadable labels, or theme-specific defects observed.",
+    "correction_rounds": 3
+  },
+  "operator_paths_redacted": true
 }

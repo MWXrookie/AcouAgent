@@ -174,7 +174,7 @@ def execute(payload: dict) -> dict:
             "PYTHONUNBUFFERED": "1",
             "JAX_PLATFORMS": "cpu",
             "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
-            "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=2",
+            "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=true intra_op_parallelism_threads=2",
         }
         timed_out = False
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:

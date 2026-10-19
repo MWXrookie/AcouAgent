@@ -2,6 +2,7 @@ import copy
 import json
 import sqlite3
 import time
+from pathlib import Path
 
 import pytest
 from app import dashboard, execution, executor_evidence, tools
@@ -11,6 +12,12 @@ NONCE = "a"*32
 RUNTIME = {"executor_source_sha256": "b"*64, "python_version": "3.11.0",
            "python_implementation": "CPython", "machine": "x86_64",
            "library_versions": {"jwave": "0.2.1", "jax": "0.4.35", "jaxlib": "0.4.35", "jaxdf": "0.2.8", "numpy": "1.26.4"}}
+
+
+def test_executor_enables_declared_two_core_eigen_parallelism():
+    source = Path(executor.__file__).read_text(encoding="utf-8")
+    assert '"XLA_FLAGS": "--xla_cpu_multi_thread_eigen=true intra_op_parallelism_threads=2"' in source
+    assert "--xla_cpu_multi_thread_eigen=false" not in source
 
 
 def envelope(code="print('ok')", stdout="ok\n", nonce=NONCE):

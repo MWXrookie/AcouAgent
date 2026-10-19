@@ -20,7 +20,7 @@ RECIPE_SHA256 = "4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2
 VALIDATOR_SHA256 = "a50a04db1d11c2681f9126971b5359dba4cebfa386688cc5bfdf6762c5528f7f"
 # Observed real isolated HTTP baseline; NOT production environment approval.
 RUNTIME_CONTRACT_VERSION = "plane-wave-isolated-runtime.v1"
-ISOLATED_RUNTIME_SHA256 = "88c3cf85e907de4fad86c319f705472c74b2a6f74f9e5e2d80e0038d3ee945c6"
+ISOLATED_RUNTIME_SHA256 = "ed988820ed9e3d6d3b40e169c17c2f2365b29824aef10b81318c4c6548cbf803"
 DIRECTORY = Path(__file__).resolve().parent
 
 
