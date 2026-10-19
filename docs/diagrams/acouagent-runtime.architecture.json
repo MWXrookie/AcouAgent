@@ -48,7 +48,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "run_jwave_code 进入内部 executor；XLA Eigen 双核开启、线程固定 2，仍受 2 CPU、30 秒墙钟和累计 CPU 限额约束。PID 1 回收完整后代树；只读、降权、无外网不变。"
+        "note": "固定平面波只保留物理门需要的 352×320 网格、24µs 和双探针窗口；executor 仍固定 2 线程并受 2 CPU、30 秒墙钟和累计 CPU 限额约束。PID 1 回收后代树；只读、降权、无外网不变。"
       },
       {
         "id": "skill-workbench",
@@ -427,7 +427,7 @@
       "items": [
         "生成代码继续通过原 executor 沙箱执行",
         "模型审查不能覆盖确定性物理门",
-        "重核固定配方可直达；普通运行最多进入 Q2 candidate",
+        "重核固定配方可直达；升级只归档精确旧配方；普通运行最多进入 Q2 candidate",
         "看板按 run_id 关联分析摘要，首次轮询直达最新事件；管理操作要求临时令牌"
       ]
     },

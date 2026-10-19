@@ -200,7 +200,7 @@ def test_fixed_initial_pressure_audit_never_fabricates_frequency():
     from app import controlled_dispatch
     params=controlled_dispatch.fixed_retrieval_parameters()
     assert "source_frequency" not in params and "frequency_hz" not in params
-    assert params["grid_shape"]==[384,384]
+    assert params["grid_shape"]==[352,320]
     assert params["dx_m"]==[.00025,.00025]
 
 

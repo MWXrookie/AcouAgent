@@ -7,9 +7,9 @@ from scripts.validation.plane_wave_evidence import EXPECTED_CONFIGURATION, valid
 
 
 def evidence():
-    times = [i * 1e-8 for i in range(3400)]
+    times = [i * 1e-8 for i in range(2400)]
     raw = {"profile": "val1-plane-wave-v2", "configuration": copy.deepcopy(EXPECTED_CONFIGURATION), "units": {"time": "s", "pressure": "Pa"}, "time": times}
-    for key, offset in (("pressure_x1", 64), ("pressure_x2", 144)):
+    for key, offset in (("pressure_x1", 48), ("pressure_x2", 96)):
         arrival = offset * 0.00025 / 1500
         sigma = 12 * 0.00025 / 1500
         raw[key] = [0.5*(math.exp(-0.5*((t-arrival)/sigma)**2)
@@ -72,6 +72,17 @@ def test_new_profile_rejects_missing_configuration():
     data = evidence()
     del data["raw_evidence"]["configuration"]
     assert not validate_plane_wave(data)["numeric_pass"]
+
+
+def test_legacy_profile_keeps_its_original_time_axis_and_probe_offsets():
+    times = [i * 1e-8 for i in range(3400)]
+    raw = {"profile": "val1-plane-wave-v1", "units": {"time": "s", "pressure": "Pa"}, "time": times}
+    sigma = 12 * 0.00025 / 1500
+    for key, offset in (("pressure_x1", 64), ("pressure_x2", 144)):
+        arrival = offset * 0.00025 / 1500
+        raw[key] = [0.5*(math.exp(-0.5*((t-arrival)/sigma)**2)
+                         + math.exp(-0.5*((t+arrival)/sigma)**2)) for t in times]
+    assert validate_plane_wave({"raw_evidence": raw})["numeric_pass"]
 
 
 def test_legacy_failure_remains_reproducible():

@@ -17,7 +17,7 @@ from pathlib import Path
 from scripts.validation import executor_host_observation as docker
 from scripts.validation.plane_wave_code_configuration import derive_configuration
 
-RECIPE_SHA256="4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2b"
+RECIPE_SHA256="7f7331eeff6d79cf50e8b34b5bbe84f8db1291c68640d8b987969a3041ecc9e2"
 MAX_RESPONSE=2*1024*1024
 MAX_REQUEST_SECONDS=40
 FORMAT=docker.FORMAT[:-1]+',"addresses":"{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}"}'

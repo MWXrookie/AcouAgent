@@ -1,5 +1,7 @@
+import hashlib
 import os
 import shutil
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -8,6 +10,31 @@ import pytest
 from app import config, dashboard
 from app import skill_local_profile as local
 from scripts.skill_library import local_basic
+
+
+def test_upgrade_archives_only_exact_superseded_plane_profile(tmp_path,monkeypatch):
+    from app import skill_library_service as service
+    from app.skill_store import SkillStore
+    store=SkillStore(tmp_path/"skills.db");store.migrate()
+    legacy="print('reviewed legacy plane recipe')"
+    monkeypatch.setattr(local_basic,"OBSOLETE_PLANE_CODE_SHA256",
+        hashlib.sha256(legacy.encode()).hexdigest())
+    sid=store.create_candidate(scenario_type="initial_pressure_2d",state_text="legacy plane",
+        normalized_params=local_basic.OBSOLETE_PLANE_PARAMETERS,code_template=legacy,
+        preconditions={},postconditions={},physics_evidence={},source_run_id="legacy-run",
+        validator_version="legacy",quality_level="Q2")
+    other=store.create_candidate(scenario_type="initial_pressure_2d",state_text="unrelated plane",
+        normalized_params={**local_basic.OBSOLETE_PLANE_PARAMETERS,"t_end_s":35e-6},
+        code_template=legacy,preconditions={},postconditions={},physics_evidence={},
+        source_run_id="other-run",validator_version="legacy",quality_level="Q2")
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE simulation_skills SET status='active',quality_level='Q4' WHERE skill_id IN (?,?)",(sid,other))
+    monkeypatch.setattr(service,"STORE",store)
+    result=local_basic.retire_superseded_plane_profile()
+    assert result=={"ready":True,"retired":True,"skill_id":sid,
+                    "reason":"obsolete_profile_archived"}
+    assert bool(store.get_skill(sid)["archived"]) is True
+    assert bool(store.get_skill(other)["archived"]) is False
 
 
 def test_bootstrap_runs_every_reviewed_profile_once(monkeypatch):
