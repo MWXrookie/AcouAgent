@@ -1,2 +1,6 @@
 scripts/validation/** text eol=lf
 executor/executor.py text eol=lf
+docs/diagrams/*.architecture.json text eol=lf
+docs/diagrams/*.architecture.html text eol=lf
+docs/diagrams/*.architecture.delivery.json text eol=lf
+docs/diagrams/*.architecture.visual-check.json text eol=lf

@@ -553,7 +553,7 @@
       "2048x1320 light",
       "2048x1320 dark"
     ],
-    "result": "No clipping, overlap, ambiguous routing, unreadable labels, or theme-specific defects observed.",
+    "result": "The regenerated artifact has the same immutable HTML SHA-256 as the previously inspected artifact; no clipping, overlap, ambiguous routing, unreadable labels, or theme-specific defects were observed.",
     "correction_rounds": 1
   },
   "operator_paths_redacted": true

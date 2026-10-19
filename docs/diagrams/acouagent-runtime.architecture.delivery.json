@@ -6,8 +6,8 @@
   "input": "docs/diagrams/acouagent-runtime.architecture.json",
   "output": "docs/diagrams/acouagent-runtime.architecture.html",
   "specification": {
-    "sha256": "479f479854f3ca1c56b37e0c56600a2d7021b4814659ebea0e7f49de3c0569cf",
-    "bytes": 11448
+    "sha256": "9cc93de1c67fd5f8787834771ad98be7a3d8e5b21d9a0dd55b501ca6ae0d755f",
+    "bytes": 11003
   },
   "artifact": {
     "sha256": "87252e3bb07284e59f0ba03157f51e4a3bb97afa77356ed95abc8b19dc09f5bb",
