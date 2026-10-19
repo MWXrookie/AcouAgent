@@ -6,8 +6,8 @@
   "visualReview": "passed",
   "artifact": {
     "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "bb73ec1608ddc2ec797eba325c42f7c363e859ab2f3c0f55cf78de35722e034f",
-    "bytes": 726794
+    "sha256": "87252e3bb07284e59f0ba03157f51e4a3bb97afa77356ed95abc8b19dc09f5bb",
+    "bytes": 726763
   },
   "state": {
     "detail": "read",
@@ -546,7 +546,7 @@
   },
   "manualReview": {
     "status": "passed",
-    "inspected_at_utc": "2026-10-19T00:44:01Z",
+    "inspected_at_utc": "2026-10-19T01:09:05Z",
     "captures": [
       "1440x900 light",
       "1440x900 dark",
@@ -554,7 +554,7 @@
       "2048x1320 dark"
     ],
     "result": "No clipping, overlap, ambiguous routing, unreadable labels, or theme-specific defects observed.",
-    "correction_rounds": 3
+    "correction_rounds": 1
   },
   "operator_paths_redacted": true
 }

@@ -21,6 +21,31 @@ def history(scope):
  executor_receipt_absent=True,authentication_configured=True,independent_host_authenticated=False)
  dashboard.record_execution("local_profile_test",code,0,False,1,stdout,"",run_id=run,execution_evidence=dict(local_dispatch=dispatch,local_transport_receipt=receipt))
  return run
+
+def current_history(scope):
+ code=catalog.recipe(scope);stdout=canonical(evidence(scope)).decode();nonce=uuid.uuid4().hex;run=str(uuid.uuid4())
+ request_sha=local.pins.digest(canonical(dict(code=code,timeout_seconds=30,request_nonce=nonce)).decode())
+ dispatch=dict(version="local-dispatch.v1",source_kind="managed_executor_transport",request_sha256=request_sha,
+ code_sha256=local.pins.digest(code),request_nonce=nonce,timeout_seconds=30,target_url="http://jwave-executor:8010/execute",
+ trust_boundary="gateway_and_internal_executor",independent_host_authenticated=False,receipt_correlated=True)
+ from app import executor_evidence
+ from tests.unit.test_executor_evidence import RUNTIME
+ runtime=copy.deepcopy(RUNTIME)
+ executor_receipt=dict(version="executor-receipt.v1",request_nonce=nonce,code_sha256=local.pins.digest(code),
+ stdout_sha256=local.pins.digest(stdout),stderr_sha256=local.pins.digest(""),exit_code=0,timed_out=False,
+ timeout_seconds=30,runtime=runtime,runtime_sha256=executor_evidence.sha256(json.dumps(runtime,sort_keys=True,separators=(",",":"))))
+ compatibility=dict(version="gateway-transport-receipt.v1",request_sha256=request_sha,request_nonce=nonce,
+ stdout_sha256=local.pins.digest(stdout),stderr_sha256=local.pins.digest(""),exit_code=0,timed_out=False,
+ executor_receipt_absent=False,authentication_configured=True,independent_host_authenticated=False)
+ dashboard.record_execution("local_profile_test",code,0,False,1,stdout,"",run_id=run,
+  execution_evidence=dict(local_dispatch=dispatch,local_transport_receipt=compatibility,receipt=executor_receipt))
+ return run
+
+def test_current_executor_receipt_takes_precedence_over_compatibility_record(ready):
+ from app.skill_execution_history import checked_daily_history
+ scope=g.SCOPES[0];run=current_history(scope)
+ capsule,code,numeric=checked_daily_history(run)
+ assert capsule["stdout"] and code==catalog.recipe(scope) and numeric["numeric_pass"]
 @pytest.mark.parametrize("scope",g.SCOPES)
 def test_fifteen_distinct_exact_analytic_profiles(scope):
  raw=evidence(scope);assert g.validate(raw)["numeric_pass"]
