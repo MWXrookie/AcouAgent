@@ -118,8 +118,8 @@ def test_fixed_source_full_physical_query_matches_workflow_adapter_exactly():
     assert json.loads(got["retrieval_parameters_json"])==parameters
     assert parameters["initial_sigma_m"]==.003
     assert parameters["source_geometry"]=="planar_x_uniform_y"
-    assert parameters["source_index"]==[160,192]
-    assert parameters["sensor_indices"]==[[224,192],[304,192]]
+    assert parameters["source_index"]==[160,160]
+    assert parameters["sensor_indices"]==[[208,160],[256,160]]
     assert not parameters["smooth_initial"]
 
 

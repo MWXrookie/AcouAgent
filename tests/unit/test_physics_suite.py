@@ -13,7 +13,7 @@ def documents():
     raw["time"]=[t+dt for t in raw["time"]]
     # Regenerate at the actual after-update timestamps, not relabel old pressure.
     import math
-    for key,offset in (("pressure_x1",64),("pressure_x2",144)):
+    for key,offset in (("pressure_x1",48),("pressure_x2",96)):
         arrival=offset*0.00025/1500;sigma=12*0.00025/1500
         raw[key]=[0.5*(math.exp(-0.5*((t-arrival)/sigma)**2)+math.exp(-0.5*((t+arrival)/sigma)**2)) for t in raw["time"]]
     raw.update(profile=plane.PROFILE,configuration=copy.deepcopy(plane.CONFIGURATION),dt_s=dt)
