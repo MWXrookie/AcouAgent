@@ -1,3 +1,23 @@
+## 2026-10-19 · 固定平面波 30 秒正式发行门关闭
+
+PR #24 已合并为 `052cee73e22cccf05a47cd6484cd2c94e06a90b0`。该提交的
+`Release container images`、完整单元回归、发布清单与干净安装均通过；最终 Codex
+审查未发现重大问题，全部审查线程已解决。正式 VM 从该合并提交创建独立工作树并保留
+旧网关、executor 镜像和三份 SQLite 在线备份后完成切换。
+
+升级自举精确归档上一条 384×384、34µs 固定技能，真实执行并接纳新的
+352×320、24µs 配方，最终 17/17 固定 profile 可检索。固定平面波复用耗时
+24167.3ms，周期水轴向复用耗时 8586.8ms；两者均为 `exit_code=0`、未超时、
+`executor-receipt.v1` 摘要匹配、确定性物理门通过，并生成
+`recipe_execution_verified` 使用标识。真实 v3 批量诊断在相同 2 CPU、4GiB、
+30 秒、只读、无网络限制下耗时 25995.5ms，`numeric_pass=true`。
+
+网关和 executor 镜像 OCI revision、工作树 HEAD 与合并 SHA 一致，关键配方、验证器
+和引导脚本的宿主/镜像哈希逐项相同。三个运行库 `PRAGMA quick_check=ok`；门户、看板、
+技能库、缓存、模型 profile 与健康接口均为 HTTP 200。`setsid()` 派生进程尝试向容器
+PID 1 发送 `SIGKILL` 后，服务保持健康且延迟 marker 未出现。完整脱敏记录见
+`docs/validation/stage7/PLANE_WAVE_RUNTIME_ACCEPTANCE_2026-10-19.md`。
+
 ## 2026-10-19 · 固定平面波收敛到 30 秒安全墙钟内
 
 PR #23 正式部署后的重复验收发现，原 384×384、34µs 固定平面波在当前 VM 负载下
