@@ -7,9 +7,9 @@ from scripts.validation.plane_wave_evidence import EXPECTED_CONFIGURATION, valid
 
 
 def evidence():
-    times = [i * 1e-8 for i in range(3400)]
+    times = [i * 1e-8 for i in range(2400)]
     raw = {"profile": "val1-plane-wave-v2", "configuration": copy.deepcopy(EXPECTED_CONFIGURATION), "units": {"time": "s", "pressure": "Pa"}, "time": times}
-    for key, offset in (("pressure_x1", 64), ("pressure_x2", 144)):
+    for key, offset in (("pressure_x1", 48), ("pressure_x2", 96)):
         arrival = offset * 0.00025 / 1500
         sigma = 12 * 0.00025 / 1500
         raw[key] = [0.5*(math.exp(-0.5*((t-arrival)/sigma)**2)

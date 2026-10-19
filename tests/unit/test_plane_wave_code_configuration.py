@@ -15,7 +15,7 @@ def test_reviewed_recipe_independently_derives_configuration():
 
 @pytest.mark.parametrize("before,after", [
     ("sound_speed=1500.0", "sound_speed=1600.0"),
-    ("x0 + 144", "x0 + 145"),
+    ("x0 + 96", "x0 + 97"),
     ("CFL = 0.1", "CFL = 0.2"),
     ("smooth_initial=False", "smooth_initial=True"),
     ("dx = 0.25e-3", "dx = unknown()"),

@@ -7,15 +7,15 @@ import json
 import math
 import sys
 
-VERSION = "val1-plane-wave.v2"
+VERSION = "val1-plane-wave.v2.1"
 PROFILE = "val1-plane-wave-v2"
 EXPECTED_CONFIGURATION = {
-    "domain_N": [384, 384], "domain_dx_m": [0.00025, 0.00025],
+    "domain_N": [352, 320], "domain_dx_m": [0.00025, 0.00025],
     "sound_speed_m_s": 1500.0, "density_kg_m3": 1000.0,
-    "pml_size": 20, "cfl": 0.1, "t_end_s": 34e-6,
+    "pml_size": 20, "cfl": 0.1, "t_end_s": 24e-6,
     "initial_pressure_pa": 1.0, "initial_velocity": "zero",
     "source_x_index": 160, "sigma_grid": 12,
-    "sensor_indices": [[224, 192], [304, 192]], "smooth_initial": False,
+    "sensor_indices": [[208, 160], [256, 160]], "smooth_initial": False,
 }
 
 
@@ -44,14 +44,14 @@ def validate_plane_wave(result):
                 raise ValueError("nonfinite_or_nonnumeric_samples")
         dt = times[1] - times[0]
         if (abs(times[0]) > 1e-12 or not 0 < dt <= 0.1 * 0.00025 / 1500 * 1.001
-                or times[-1] < 33e-6 or times[-1] > 35e-6
+                or times[-1] < 23e-6 or times[-1] > 25e-6
                 or any(abs((b-a)/dt - 1) > 0.001 for a, b in zip(times, times[1:]))):
             raise ValueError("invalid_time_axis")
         # Fixed homogeneous, lossless Gaussian p0=1 Pa, zero initial velocity.
         # d'Alembert gives two copies of p0/2 moving at +/-1500 m/s.
         peaks, waveform_errors, arrival_errors = [], [], []
         sigma_t = 12 * 0.00025 / 1500
-        for offset, trace in zip((64, 144), traces):
+        for offset, trace in zip((48, 96), traces):
             arrival = offset * 0.00025 / 1500
             indices = [i for i, t in enumerate(times) if abs(t-arrival) <= 3*sigma_t]
             peak_index = max(indices, key=lambda i: trace[i])

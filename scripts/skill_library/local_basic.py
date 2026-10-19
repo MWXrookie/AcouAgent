@@ -5,6 +5,7 @@ database. seed executes one reviewed recipe through the existing executor.
 No model calls, signing configuration, automatic learning or arbitrary paths.
 """
 import argparse
+import hashlib
 import json
 import os
 import sqlite3
@@ -13,6 +14,14 @@ from app import config, dashboard, execution, skill_library_service as service
 from app import skill_local_profile as local, skill_retrieval
 from app.skill_store import SCHEMA_VERSION
 from scripts.validation.host_forward_signature import canonical
+
+OBSOLETE_PLANE_CODE_SHA256="4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2b"
+OBSOLETE_PLANE_PARAMETERS=dict(grid_shape=[384,384],dimensions=2,dx_m=[.00025,.00025],
+    sound_speed_m_s=1500.0,density_kg_m3=1000.0,pml_size=20,cfl=.1,t_end_s=34e-6,
+    initial_pressure_pa=1.0,initial_velocity="zero",initial_sigma_m=.003,
+    source_type="gaussian_initial_pressure",source_geometry="planar_x_uniform_y",
+    source_index=[160,192],sensor_indices=[[224,192],[304,192]],smooth_initial=False,
+    solver_mode="time_domain",medium_type="homogeneous_water")
 
 
 def initialize():
@@ -30,6 +39,34 @@ def initialize():
     os.close(descriptor)
     service.STORE.migrate()
     return dict(ready=True, created=True, reason="empty_store_initialized")
+
+
+def retire_superseded_plane_profile():
+    """Archive only the exact former fixed recipe after its 30s budget became invalid."""
+    from app.skill_store import skill_fingerprint
+    path=service.STORE.path
+    if not path.exists():
+        return dict(ready=True,retired=False,reason="obsolete_profile_absent")
+    with service.STORE._read_db() as db:
+        rows=db.execute("""SELECT s.skill_id,s.status,s.quality_level,s.archived,s.updated_at,
+            v.code_hash,substr(v.code_template,1,20001) code_template
+            FROM simulation_skills s JOIN skill_versions v ON v.skill_id=s.skill_id
+            WHERE s.fingerprint=? AND v.version=(SELECT MAX(version) FROM skill_versions x WHERE x.skill_id=s.skill_id)
+            LIMIT 2""",(skill_fingerprint("initial_pressure_2d",OBSOLETE_PLANE_PARAMETERS),)).fetchall()
+    if len(rows)!=1:
+        return dict(ready=True,retired=False,reason="obsolete_profile_absent")
+    row=rows[0]
+    exact=(row["code_hash"]==OBSOLETE_PLANE_CODE_SHA256
+        and hashlib.sha256(row["code_template"].encode()).hexdigest()==OBSOLETE_PLANE_CODE_SHA256)
+    if not exact or row["status"]!="active" or row["quality_level"]!="Q4":
+        return dict(ready=True,retired=False,reason="obsolete_profile_not_exact_active")
+    if row["archived"]:
+        return dict(ready=True,retired=False,reason="obsolete_profile_already_archived")
+    result=service.STORE.set_archived(row["skill_id"],archived=True,
+        expected_updated_at=row["updated_at"],actor="internal-system",
+        reason="superseded fixed plane-wave recipe exceeded the 30s runtime budget")
+    return dict(ready=True,retired=result.get("archived") is True,
+        skill_id=row["skill_id"],reason="obsolete_profile_archived")
 
 
 def seed(profile=local.PROFILE):
@@ -78,6 +115,11 @@ def bootstrap():
     if initialized.get("ready") is not True:
         return dict(ready=False, skipped=False, profile_count=0,
                     reason=initialized.get("reason","store_initialization_failed"))
+    retirement=(retire_superseded_plane_profile() if initialized.get("created") is False
+        else dict(ready=True,retired=False,reason="fresh_store"))
+    if retirement.get("ready") is not True:
+        return dict(ready=False,skipped=False,profile_count=0,
+            reason=retirement.get("reason","obsolete_profile_retirement_failed"))
     items=[]
     for profile in local.catalog.SCOPES:
         attempts=[]
@@ -100,6 +142,7 @@ def bootstrap():
                 failed_profile=profile,reason=item["reason"],profiles=items)
     return dict(ready=True,skipped=False,profile_count=len(items),
         executed_count=sum(1 for item in items if item["executed"]),
+        retired_count=1 if retirement.get("retired") is True else 0,
         reason="all_fixed_profiles_ready",profiles=items)
 
 

@@ -2,7 +2,7 @@
 import sqlite3
 import hashlib
 import json
-from app import config, dashboard, skill_library_service
+from app import config, controlled_dispatch, dashboard, skill_library_service
 from scripts.validation import plane_wave_run_binding as binding
 from scripts.validation.plane_wave_evidence import EXPECTED_CONFIGURATION
 
@@ -26,10 +26,7 @@ def record_controlled_candidate(run_id):
         code = (binding.DIRECTORY / "recipes/val1_plane_wave_v2.py").read_text().strip()
         if binding.digest(code) != binding.RECIPE_SHA256:
             return dict(denied, reason="candidate_prerequisites_failed")
-        params = dict(grid_shape=[384, 384], dx_m=0.00025,
-                      sound_speed_m_s=1500.0, density_kg_m3=1000.0,
-                      initial_pressure_pa=1.0, cfl=0.1, pml_size=20, t_end_s=34e-6,
-                      dimensions=2, solver_mode="time_domain", medium_type="homogeneous_water")
+        params = controlled_dispatch.fixed_retrieval_parameters()
         skill_id = skill_library_service.STORE.create_candidate(
             scenario_type="initial_pressure_2d", state_text="固定VAL-1高斯初始压力；仅隔离候选证据",
             normalized_params=params, code_template=code,

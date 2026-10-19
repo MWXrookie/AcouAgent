@@ -55,7 +55,7 @@ def test_recipe_matches_reviewed_baseline_and_existing_gateway_cleaner():
 @pytest.mark.parametrize("fault", ["print_only", "changed_parameter", "extra_statement", "wrong_stored_hash", "legacy", "timeout", "exit", "missing_code"])
 def test_analytic_forgery_and_wrong_code_cannot_pass(history, fault):
     if fault in ("print_only", "changed_parameter", "extra_statement"):
-        code = "print('forged perfect analytic waveform')" if fault == "print_only" else RECIPE.replace("Nx, Ny = 384, 384", "Nx, Ny = 384, 256") if fault == "changed_parameter" else RECIPE + "\nprint('extra')"
+        code = "print('forged perfect analytic waveform')" if fault == "print_only" else RECIPE.replace("Nx, Ny = 352, 320", "Nx, Ny = 352, 256") if fault == "changed_parameter" else RECIPE + "\nprint('extra')"
         assert code != RECIPE
         alter(history, code=code, code_sha256=binding.digest(code))
     elif fault == "wrong_stored_hash":

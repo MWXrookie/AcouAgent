@@ -6,8 +6,8 @@
   "visualReview": "passed",
   "artifact": {
     "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "87252e3bb07284e59f0ba03157f51e4a3bb97afa77356ed95abc8b19dc09f5bb",
-    "bytes": 726763
+    "sha256": "90aea594bf4d86ec1fd4be245c34a38af1dd40cf0e56b5dca1fb464fb2d6b1c2",
+    "bytes": 726824
   },
   "state": {
     "detail": "read",
@@ -94,10 +94,10 @@
         "overflowX": false,
         "overflowY": false,
         "ok": true,
-        "readerWidth": 1157,
-        "diagramWidth": 1127,
+        "readerWidth": 1126,
+        "diagramWidth": 1096,
         "viewBoxWidth": 1240,
-        "minimumProjectedNodeTextPx": 7.361854838709677,
+        "minimumProjectedNodeTextPx": 7.159354838709677,
         "minimumProjectedNodeText": "提取 / 检索 / 生成 / 缓存纠错 / 解读",
         "minimumProjectedNodeTextDetail": "context",
         "minimumRequiredNodeTextPx": 6,
@@ -224,10 +224,10 @@
         "overflowX": false,
         "overflowY": false,
         "ok": true,
-        "readerWidth": 1157,
-        "diagramWidth": 1127,
+        "readerWidth": 1126,
+        "diagramWidth": 1096,
         "viewBoxWidth": 1240,
-        "minimumProjectedNodeTextPx": 7.361854838709677,
+        "minimumProjectedNodeTextPx": 7.159354838709677,
         "minimumProjectedNodeText": "提取 / 检索 / 生成 / 缓存纠错 / 解读",
         "minimumProjectedNodeTextDetail": "context",
         "minimumRequiredNodeTextPx": 6,
@@ -353,10 +353,10 @@
         "overflowX": false,
         "overflowY": false,
         "ok": true,
-        "readerWidth": 1157,
-        "diagramWidth": 1127,
+        "readerWidth": 1126,
+        "diagramWidth": 1096,
         "viewBoxWidth": 1240,
-        "minimumProjectedNodeTextPx": 7.361854838709677,
+        "minimumProjectedNodeTextPx": 7.159354838709677,
         "minimumProjectedNodeText": "提取 / 检索 / 生成 / 缓存纠错 / 解读",
         "minimumProjectedNodeTextDetail": "context",
         "minimumRequiredNodeTextPx": 6,
@@ -546,14 +546,14 @@
   },
   "manualReview": {
     "status": "passed",
-    "inspected_at_utc": "2026-10-19T01:09:05Z",
+    "inspected_at_utc": "2026-10-19T06:35:23Z",
     "captures": [
       "1440x900 light",
       "1440x900 dark",
       "2048x1320 light",
       "2048x1320 dark"
     ],
-    "result": "The regenerated artifact has the same immutable HTML SHA-256 as the previously inspected artifact; no clipping, overlap, ambiguous routing, unreadable labels, or theme-specific defects were observed.",
+    "result": "All four captures were inspected after the containment repair; no clipping, overlap, ambiguous routing, unreadable labels, abnormal whitespace, or theme-specific defects were observed.",
     "correction_rounds": 1
   },
   "operator_paths_redacted": true
