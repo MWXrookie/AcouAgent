@@ -7,8 +7,8 @@
 > 12mm/24mm 双探针，保持介质、分辨率、CFL、PML、初压及 1% 解析波形门不变。
 > 配方版本 `val1-plane-wave-code.v1.1`，代码摘要
 > `7f7331eeff6d79cf50e8b34b5bbe84f8db1291c68640d8b987969a3041ecc9e2`；验证器版本
-> `val1-plane-wave.v2.1`，摘要
-> `8604a11da74e3a3758e5527af3e52a82bef136a739afe039387556e022afe4c2`。
+> `val1-plane-wave.v2.2`，摘要
+> `ec8819d765be9f81740e73ba9a3b4d15a973977846a5c045fbd0dcccb2f77945`。
 > 同一正式 executor 镜像和 2 CPU / 4 GiB / 30 秒边界下实测 23.50 秒，
 > 波形最大相对误差 0.50545%，`numeric_pass=true`。下方 2026-10-02 段落保留为历史基线。
 

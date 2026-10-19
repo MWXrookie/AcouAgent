@@ -17,7 +17,7 @@ from app.executor_evidence import verify_executor_receipt
 
 RECIPE_VERSION = "val1-plane-wave-code.v1.1"
 RECIPE_SHA256 = "7f7331eeff6d79cf50e8b34b5bbe84f8db1291c68640d8b987969a3041ecc9e2"
-VALIDATOR_SHA256 = "8604a11da74e3a3758e5527af3e52a82bef136a739afe039387556e022afe4c2"
+VALIDATOR_SHA256 = "ec8819d765be9f81740e73ba9a3b4d15a973977846a5c045fbd0dcccb2f77945"
 # Observed real isolated HTTP baseline; NOT production environment approval.
 RUNTIME_CONTRACT_VERSION = "plane-wave-isolated-runtime.v1"
 ISOLATED_RUNTIME_SHA256 = "ed988820ed9e3d6d3b40e169c17c2f2365b29824aef10b81318c4c6548cbf803"
