@@ -3,6 +3,7 @@ import json
 import math
 import pytest
 from scripts.validation import case_batch1 as batch
+from scripts.validation import case_batch_registry as registry
 from scripts.validation import interface_evidence, attenuation_evidence
 
 @pytest.mark.parametrize("case", batch.CASE_IDS)
@@ -13,6 +14,17 @@ def test_recipe_exact_configuration_and_no_trust(case):
     assert batch.assess(case, dict(code_sha256=hashlib.sha256(code.encode()).hexdigest(),
            exit_code=True, timed_out=False, stderr="", stdout="{}"))["numeric_pass"] is False
     assert "trusted_run" not in code
+
+
+def test_base_plane_recipe_emits_the_current_diagnostic_configuration():
+    cfg, code = registry.specification("base-plane_wave")
+    assert cfg["domain_N"] == [352, 320]
+    assert cfg["t_end_s"] == 24e-6
+    assert cfg["sensor_indices"] == [[208, 160], [256, 160]]
+    for exact in ("jw.Domain((352,320)", "t_end=24e-6", "domain_N=[352,320]",
+                  "sensor_indices=[[208,160],[256,160]]",
+                  "field[:,208,160,0]", "field[:,256,160,0]"):
+        assert exact in code
 
 @pytest.mark.parametrize("field,value", [
     ("stderr", "warning"), ("exit_code", 1), ("timed_out", True),
