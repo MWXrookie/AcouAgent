@@ -38,7 +38,11 @@ def checked_daily_history(run_id):
         request_sha256=sha,code_sha256=local.pins.digest(code),request_nonce=nonce,timeout_seconds=timeout,
         target_url="http://jwave-executor:8010/execute",trust_boundary="gateway_and_internal_executor",
         independent_host_authenticated=False,receipt_correlated=False)
-    receipt=evidence.get("local_transport_receipt")
+    # Current executors return an authenticated executor receipt as well as the
+    # gateway-owned compatibility receipt.  The compatibility record is only
+    # authoritative when the executor receipt is absent.
+    receipt=(evidence.get("local_transport_receipt")
+             if evidence.get("receipt") is None else None)
     if receipt is not None:
         if dispatch!=expected:raise ValueError("daily_dispatch_changed")
         required=dict(version="gateway-transport-receipt.v1",request_sha256=sha,request_nonce=nonce,
