@@ -86,12 +86,12 @@ def _fix_prompt(
             "and NOT create Sources. Putting the Gaussian pressure into Sources() will produce zero output because Sources "
             "expects time-domain signals at point positions, not spatial pressure distributions. "
             "Fix: remove Sources entirely, create p0=FourierSeries(pressure_array, domain), then call "
-            "simulate_wave_propagation with p0=p0 (no u0!). Use jnp.linspace + jnp.meshgrid to build the grid coordinates.\n"
+            "simulate_wave_propagation with p0=p0 (no u0!). Use jnp.arange(N)*dx + jnp.meshgrid for grid coordinates; exclude the right endpoint.\n"
             "- **CRITICAL - wrong argument name for initial pressure**: the ONLY valid kwarg is p0. "
             "simulate_wave_propagation does NOT accept initial_pressure=, initi..., pressure_0=, or p0_field=. "
             "TypeError like 'unexpected keyword argument' → rename to p0.\n"
             "- **CRITICAL - ring/ellipse p0 geometry**: build the ring with meshgrid coordinates:\n"
-            "  x = jnp.linspace(0, Nx*dx, Nx); y = jnp.linspace(0, Ny*dx, Ny); XX, YY = jnp.meshgrid(x, y, indexing='ij')\n"
+            "  x = jnp.arange(Nx)*dx; y = jnp.arange(Ny)*dx; XX, YY = jnp.meshgrid(x, y, indexing='ij')\n"
             "  r = jnp.sqrt((XX-cx)**2 + (YY-cy)**2)\n"
             "  ring: p0_grid = A*jnp.exp(-((r-R0)**2)/(2*sigma**2))  (R0=ring radius)\n"
             "  ellipse: p0_grid = A*jnp.exp(-(((XX-cx)/a)**2 + ((YY-cy)/b)**2) / 2)\n"
@@ -149,7 +149,7 @@ async def fix_code(
     *,
     run_id: str | None = None,
     requirements_context: str = "",
-) -> dict[str, str | None]:
+) -> dict[str, Any]:
     """Async retry entry for local orchestration, including cache lookup metadata."""
     error_signature = cache_store._extract_error_signature(
         result.get("stderr", ""), result.get("exit_code"), result.get("stdout", "")
@@ -170,4 +170,5 @@ async def fix_code(
     return {
         "code": _clean_fixed_code(response["content"]),
         "error_signature": error_signature,
+        "cache_hit": cache_hint is not None,
     }

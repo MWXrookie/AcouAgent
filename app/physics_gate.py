@@ -86,6 +86,18 @@ def assess_quality(
     params_ok = isinstance(params, dict) and bool(params)
     checks.append(_check("parameters_supplied", params_ok, "structured simulation parameters were supplied"))
     if params_ok:
+        from app.initial_pressure_validation import is_initial, validate_initial
+        if is_initial(params):
+            validation = validate_initial(params)
+            field_matches = params.get("domain_N", params.get("grid_shape")) == shape
+            acceptable = validation["valid"] and field_matches
+            checks.extend([
+                _check("parameter_constraints", acceptable,
+                       "initial-pressure contract and output grid match"),
+                _check("pml_geometry", validation["valid"],
+                       "explicit initial-pressure geometry passed preflight"),
+            ])
+            return {"quality_level": "Q2" if acceptable else level, "physics_checks": checks}
         # Keep this independent of MCP registration, and avoid importing tools.
         gaussian_initial = (params.get("source_kind") == "gaussian_initial_pressure"
                             and params.get("solver_mode") == "time_domain")

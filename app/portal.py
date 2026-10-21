@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
 from app import (
+    analysis,
     cache_store,
     config,
     execution,
@@ -290,13 +291,16 @@ def register(mcp) -> None:
         analysis_since = int(request.query_params.get("analysis_since", "0"))
         limit = min(int(request.query_params.get("limit", "100")), 500)
         executions = get_executions(limit=limit, since_id=since)
-        analysis_updates = get_analysis_updates(limit=limit, since_id=analysis_since)
+        analysis_updates = get_analysis_updates(limit=limit, since_id=analysis_since, include_images=True)
         analyses = get_latest_analysis_by_run_ids([
             row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
-        ])
+        ], include_images=True)
         for row in executions:
             if row.get("run_id") in analyses:
-                row["analysis"] = analyses[row["run_id"]]
+                row["analysis"] = {key: value for key, value in analyses[row["run_id"]].items()
+                                   if key != "heatmap_base64"}
+                if not row.get("image_base64"):
+                    row["image_base64"] = analyses[row["run_id"]].get("heatmap_base64")
         if config.SKILL_LIBRARY_ENABLED is True:
             links = skill_library_service.STORE.read_execution_links([
                 row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
@@ -342,6 +346,7 @@ def register(mcp) -> None:
         try:
             code = execution._clean_code(row["code"])
             result = execution._execute_code(code, 15)
+            raw_stdout = result.get("stdout", "") or ""
             result["stdout"] = execution._shrink_field_in_stdout(result.get("stdout", ""))
             execution._normalize_result_artifacts(result)
             run_id = str(uuid.uuid4())
@@ -356,7 +361,15 @@ def register(mcp) -> None:
                 stderr=result.get("stderr", ""),
                 image_base64=result.get("image_base64"),
                 run_id=run_id,
+                execution_evidence=result.get("execution_evidence"),
             )
+            # A dashboard rerun is a new execution, without inherited skill authority
+            # or parameters. Analyze its own raw output and retain its own receipt.
+            analyzed = analysis.analyze_and_record(raw_stdout, result.get("stderr", "") or "",
+                int(result["exit_code"] if result.get("exit_code") is not None else 1),
+                "{}", run_id)
+            result["analysis"] = {key: analyzed.get(key) for key in
+                ("verdict", "quality_level", "max_pressure", "rms_pressure", "field_shape")}
             return PlainTextResponse(
                 json.dumps({"ok": True, "result": result}, ensure_ascii=False),
                 media_type="application/json",

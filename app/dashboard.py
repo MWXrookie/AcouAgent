@@ -248,7 +248,7 @@ def _json_safe_metric(value: object) -> int | float | None:
     return value if math.isfinite(value) else None
 
 
-def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
+def get_latest_analysis_by_run_ids(run_ids: list[str], *, include_images: bool = False) -> dict[str, dict]:
     """Return one bounded, display-safe analysis summary for each execution run."""
     unique_ids = list(dict.fromkeys(
         value for value in run_ids
@@ -260,7 +260,7 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
     db = _get_db()
     rows = db.execute(
         f"""SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
-                   has_signal, summary
+                   has_signal, summary, heatmap_base64
             FROM analysis_events
             WHERE run_id IN ({placeholders})
             ORDER BY id DESC""",
@@ -272,6 +272,8 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
         if row["run_id"] in result:
             continue
         item = dict(row)
+        if not include_images:
+            item.pop("heatmap_base64", None)
         item.pop("id", None)
         item["has_signal"] = bool(item["has_signal"])
         for key in ("max_pressure", "rms_pressure"):
@@ -284,14 +286,14 @@ def get_latest_analysis_by_run_ids(run_ids: list[str]) -> dict[str, dict]:
     return result
 
 
-def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
+def get_analysis_updates(limit: int = 100, since_id: int = 0, *, include_images: bool = False) -> list[dict]:
     """Return display-safe analysis events for incremental dashboard refreshes."""
     db = _get_db()
     bounded_limit = max(1, min(limit, 500))
     if since_id <= 0:
         rows = db.execute(
             """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
-                      has_signal, summary
+                      has_signal, summary, heatmap_base64
                FROM analysis_events
                ORDER BY id DESC
                LIMIT ?""",
@@ -301,7 +303,7 @@ def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
     else:
         rows = db.execute(
             """SELECT id, run_id, verdict, max_pressure, rms_pressure, field_shape,
-                      has_signal, summary
+                      has_signal, summary, heatmap_base64
                FROM analysis_events
                WHERE id > ?
                ORDER BY id ASC
@@ -312,6 +314,8 @@ def get_analysis_updates(limit: int = 100, since_id: int = 0) -> list[dict]:
     result = []
     for row in rows:
         item = dict(row)
+        if not include_images:
+            item.pop("heatmap_base64", None)
         item["analysis_id"] = item.pop("id")
         item["has_signal"] = bool(item["has_signal"])
         for key in ("max_pressure", "rms_pressure"):

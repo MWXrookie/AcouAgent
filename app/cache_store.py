@@ -242,6 +242,8 @@ def get_cache_stats() -> dict:
         "confidence_bands": confidence_bands,
         "failure_streak_buckets": failure_streak_buckets,
         "error_families": error_families,
+        "entries": [_row_dict(row) for row in sorted_rows[:500]],
+        "entries_truncated": total > 500,
         "top_entries": [_row_dict(row) for row in sorted_rows[:5]],
         "recent_entries": [_row_dict(row) for row in recent_rows[:5]],
     }

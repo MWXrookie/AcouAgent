@@ -89,7 +89,7 @@
     body { padding: 12px; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .code-cell { max-width: 180px; }
-    th:nth-child(1), td:nth-child(1) { display: none; }
+    th.compare-select-column, tr.execution-row > td:nth-child(1) { display: none; }
     .dur, .metric-cell { display: none; }
     .toolbar input { min-width: 100%; }
     .admin-token-wrap { width: 100%; margin-left: 0; flex-wrap: wrap; }
@@ -154,7 +154,7 @@
   <div id="compare-panel" style="display:none;margin-bottom:14px"></div>
   <table>
     <thead><tr>
-      <th title="勾选两条记录对比">对比</th><th>#</th><th>时间</th><th>状态</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
+      <th class="compare-select-column" title="勾选两条记录对比">对比</th><th>#</th><th>时间</th><th>状态</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
     </tr></thead>
     <tbody id="rows"><tr><td colspan="7" class="empty"><div class="icon">暂无记录</div>等待 Dify 发送第一条代码...</td></tr></tbody>
   </table>
@@ -264,7 +264,7 @@ async function rerunExecution(id, btn) {
       return;
     }
     var r = data.result || {};
-    alert('重跑完成\n耗时: ' + (r.duration_ms != null ? r.duration_ms + 'ms' : '-') + '\n退出码: ' + (r.exit_code != null ? r.exit_code : '-'));
+    alert('重跑完成\n耗时: ' + (r.duration_ms != null ? r.duration_ms + 'ms' : '-') + '\n退出码: ' + (r.exit_code != null ? r.exit_code : '-') + '\n物理门: ' + ((r.analysis || {}).verdict || '未分析') + ' / ' + ((r.analysis || {}).quality_level || 'Q0'));
     refresh();
   } catch(e) {
     alert('重跑失败：' + e);
@@ -301,7 +301,10 @@ function renderRow(r) {
   var maxPressure = '';
   var mp = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
   if (mp) maxPressure = Number(mp[1]).toFixed(4);
-  var metric = maxPressure ? maxPressure + ' Pa' : '-';
+  // Prefer the run-bound deterministic analysis over text guessed from stdout.
+  var metric = r.analysis && r.analysis.max_pressure != null
+    ? Number(r.analysis.max_pressure).toPrecision(6) + ' Pa'
+    : (maxPressure ? maxPressure + ' Pa' : '-');
   var imgHtml = hasImg ? '<img class="result-img" src="data:image/png;base64,' + r.image_base64 + '" onclick="event.stopPropagation();showLightbox(this.src)" title="查看图像">' : '<span style="color:var(--muted)">无图</span>';
   var actions = '<button class="action-btn" onclick="event.stopPropagation();copyCode(' + r.id + ')" title="复制代码">复制</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();downloadRecord(' + r.id + ')" title="导出 JSON">导出</button>' +
@@ -319,7 +322,7 @@ function renderRow(r) {
     ? '<button class="expand-btn" onclick="event.stopPropagation();toggleCodeExpand(' + r.id + ')">展开/收起</button>'
     : '';
 
-  return '<tr onclick="toggleDetail(' + r.id + ')" style="cursor:pointer">'
+  return '<tr class="execution-row" onclick="toggleDetail(' + r.id + ')" style="cursor:pointer">'
     + '<td><input type="checkbox" class="cmp-cb" data-id="' + r.id + '" title="选择对比" onclick="event.stopPropagation();onCompareToggle(this)"></td>'
     + '<td style="color:var(--muted);font-size:12px">' + r.id + '</td>'
     + '<td class="time" title="' + r.timestamp + '">' + timeAgo(r.timestamp) + '</td>'
@@ -401,6 +404,7 @@ function _cmpStatus(r) {
   return '成功';
 }
 function _cmpMaxP(r) {
+  if (r.analysis && r.analysis.max_pressure != null) return Number(r.analysis.max_pressure).toPrecision(6);
   var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
   return m ? m[1] : '-';
 }
@@ -541,7 +545,12 @@ async function refresh() {
       });
       data.analysis_updates.forEach(function(update) {
         lastAnalysisId = Math.max(lastAnalysisId, update.analysis_id || 0);
-        if (executionsByRun[update.run_id]) executionsByRun[update.run_id].analysis = update;
+        if (executionsByRun[update.run_id]) {
+          executionsByRun[update.run_id].analysis = update;
+          if (!executionsByRun[update.run_id].image_base64 && update.heatmap_base64) {
+            executionsByRun[update.run_id].image_base64 = update.heatmap_base64;
+          }
+        }
       });
     }
     if (data.stats) {

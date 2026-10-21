@@ -179,7 +179,7 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(
     monkeypatch.setattr(local_workflow, "_model", fake_model)
     async def fake_fix_code(profile_id, code, result, **kwargs):
         model_tasks.append("retry")
-        return {"code": responses["retry"], "error_signature": "RuntimeError|general|boom"}
+        return {"code": responses["retry"], "error_signature": "RuntimeError|general|boom", "cache_hit": True}
     cache_updates = []
     monkeypatch.setattr(local_workflow.llm, "fix_code", fake_fix_code)
     def update_cache(signature, hint, was_successful):
@@ -198,12 +198,20 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(
     monkeypatch.setattr(local_workflow, "_direct_reference",
                         lambda *args: (None, {"execution_reuse_verified": False, "reason": "stale"}))
     monkeypatch.setattr(local_workflow.analysis, "analyze_and_record", analyze)
-    monkeypatch.setattr(local_workflow.execution, "_build_report", lambda result, code: "base report")
+    report_attempts = []
+    original_report = local_workflow.execution._build_report
+    def build_report(result, code):
+        report_attempts.append(result["total_attempts"])
+        return original_report(result, code)
+    monkeypatch.setattr(local_workflow.execution, "_build_report", build_report)
 
     async def run():
         return [item async for item in local_workflow.workflow_events("simulate", "session", "fast")]
 
     events = asyncio.run(run())
+    assert "| 尝试次数 | 2 次 |" in events[-1]["report"]
+    assert report_attempts == [2]
+    assert events[-1]["cache_usage"] == {"queries": 1, "hits": 1}
     assert execution_count["value"] == 2
     assert "retry" in model_tasks
     assert cache_updates == ([] if cache_write_fails else [

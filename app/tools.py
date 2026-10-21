@@ -355,6 +355,10 @@ def register(mcp) -> None:
                 "warnings": [],
             }
 
+        from app.initial_pressure_validation import is_initial, validate_initial
+        if is_initial(params):
+            return validate_initial(params)
+
         errors: list[dict[str, str]] = []
         warnings: list[dict[str, str]] = []
 

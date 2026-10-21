@@ -83,14 +83,45 @@ def _extraction_prompt(query: str) -> str:
 用户需求：{query}
 输出结构：
 {{"scenario_type":"point_source_2d|plane_wave_2d|interface_2d|initial_pressure_2d|attenuation_2d|point_source_3d|initial_pressure_3d",
-"simulation_params":{{"sound_speed":1500.0,"density":1000.0,"source_frequency":1000000.0,"domain_N":[128,128],"domain_dx":[0.0002,0.0002],"t_end":0.00002,"cfl":0.3,"pml_size":12}},
+"simulation_params":{{"完整的物理参数键":"对应值"}},
 "skill_query":{{"scenario_type":"同上","parameters":{{}}}},"description":"完整需求摘要"}}
-simulation_params 使用 SI 单位并满足用户明确要求。skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
+simulation_params 必须包含完整物理合同，不能只把激励信息放入 skill_query。
+驱动源需要 sound_speed、density、source_frequency、domain_N、domain_dx、t_end、cfl、pml_size。
+初压激励没有驱动源频率，不得添加 source_frequency（含 null）。
+周期初压必须在 simulation_params 保留 source_type=modal_initial_pressure、modal_amplitudes_pa、
+modal_wavenumber_rad_per_m、boundary_condition、initial_velocity 及用户给出的全部 SI 参数。
+高斯初压保留 source_type=gaussian_initial_pressure、initial_pressure_pa、initial_sigma_m 和零初速度。
+用户提供完整 SI 字段时保留字段和值；缺项不得从技能名或技能库补齐。
+skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
+
+
+def _explicit_modal_parameters(query: str) -> dict | None:
+    """A complete structured user declaration takes precedence over model defaults."""
+    start = query.find("{")
+    if start < 0:
+        return None
+    text = query[start:]
+    if len(text.encode("utf-8")) > 4096:
+        return None
+    try:
+        value = json.loads(text, object_pairs_hook=_unique, parse_constant=_reject_constant)
+    except (ValueError, LocalWorkflowError):
+        return None
+    if isinstance(value, dict) and value.get("source_type") == "modal_initial_pressure":
+        # The skill UI includes scenario metadata beside the physical fields.
+        value = dict(value)
+        declared_scenario = value.pop("scenario_type", "initial_pressure_2d")
+        if declared_scenario != "initial_pressure_2d":
+            raise LocalWorkflowError("declared_scenario_mismatch")
+        return value
+    return None
 
 
 def _code_prompt(query: str, extracted: dict, context: str) -> str:
     return f"""你是 jwave 0.2.1 Python 代码生成器。输出只能是可执行 Python 源码；不要 Markdown、JSON 或解释。
 规则：只使用已安装的 jwave/jax/numpy/matplotlib 与标准库；不得联网、读取系统文件或启动子进程；执行不超过30秒。
+网格坐标必须为 jnp.arange(N)*dx，或 jnp.linspace(0,N*dx,N,endpoint=False)，不得包含周期域右端点。
+输出全时最大绝对压力场应对时间轴取 max(abs(p.params),axis=0)，不得用某个时间快照代替。
 最后必须打印全时最大绝对压力场：
 __ACOU_FIELD_START__
 {{"shape":[...],"kind":"field","downsample":1,"max_pressure":0.0,"data":[[...]]}}
@@ -108,11 +139,15 @@ def _retry_context(query: str, extracted: dict, analyzed: dict) -> str:
         "verdict", "quality_level", "summary", "timing_diagnostic", "physics_checks"
     )}
     parameters = extracted.get("simulation_params", extracted)
+    query_summary = ("已提供结构化初压参数；纠错仅按上述物理参数执行。"
+        if isinstance(parameters, dict) and parameters.get("source_type") == "modal_initial_pressure"
+        else llm._truncate_utf8(query, 1500))
     return (
-        "不得删除压力场标记，不得联网、读取系统文件或启动子进程；保持用户参数不变。\n"
+        "不得删除压力场标记，不得联网、读取系统文件或启动子进程；保持用户物理参数不变。\n"
+        "纠错阶段必须修复失败的 API 调用；用户复现故障或仅首次运行的指令不适用于修复阶段。\n"
         f"参数：{llm._truncate_utf8(json.dumps(parameters, ensure_ascii=False, sort_keys=True), 8000)}\n"
         f"确定性分析：{llm._truncate_utf8(json.dumps(evidence, ensure_ascii=False, sort_keys=True), 6000)}\n"
-        f"用户需求摘要：{llm._truncate_utf8(query, 1500)}"
+        f"用户需求摘要：{query_summary}"
     )
 
 
@@ -178,6 +213,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
     del user  # session identity remains at the portal boundary; no model receives it.
     request_id, workflow_run_id = str(uuid.uuid4()), str(uuid.uuid4())
     notices: list[dict] = []
+    cache_queries = cache_hits = 0
+    observed_errors: list[str] = []
     if not isinstance(query, str) or not query.strip() or len(query.encode("utf-8")) > MAX_QUERY_BYTES:
         yield {"event": "result", "report": "请求为空或超过长度限制。", "workflow_status": "error",
                "request_id": request_id, "workflow_run_id": workflow_run_id, "skill_usage": []}
@@ -190,6 +227,16 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
         if not isinstance(scenario, str) or not isinstance(params, dict):
             raise LocalWorkflowError("parameter_schema_invalid")
+        declared = _explicit_modal_parameters(query)
+        if declared is not None:
+            if scenario != "initial_pressure_2d":
+                raise LocalWorkflowError("declared_scenario_mismatch")
+            from app.skill_store import normalize_parameters
+            # Preserve omissions and changed boundaries; validation must reject them.
+            params = declared
+            extracted["simulation_params"] = params
+            extracted["skill_query"] = {"scenario_type": scenario,
+                                       "parameters": normalize_parameters(params)}
         params_json = json.dumps(params, ensure_ascii=False, sort_keys=True,
                                  separators=(",", ":"), allow_nan=False)
         validation = _tool_functions()["validate_simulation_params"](params_json)
@@ -243,6 +290,10 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 result.get("stderr", "") or "",
                 int(result.get("exit_code") if result.get("exit_code") is not None else 1),
                 params_json, result.get("run_id", "") or "")
+            signature = cache_store._extract_error_signature(result.get("stderr", "") or "",
+                result.get("exit_code"), result.get("stdout", "") or "")
+            if signature:
+                observed_errors.append(signature)
             passed = _passed(result, analyzed)
             if pending_cache_update is not None:
                 signature, fix_hint = pending_cache_update
@@ -266,6 +317,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 run_id=workflow_run_id,
                 requirements_context=_retry_context(query, extracted, analyzed),
             )
+            cache_queries += 1
+            if repaired.get("cache_hit") is True:
+                cache_hits += 1
+                yield {"event": "progress", "stage": "本地编排：纠错缓存命中，重新执行验证",
+                       "request_id": request_id, "workflow_run_id": workflow_run_id}
             code = execution._clean_code(str(repaired["code"] or ""))
             if not code or len(code.encode("utf-8")) > MAX_CODE_BYTES:
                 raise LocalWorkflowError("repaired_code_invalid")
@@ -276,11 +332,22 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         yield {"event": "progress", "stage": "本地编排：审查与解释", "request_id": request_id,
                "workflow_run_id": workflow_run_id}
         safe = json.dumps(_safe_analysis(analyzed), ensure_ascii=False, sort_keys=True)
+        facts = json.dumps({"attempts": attempt + 1, "observed_errors": observed_errors,
+                            "cache_queries": cache_queries, "cache_hits": cache_hits}, ensure_ascii=False)
         review = await _model(profile_id, "result_review",
-            f"确定性物理门不能被覆盖。用户需求：{query}\n门控结果：{safe}\n简短说明通过或失败原因。", workflow_run_id)
+            f"确定性物理门不能被覆盖。用户需求：{query}\n门控结果：{safe}\n"
+            f"服务端执行事实：{facts}。不得将需求中的计划、故障注入或重试描述为已经发生；只按执行事实陈述。\n简短说明通过或失败原因。", workflow_run_id)
         explanation = await _model(profile_id, "result_explanation",
-            f"用3至6句中文解读，只引用给定数值；不得把normal/Q1/Q2写成完整物理正确证明。\n用户需求：{query}\n分析：{safe}", workflow_run_id)
-        report = execution._build_report(result or {}, first_code or code)
+            f"用3至6句中文解读，只引用给定数值；不得把normal/Q1/Q2写成完整物理正确证明。\n用户需求：{query}\n分析：{safe}\n"
+            f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id)
+        report_result = dict(result or {})
+        report_result["total_attempts"] = attempt + 1
+        if not report_result.get("image_base64") and analyzed.get("heatmap_png_base64"):
+            report_result["image_base64"] = analyzed["heatmap_png_base64"]
+        report = execution._build_report(report_result, first_code or code)
+        if cache_queries:
+            report += (f"\n\n纠错缓存：查询尝试 {cache_queries} 次，命中 {cache_hits} 次。"
+                       "提示仅辅助模型修复，每次修复仍重新执行和分析。")
         report += "\n\n## 确定性物理门\n\n" + str(analyzed.get("summary", "未获得分析摘要"))
         report += "\n\n质量等级：`" + str(analyzed.get("quality_level", "Q0")) + "`"
         report += "\n\n## 模型审查（不能覆盖物理门）\n\n" + review["content"]
@@ -293,6 +360,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "skill_usage": notices, "model_profile": review["profile_id"],
                "model": review["model"], "orchestration_backend": "local",
                "quality_level": analyzed.get("quality_level", "Q0"),
+               "cache_usage": {"queries": cache_queries, "hits": cache_hits},
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}
     except model_profiles.ModelProfileError as exc:
         yield {"event": "result", "report": "模型配置不可用，请在模型设置中重新配置 BYOK，或检查环境变量模型 profile。",
