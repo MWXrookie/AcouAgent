@@ -56,6 +56,29 @@ def _canonical_json(value: Mapping[str, Any]) -> str:
         raise ValueError("structured value must be finite JSON") from exc
 
 
+_PHYSICAL_VALUE_FIELDS = {
+    "density_kg_m3", "initial_pressure_pa", "initial_sigma_m", "t_end_s",
+    "secondary_sound_speed_m_s", "interface_position_m",
+    "modal_amplitudes_pa", "modal_wavenumber_rad_per_m",
+}
+
+
+def _physical_value(value):
+    # JS/JSON round trips erase 1.0 versus 1. Preserve physical meaning while
+    # retaining integer grid/index contracts and the existing fixed-profile pins.
+    if type(value) is list:
+        return [_physical_value(item) for item in value]
+    if type(value) not in (int, float):
+        raise ValueError("physical value must be numeric")
+    try:
+        result = float(value)
+    except OverflowError:
+        raise ValueError("physical value must be finite") from None
+    if not math.isfinite(result):
+        raise ValueError("physical value must be finite")
+    return result
+
+
 def normalize_parameters(parameters: Mapping[str, Any]) -> dict[str, Any]:
     """Return a canonical, unit-explicit parameter object without guessing units."""
     if not isinstance(parameters, Mapping) or not parameters:
@@ -90,6 +113,8 @@ def normalize_parameters(parameters: Mapping[str, Any]) -> dict[str, Any]:
             if "grid_shape" in normalized and normalized["grid_shape"] != values:
                 raise ValueError("conflicting values for grid_shape")
             normalized["grid_shape"] = values
+        elif key in _PHYSICAL_VALUE_FIELDS:
+            normalized[key] = _physical_value(value)
         elif key == "boundary_condition":
             if type(value) is not str or value not in {"periodic", "absorbing_pml", "rigid", "open"}:
                 raise ValueError("explicit_boundary_condition_required")

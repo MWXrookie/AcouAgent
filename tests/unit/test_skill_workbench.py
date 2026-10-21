@@ -25,7 +25,7 @@ def test_dashboard_api_adds_only_server_verified_skill_version_link(monkeypatch)
     row={"id":1,"run_id":run_id,"timed_out":False,"code":"pass"}
     monkeypatch.setattr(config,"SKILL_LIBRARY_ENABLED",True)
     monkeypatch.setattr(portal,"get_executions",lambda **kwargs:[dict(row)])
-    monkeypatch.setattr(portal,"get_latest_analysis_by_run_ids",lambda ids:{run_id:{
+    monkeypatch.setattr(portal,"get_latest_analysis_by_run_ids",lambda ids, **kwargs:{run_id:{
         "run_id":run_id,"verdict":"normal","max_pressure":1.0,"rms_pressure":0.2,
         "field_shape":[64,64],"has_signal":True,"summary":"finite field"}})
     monkeypatch.setattr(portal,"get_analysis_updates",lambda **kwargs:[{

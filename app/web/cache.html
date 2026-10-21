@@ -91,7 +91,7 @@ body{background:var(--bg)!important;color:var(--text)!important}
 <body>
 <div class="back"><a href="/">← 返回门户</a></div>
 <h1>纠错经验缓存</h1>
-<p class="subtitle">每次仿真失败后，当前 BYOK 模型自动分析错误并生成修复代码。修复成功的经验沉淀在这里，同类错误再次出现时可以直接复用。</p>
+<p class="subtitle">每次仿真失败后，当前 BYOK 模型自动分析错误并生成修复代码。修复提示保存在这里；同类错误出现时可提供给当前模型辅助修复，仍须重新执行验证。</p>
 <div class="summary-row" id="summary"></div>
 <div class="section" id="bands-section"></div>
 <div class="section">
@@ -99,9 +99,9 @@ body{background:var(--bg)!important;color:var(--text)!important}
   <div class="filter-bar">
     <span class="filter-label">筛选：</span>
     <button class="filter-btn active" onclick="setFilter('all')">全部</button>
-    <button class="filter-btn" onclick="setFilter('high')">高置信</button>
-    <button class="filter-btn" onclick="setFilter('medium')">中等置信</button>
-    <button class="filter-btn" onclick="setFilter('at-risk')">有风险</button>
+    <button class="filter-btn" onclick="setFilter('high')">高置信 ≥70%</button>
+    <button class="filter-btn" onclick="setFilter('medium')">中等置信 50–70%</button>
+    <button class="filter-btn" onclick="setFilter('at-risk')">连续失败 ≥3</button>
     <button class="filter-btn" onclick="setFilter('type-error')">TypeError</button>
     <button class="filter-btn" onclick="setFilter('attr-error')">AttributeError</button>
   </div>
@@ -181,7 +181,7 @@ function extractFixChange(hint) {
   }
 
   if (comments.length > 0) {
-    return comments[0] + (keyLines.length > 0 ? '（如 <code>' + esc(keyLines[0].slice(0,60)) + '</code>）' : '');
+    return esc(comments[0]) + (keyLines.length > 0 ? '（如 <code>' + esc(keyLines[0].slice(0,60)) + '</code>）' : '');
   }
   if (keyLines.length > 0) {
     return '修复后使用了 <code>' + esc(keyLines[0].slice(0,60)) + '</code>' + (keyLines.length > 1 ? ' 等关键调用。' : '。');
@@ -201,9 +201,9 @@ function render(d) {
   var successRate = d.total_hits > 0 ? (d.total_successes / d.total_hits * 100) : 0;
   document.getElementById("summary").innerHTML =
     '<div class="tile"><div class="num">' + d.total_entries + '</div><div class="label">经验条目</div><div class="sub">已积累的修复经验</div></div>' +
-    '<div class="tile good"><div class="num">' + d.total_hits + '</div><div class="label">累计命中</div><div class="sub">经验被查询的次数</div></div>' +
-    '<div class="tile good"><div class="num">' + d.total_successes + '</div><div class="label">成功修复</div><div class="sub">经验确实起作用的次数</div></div>' +
-    '<div class="tile ' + (successRate >= 80 ? 'good' : 'warn') + '"><div class="num">' + fmtPct(successRate) + '</div><div class="label">命中成功率</div><div class="sub">经验靠谱程度</div></div>' +
+    '<div class="tile good"><div class="num">' + d.total_hits + '</div><div class="label">修复尝试</div><div class="sub">已记录的修复结果次数，包含首次学习</div></div>' +
+    '<div class="tile good"><div class="num">' + d.total_successes + '</div><div class="label">成功修复</div><div class="sub">修复后通过执行检查的次数</div></div>' +
+    '<div class="tile ' + (successRate >= 80 ? 'good' : 'warn') + '"><div class="num">' + fmtPct(successRate) + '</div><div class="label">修复成功率</div><div class="sub">经验靠谱程度</div></div>' +
     '<div class="tile"><div class="num">' + fmtPct((d.avg_confidence || 0) * 100) + '</div><div class="label">平均置信度</div><div class="sub">经验可信度均值</div></div>' +
     '<div class="tile ' + (d.questioned_count ? 'warn' : 'good') + '"><div class="num">' + (d.questioned_count || 0) + '</div><div class="label">待观察</div><div class="sub">连续失败≥3次</div></div>';
 
@@ -236,8 +236,9 @@ function applyFilter() {
   var d = cachedData;
   if (!d) return;
   var seen = {}, all = [];
-  (d.top_entries || []).forEach(function(e) { if (!seen[e.signature]) { seen[e.signature] = true; all.push(e); } });
-  (d.recent_entries || []).forEach(function(e) { if (!seen[e.signature]) { seen[e.signature] = true; all.push(e); } });
+  (d.entries || (d.top_entries || []).concat(d.recent_entries || [])).forEach(function(e) {
+    if (!seen[e.signature]) { seen[e.signature] = true; all.push(e); }
+  });
 
   var filtered = all.filter(function(e) {
     var conf = Number(e.confidence || 0);
@@ -253,7 +254,7 @@ function applyFilter() {
   });
 
   var el = document.getElementById("entry-count");
-  if (el) el.textContent = '（' + filtered.length + ' / ' + all.length + ' 条）';
+  if (el) el.textContent = '（' + filtered.length + ' / ' + all.length + ' 条，库共 ' + d.total_entries + ' 条）';
 
   if (filtered.length === 0) {
     document.getElementById("all-entries").innerHTML = '<div class="empty">当前筛选条件下无匹配经验</div>';
@@ -277,7 +278,7 @@ function applyFilter() {
     html += '<div class="story" style="color:var(--green);font-size:13px">🔧 修复：' + fix + '</div>';
     // Stats
     html += '<div class="stats-row">';
-    html += '<span class="stat-item">命中 <span class="stat-val">' + (e.hits || 0) + '</span> 次</span>';
+    html += '<span class="stat-item">修复尝试 <span class="stat-val">' + (e.hits || 0) + '</span> 次</span>';
     html += '<span class="stat-item">成功 <span class="stat-val">' + (e.success_count || 0) + '</span> 次</span>';
     html += '<span class="stat-item">成功率 <span class="stat-val">' + fmtPct(sRate) + '</span></span>';
     html += '<span class="pill ' + (conf >= 0.7 ? 'green' : (conf >= 0.5 ? 'yellow' : 'red')) + '">置信度 ' + fmtPct(conf*100) + '</span>';
@@ -285,7 +286,7 @@ function applyFilter() {
       html += '<span class="pill ' + (e.consecutive_fails >= 3 ? 'red' : 'yellow') + '">⚠ 连续失败 ' + e.consecutive_fails + ' 次' + (e.consecutive_fails >= 5 ? '（已退役）' : e.consecutive_fails >= 3 ? '（即将退役）' : '') + '</span>';
     }
     html += '</div>';
-    html += '<span class="toggle-code" onclick="var c=document.getElementById(\'' + uid + '\');c.classList.toggle(\'open\');this.textContent=c.classList.contains(\'open\')?\'▲ 收起修复代码\':\'▼ 查看完整修复代码\'">▼ 查看完整修复代码</span>';
+    html += '<span class="toggle-code" onclick="var c=document.getElementById(\'' + uid + '\');c.classList.toggle(\'open\');this.textContent=c.classList.contains(\'open\')?\'▲ 收起修复提示\':\'▼ 查看修复提示片段\'">▼ 查看修复提示片段</span>';
     html += '<div class="fix-code" id="' + uid + '">' + esc(e.hint || e.hint_excerpt || '') + '</div>';
     if (e.updated_at) html += '<div style="color:var(--muted);font-size:11px;margin-top:4px">更新于 ' + esc(e.updated_at) + '</div>';
     html += '</div>';

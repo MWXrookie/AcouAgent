@@ -6,8 +6,8 @@
   "visualReview": "passed",
   "artifact": {
     "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "90aea594bf4d86ec1fd4be245c34a38af1dd40cf0e56b5dca1fb464fb2d6b1c2",
-    "bytes": 726824
+    "sha256": "86cd98d0c66d6e08dbfdb2e5e273bf2e93d188dbc3d3033535d0736189aad517",
+    "bytes": 727163
   },
   "state": {
     "detail": "read",
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "<local Chrome path redacted>"
+    "executable": "Chrome"
   },
   "diagnostics": [],
   "containment": {
@@ -543,18 +543,5 @@
   "sidecars": {
     "receipt": "acouagent-runtime.architecture.visual-check.json",
     "contactSheet": "acouagent-runtime.architecture.visual-check.html"
-  },
-  "manualReview": {
-    "status": "passed",
-    "inspected_at_utc": "2026-10-19T06:35:23Z",
-    "captures": [
-      "1440x900 light",
-      "1440x900 dark",
-      "2048x1320 light",
-      "2048x1320 dark"
-    ],
-    "result": "All four captures were inspected after the containment repair; no clipping, overlap, ambiguous routing, unreadable labels, abnormal whitespace, or theme-specific defects were observed.",
-    "correction_rounds": 1
-  },
-  "operator_paths_redacted": true
+  }
 }

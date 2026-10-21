@@ -64,7 +64,7 @@ def test_async_retry_uses_shared_prompt_and_returns_cache_signature(monkeypatch)
         requirements_context="keep the pressure field marker",
     ))
 
-    assert fixed == {"code": "print('fixed async')", "error_signature": "signature"}
+    assert fixed == {"code": "print('fixed async')", "error_signature": "signature", "cache_hit": False}
     assert captured["profile_id"] == "profile-b"
     assert captured["task"] == "retry"
     assert captured["run_id"] == "run-2"
@@ -93,7 +93,7 @@ def test_async_retry_treats_cache_lookup_failure_as_miss(monkeypatch):
         {"exit_code": 1, "timed_out": False, "stdout": "", "stderr": "failure"},
     ))
 
-    assert fixed == {"code": "print('fixed without cache')", "error_signature": "signature"}
+    assert fixed == {"code": "print('fixed without cache')", "error_signature": "signature", "cache_hit": False}
     assert "jwave common error cheat sheet" in captured["prompt"]
 
 
