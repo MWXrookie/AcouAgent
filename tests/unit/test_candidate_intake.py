@@ -211,7 +211,7 @@ def test_gaussian_initial_pressure_candidate_does_not_invent_frequency(env):
     params=dict(PARAMS)
     params.pop("source_frequency")
     params.update(source_kind="gaussian_initial_pressure",initial_pressure_pa=1,
-                  initial_sigma_m=.001,initial_velocity="zero")
+                  initial_sigma_m=.001,initial_velocity="zero",t_end=8e-6)
     result=env[3]["run_jwave_code"](CODE,scenario_type="initial_pressure_2d",params_json=json.dumps(params))
     assert result["candidate_accumulation"]["recorded"]
     with sqlite3.connect(env[1].path) as db:
@@ -219,14 +219,27 @@ def test_gaussian_initial_pressure_candidate_does_not_invent_frequency(env):
     assert "frequency_hz" not in stored and stored["initial_sigma_m"]==.001
 
 @pytest.mark.parametrize("change",[dict(initial_sigma_m=.0001),dict(initial_velocity="unknown"),
-                                  dict(initial_pressure_pa=True),dict(source_frequency=100000)])
+                                  dict(initial_pressure_pa=True),dict(source_frequency=100000),
+                                  dict(t_end=None),dict(t_end=0)])
 def test_unresolved_or_conflicting_initial_pressure_profile_rejected(env,change):
     params=dict(PARAMS);params.pop("source_frequency")
     params.update(source_kind="gaussian_initial_pressure",initial_pressure_pa=1,
-                  initial_sigma_m=.001,initial_velocity="zero")
+                  initial_sigma_m=.001,initial_velocity="zero",t_end=8e-6)
     params.update(change)
     result=env[3]["run_jwave_code"](CODE,scenario_type="initial_pressure_2d",params_json=json.dumps(params))
     assert not result.get("candidate_accumulation",{}).get("recorded")
+    assert not env[1].path.exists()
+
+
+def test_missing_initial_pressure_time_does_not_accumulate(env):
+    params=dict(PARAMS)
+    params.pop("source_frequency")
+    params.update(source_kind="gaussian_initial_pressure",initial_pressure_pa=1,
+                  initial_sigma_m=.001,initial_velocity="zero")
+    assert "t_end" not in params
+    result=env[3]["run_jwave_code"](
+        CODE,scenario_type="initial_pressure_2d",params_json=json.dumps(params))
+    assert result["candidate_accumulation"]["reason"]=="candidate_quality_insufficient"
     assert not env[1].path.exists()
 
 
