@@ -44,6 +44,10 @@
 
 ## 新环境部署
 
+队友从 `main` 更新后的具体启动步骤见 [队友安装与更新](docs/TEAM_QUICKSTART.md)。
+`git pull` 只更新源码；已有容器还需要运行安装器重建网关，浏览器入口为
+`http://127.0.0.1:8001/portal`。首次使用需要已启动的 Docker Compose 和自己的模型 API Key。
+
 基础栈只需要 Docker Compose，不要求已有 Dify：
 
 Linux、macOS 或 WSL：
