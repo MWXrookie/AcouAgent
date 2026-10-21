@@ -1,6 +1,6 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
-> 2026-10-21：初压合同共享预检、显式周期声明与固定参考热力图修复已完成候选 Portal 验收（238 项相关回归）；正式服务尚未升级。证据见 docs/validation/stage7/PORTAL_INITIAL_PRESSURE_UAT_2026-10-21.md。
+> 2026-10-21：初压合同共享预检、显式周期声明与固定参考热力图修复已完成候选 Portal 验收（238 项相关回归）；正式服务已于2026-10-21升级至c19b68b并完成核心浏览器复验；以docs/CURRENT_STATUS.md及正式部署记录为准。证据见 docs/validation/stage7/PORTAL_INITIAL_PRESSURE_UAT_2026-10-21.md。
 
 > 2026-10-16 当前状态：发行默认使用本地编排，门户和环境变量均支持用户自带 OpenAI-compatible 模型；模型调用统一通过 `app/model_client.py` 的脱敏受限传输，自动纠错不再维护平行 HTTP 实现。阶段七 Dify 固定集已完成 30/30，两个本地 BYOK lane、全新机器自然语言首题和 VM 回滚终验仍未关闭；不得把部分矩阵写成完整 v1.0 发布。权威状态入口为 `docs/CURRENT_STATUS.md`。
 
