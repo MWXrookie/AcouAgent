@@ -5,16 +5,16 @@
 ## 1. 下载并准备配置
 
 ```bash
-git clone https://github.com/MWXrookie/dify-mcp-server.git
-cd dify-mcp-server
+git clone https://github.com/MWXrookie/AcouAgent.git
+cd AcouAgent
 bash scripts/install.sh --prepare-only
 ```
 
 Windows PowerShell 使用：
 
 ```powershell
-git clone https://github.com/MWXrookie/dify-mcp-server.git
-Set-Location dify-mcp-server
+git clone https://github.com/MWXrookie/AcouAgent.git
+Set-Location AcouAgent
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1 -PrepareOnly
 ```
 
@@ -36,7 +36,7 @@ MODEL_API_KEY=<你的 API Key>
 
 ## 3. 启动
 
-Linux、macOS 或 WSL：
+Linux / WSL（amd64）：
 
 ```bash
 bash scripts/install.sh

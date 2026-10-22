@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-22：仓库已更名为 MWXrookie/AcouAgent；README 为产品介绍，技术部署细节迁至 docs/TECHNICAL_GUIDE.md。队友安装和 origin 更新见 docs/TEAM_QUICKSTART.md。内部发行、镜像、容器、数据卷标识与架构保持不变；版本仍为 0.1.0 测试版。
+
 > 2026-10-22：测试与正式网关的131个运行文件及2个依赖锁文件与main一致。高斯初压候选回归补全显式结束时间，继续拒绝缺失/无效时间；队友安装与更新见docs/TEAM_QUICKSTART.md。应用及executor安全边界未改，其他v1.0门仍开放。
 
 > 2026-10-21：初压合同共享预检、显式周期声明与固定参考热力图修复已完成候选 Portal 验收（238 项相关回归）；正式服务已于2026-10-21升级至c19b68b并完成核心浏览器复验；以docs/CURRENT_STATUS.md及正式部署记录为准。证据见 docs/validation/stage7/PORTAL_INITIAL_PRESSURE_UAT_2026-10-21.md。

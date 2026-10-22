@@ -9,13 +9,13 @@ OpenAI-compatible 模型 API 地址、模型名和 API Key。Windows 使用 Dock
 打开 PowerShell，依次运行：
 
 ```powershell
-git clone https://github.com/MWXrookie/dify-mcp-server.git
-Set-Location dify-mcp-server
+git clone https://github.com/MWXrookie/AcouAgent.git
+Set-Location AcouAgent
 git switch main
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 ```
 
-Linux、macOS 或 WSL 在仓库目录运行 `bash scripts/install.sh`。安装器会自动生成
+Linux / WSL（amd64）在仓库目录运行 `bash scripts/install.sh`。安装器会自动生成
 两个独立随机 token，拉取 executor、从当前源码构建网关，并等待空数据卷上的
 17 项固定技能执行、自举和物理门完成。首次需要联网下载镜像与依赖，可能耗时数分钟；
 看到 `AcouAgent is ready` 后再打开门户。不要把 `skill-bootstrap Exited (0)` 当作故障。
@@ -31,6 +31,7 @@ API Key，点击“测试连接”。临时 BYOK 默认 12 小时过期，网关
 
 ```powershell
 git status --short
+git remote set-url origin https://github.com/MWXrookie/AcouAgent.git
 git switch main
 git pull --ff-only origin main
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
@@ -61,3 +62,9 @@ docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
 或运行 `python -m scripts.diagnostics.acouagent_doctor --mode auto --json`。
 未启动 Docker、镜像下载网络失败、8001 端口被占用，以及模型鉴权失败分别排查；
 不要公开粘贴 `.env`、完整日志或凭据。当前开放发布门仍以 [当前状态](CURRENT_STATUS.md) 为准。
+
+## 仓库已更名为 AcouAgent
+
+GitHub 地址为 `https://github.com/MWXrookie/AcouAgent`。已有克隆可继续在原目录更新，
+并按上方命令修改 origin；不要为了改目录名而移动或重建持久数据卷。
+镜像、Docker 服务名、容器名及内部兼容标识继续使用原值，避免影响已有部署。

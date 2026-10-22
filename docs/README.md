@@ -1,5 +1,10 @@
 # Documentation index
 
+- [产品介绍](../README.md)
+- [队友安装与更新](TEAM_QUICKSTART.md)
+- [技术与部署详解](TECHNICAL_GUIDE.md)
+- [当前权威状态](CURRENT_STATUS.md)
+
 ## 规划与验收（正典）
 
 - `DEVELOPMENT_PLAN.md` - **v3.0 开发规划**（终点＝本地技能库系统；阶段 A–F）
