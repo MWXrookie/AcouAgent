@@ -1,6 +1,6 @@
 # 技能扩展：数据、接口与任务恢复合同
 
-日期：2026-10-23。状态：**设计冻结，待实施与部署验收**。本文没有执行迁移、创建运行表、开放接口或改变当前技能认证。
+日期：2026-10-23。状态：**阶段1内部格式与草稿存储已实现，尚未部署**。后续任务执行与HTTP接口仍为冻结设计，实施边界见 [阶段1说明](STAGE1_IMPLEMENTATION.md)。生产库未迁移，技能认证未改变。
 
 依据：[NEXT_STAGE_PLAN](../NEXT_STAGE_PLAN.md)阶段0→1→2→3，阶段4/5后接阶段6。保持现有FastMCP、SQLite、local编排与executor，不增加Redis、Celery、向量数据库或独立服务。实际实施须同步架构JSON/HTML；本准备文档不把拟建组件画成当前运行事实。
 
@@ -19,7 +19,7 @@ SkillSpec v1内容：`schema_version`、`name`、`description`、`scenario_type`
 
 以同目录`skill-spec-v1.schema.json`与`SKILL_FORMAT.md`为唯一字段定义；不另造适用域/来源顶层。`validation_request.policy`固定`server_required`，可选reference_case_id只是待核对声明。来源与适用限制说明只放`author_notes`且无信任效力。首版`result_spec`字段为`kind=steady_complex_pressure`、`units=numerical_source_normalization`、`axis_order=["x","y"]`、`grid_shape`、`full_complex=true`、`downsample=1`；其他结果类别需后续版本，不用本文概念名扩张Schema。未知字段、重复JSON键、非有限数、隐式布尔数值、单位不明或冲突均拒绝。首版冻结HTTP请求正文上限64000个UTF-8字节（不是65536）、代码20000字节、parameters序列化4096字节、正文嵌套深度16；入口按字节计而非Schema字符数计，不改变旧路由。
 
-`normalizer_v2`新增受限`material_regions`（rectangle/half_space，零起始半开start/stop，区域声速/密度），`helmholtz_source_coefficient`及允许零的`background_attenuation_db_mhz2_cm`。B02/B03的材料图和源RHS=1不能交给旧白名单；新指纹的规范身份必须完整包含schema版本、normalizer版本、场景、全部材料区域/空间位置、背景材料、源系数/源位置及result_spec。保留区域顺序并拒绝越界、歧义重叠/覆盖，不猜默认物理值。同基础参数而材料图、源或结果合同不同，必须得到不同v2身份，不能折叠为同一技能。服务端适配器才能显式转换到旧执行入口；未验证新版本前不让v2落入旧指纹唯一索引碰撞。
+`normalizer_v2`新增受限`material_regions`（rectangle/half_space，零起始半开start/stop，区域声速/密度），`helmholtz_source_coefficient`及允许零的`background_attenuation_db_mhz2_cm`。B02/B03的材料图和源RHS=1不能交给旧白名单；新指纹的规范身份必须完整包含schema版本、normalizer版本、场景、全部材料区域/空间位置、背景材料、源系数/源位置及result_spec。不重叠区域按规范JSON排序，使等价地图身份一致；拒绝越界、歧义重叠/覆盖，不猜默认物理值。同基础参数而材料图、源或结果合同不同，必须得到不同v2身份，不能折叠为同一技能。服务端适配器才能显式转换到旧执行入口；未验证新版本前不让v2落入旧指纹唯一索引碰撞。
 
 用户来源描述只是线索；用户不能提供可信质量、激活状态、执行nonce、受信run_id、回执、验证器代码或可执行参考脚本。`source_run_id`由自动入口从服务器历史读取；手动入口由实际验证执行生成。管理员导入的来源文件也必须完成服务端来源审核，不能因上传者是管理员就自动变成独立真值。
 
@@ -227,3 +227,8 @@ gmres、tol=1e-5、complex64、FourierSeries属于版本化适配器/profile求�
 它们不复用现有 SKILL_MANUAL_INTAKE_ENABLED（固定配方接纳）的语义，也不替换既有学习/检索开关。
 自动来源还必须满足原 SKILL_LEARNING_ENABLED；关闭学习不撤销既有已验证技能，关闭新接纳不影响旧17项路径。
 所有开关仅为本阶段冻结名称，尚未加入配置或改变生产环境。
+## 阶段1实施补充
+
+实际schema18以 `app/skill_authoring_schema.py` 为准：在上述DDL基础上增加 `skill_draft_requests`（按actor/operation/idempotency_key唯一，绑定初始版本）、作者分页索引和版本/请求防更新、防删除、防替换触发器。完整性检查核对表、索引和触发器的真实SQL定义，只有版本号或同名空触发器不算已迁移。
+
+当前版本相同内容更新为无操作；提交历史旧内容返回 `historical_content_conflict`，不回退head。幂等创建重放返回原始版本内容与真实最新head状态。HTTP错误码、验证worker和新接纳仍待后续阶段。

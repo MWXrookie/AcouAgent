@@ -193,3 +193,15 @@ def test_managed_legacy_transport_is_separate_from_executor_receipt(ready,fault)
         proof["local_transport_receipt"]=receipt
         db.execute("UPDATE executions SET executor_evidence_json=? WHERE run_id=?",(json.dumps(proof),run))
     assert local.record(run)["admitted"] is (fault is None)
+
+
+def test_operator_init_accepts_complete18_without_writes_and_rejects_forged18(ready):
+    from scripts.skill_library.local_basic import initialize
+    store, _ = ready
+    store.migrate_skill_authoring()
+    before = store.path.read_bytes()
+    assert initialize()["ready"] and not initialize()["created"]
+    assert store.path.read_bytes() == before
+    with sqlite3.connect(store.path) as db:
+        db.execute("DROP TRIGGER skill_draft_versions_no_update")
+    assert not initialize()["ready"]

@@ -86,8 +86,9 @@ def _root(db,revision,now):
 
 def _require_current_schema(db):
     from app.skill_store import SCHEMA_VERSION
+    from app.skill_authoring_schema import schema_ready
     versions=[row[0] for row in db.execute("SELECT version FROM schema_migrations ORDER BY version")]
-    if versions!=list(range(1,SCHEMA_VERSION+1)):
+    if versions!=list(range(1,SCHEMA_VERSION+1)) and not schema_ready(db):
         raise ValueError("explicit_schema_migration_required")
 
 
