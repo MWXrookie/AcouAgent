@@ -1,6 +1,6 @@
 # 技能扩展：数据、接口与任务恢复合同
 
-日期：2026-10-23。状态：**阶段1格式/草稿与阶段2内部trial任务/结果已实现，尚未部署**。独立物理验证、接纳与HTTP接口仍为冻结设计，实施边界见 [阶段1说明](STAGE1_IMPLEMENTATION.md)。生产库未迁移，技能认证未改变。
+日期：2026-10-23。状态：**阶段1格式/草稿与阶段2内部trial任务/结果已实现，尚未部署**。阶段3内部独立验证/接纳/复用已实现候选，HTTP/UI与自动事件仍待实施，实施边界见 [阶段1说明](STAGE1_IMPLEMENTATION.md)。生产库未迁移，技能认证未改变。
 
 依据：[NEXT_STAGE_PLAN](../NEXT_STAGE_PLAN.md)阶段0→1→2→3，阶段4/5后接阶段6。保持现有FastMCP、SQLite、local编排与executor，不增加Redis、Celery、向量数据库或独立服务。实际实施须同步架构JSON/HTML；本准备文档不把拟建组件画成当前运行事实。
 
@@ -226,7 +226,7 @@ gmres、tol=1e-5、complex64、FourierSeries属于版本化适配器/profile求�
 计划新增 SKILL_AUTHORING_ENABLED、SKILL_VALIDATION_ENABLED、SKILL_GENERAL_ADMISSION_ENABLED，分别控制编辑入口、验证任务和新类别接纳；实施时校验依赖关系。
 它们不复用现有 SKILL_MANUAL_INTAKE_ENABLED（固定配方接纳）的语义，也不替换既有学习/检索开关。
 自动来源还必须满足原 SKILL_LEARNING_ENABLED；关闭学习不撤销既有已验证技能，关闭新接纳不影响旧17项路径。
-AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION仍为冻结设计。生产环境未变。
+AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION已实现且默认false。生产环境未变。
 ## 阶段1实施补充
 
 实际schema18以 `app/skill_authoring_schema.py` 为准：在上述DDL基础上增加 `skill_draft_requests`（按actor/operation/idempotency_key唯一，绑定初始版本）、作者分页索引和版本/请求防更新、防删除、防替换触发器。完整性检查核对表、索引和触发器的真实SQL定义，只有版本号或同名空触发器不算已迁移。
@@ -236,3 +236,7 @@ AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION仍为冻
 ## 阶段2实施补充
 
 内部trial任务与资产实现见 [阶段2说明](STAGE2_IMPLEMENTATION.md)。成功trial使用rejected/trial_completed_ungraded，既无validated也无admitted；这与未来validate的科学失败不同。当前不需要模型凭据，不实现BYOK恢复或接纳outbox。任何任务重建、跨库补记必须先核对真实执行终态，未知派发继续占slot；不借迁移或试运行暗中实现授级。
+
+## 阶段3实施补充
+
+受控派生、独立比较、原目录Q4接纳、generation decision/consumption及新运行重验已贯通，见 [阶段3说明](STAGE3_IMPLEMENTATION.md)。沿用18表，执行manifest与比较proof分开，evidence绑定proof资产；版本保留完整spec和授权job/proof指针。跨库断点由reconcile核对，admission在同skill库事务；未新增后台outbox调度或HTTP接口。数值解析在写锁外，事务内重哈希实际文件/历史，预检缺失拒绝。

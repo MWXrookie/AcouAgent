@@ -92,6 +92,8 @@ simulation_params 必须包含完整物理合同，不能只把激励信息放�
 modal_wavenumber_rad_per_m、boundary_condition、initial_velocity 及用户给出的全部 SI 参数。
 高斯初压保留 source_type=gaussian_initial_pressure、initial_pressure_pa、initial_sigma_m 和零初速度。
 用户提供完整 SI 字段时保留字段和值；缺项不得从技能名或技能库补齐。
+频域稳态点源案例只有用户完整提供 v2 参数和 result_spec 时，才在顶层原样保留 result_spec。
+不得猜测材料区域、源强、吸收或结果合同；不完整则沿原代码生成路径。
 skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
 
 
@@ -154,12 +156,32 @@ def _retry_context(query: str, extracted: dict, analyzed: dict) -> str:
 def _safe_analysis(analyzed: dict) -> dict:
     return {key: analyzed.get(key) for key in (
         "verdict", "quality_level", "max_pressure", "rms_pressure", "field_shape",
-        "has_signal", "summary", "timing_diagnostic", "physics_checks"
+        "has_signal", "summary", "timing_diagnostic", "physics_checks", "units"
     )}
 
 
 def _skill_query(extracted: dict) -> tuple[str, str] | None:
+    from app import skill_general_library as general
     value = extracted.get("skill_query")
+    if "result_spec" in extracted:
+        params = extracted.get("simulation_params")
+        envelope = dict(normalizer_version="normalizer_v2",parameters=params,
+                        result_spec=extracted["result_spec"])
+        try:
+            scenario = extracted["scenario_type"]
+            encoded = json.dumps(envelope,ensure_ascii=False,sort_keys=True,separators=(",",":"),allow_nan=False)
+            normalized = general.normalize_query(scenario,encoded)
+            if value is not None:
+                if type(value) is not dict or set(value)!={"scenario_type","parameters"} or value["scenario_type"]!=scenario:
+                    return None
+                claimed=value["parameters"]
+                if general.is_general_query(claimed):
+                    claimed=general.normalize_query(scenario,json.dumps(claimed,allow_nan=False))
+                    if claimed!=normalized:return None
+                elif claimed!=params:return None
+            return scenario,json.dumps(normalized,ensure_ascii=False,sort_keys=True,separators=(",",":"),allow_nan=False)
+        except (ValueError,TypeError,KeyError,OverflowError,RecursionError):
+            return None
     if not isinstance(value, dict) or set(value) != {"scenario_type", "parameters"}:
         return None
     scenario, params = value.get("scenario_type"), value.get("parameters")
@@ -186,12 +208,15 @@ def _skill_notices(usage: dict) -> list[dict]:
 
 def _direct_reference(usage: dict, scenario: str, parameters_json: str,
                       original_context: str) -> tuple[dict | None, dict | None]:
-    if not isinstance(usage, dict) or usage.get("reason") != "local_fixed_reference_delivery":
+    if not isinstance(usage, dict) or usage.get("reason") not in {"local_fixed_reference_delivery","general_validated_reference_delivery"}:
         return None, None
     decision_id, intent_id = usage.get("decision_id"), usage.get("generation_intent_id")
     if not isinstance(decision_id, str) or not isinstance(intent_id, str):
         return None, None
-    from app.skill_local_execution import execute_reference
+    if usage["reason"] == "general_validated_reference_delivery":
+        from app.skill_general_library import execute_reference
+    else:
+        from app.skill_local_execution import execute_reference
     outcome = execute_reference(decision_id=decision_id, generation_run_id=intent_id,
         scenario_type=scenario, parameters_json=parameters_json, original_context=original_context)
     if outcome.get("execution_reuse_verified") is not True:
@@ -239,7 +264,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                                        "parameters": normalize_parameters(params)}
         params_json = json.dumps(params, ensure_ascii=False, sort_keys=True,
                                  separators=(",", ":"), allow_nan=False)
-        validation = _tool_functions()["validate_simulation_params"](params_json)
+        if "result_spec" in extracted:
+            query_contract = _skill_query(extracted)
+            validation = {"valid": query_contract is not None, "errors": [{"message":"完整频域参数或检索合同不一致"}]}
+        else:
+            validation = _tool_functions()["validate_simulation_params"](params_json)
         if validation.get("valid") is not True:
             detail = "；".join(item.get("message", "参数错误") for item in validation.get("errors", [])[:6])
             yield {"event": "result", "report": "参数物理检查未通过：" + detail,
@@ -268,6 +297,14 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             result, direct_outcome = await asyncio.to_thread(_direct_reference,
                 generation.get("skill_usage", {}), query_data[0], query_data[1], original_context)
         used_direct_reference = result is not None
+        if "result_spec" in extracted and result is None:
+            yield {"event": "result", "report": "未找到可用的已验证技能，需要先完成独立验证并接纳；如已派发执行，请检查本次执行记录。",
+                   "workflow_status": "error", "request_id": request_id,
+                   "workflow_run_id": workflow_run_id, "skill_usage": notices,
+                   "quality_level": "Q0", "error_code": "validated_general_reference_required",
+                   "run_id": (direct_outcome or {}).get("run_id"),
+                   "orchestration_backend": "local"}
+            return
         if result is None:
             yield {"event": "progress", "stage": "本地编排：生成代码", "request_id": request_id,
                    "workflow_run_id": workflow_run_id}
@@ -286,10 +323,16 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                        "request_id": request_id, "workflow_run_id": workflow_run_id}
                 result = await asyncio.to_thread(_tool_functions()["run_jwave_code"],
                                                  code, 30, "", scenario, params_json)
-            analyzed = analysis.analyze_and_record(result.get("stdout", "") or "",
-                result.get("stderr", "") or "",
-                int(result.get("exit_code") if result.get("exit_code") is not None else 1),
-                params_json, result.get("run_id", "") or "")
+            if (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"
+                    and direct_outcome.get("execution_reuse_verified") is True
+                    and isinstance(direct_outcome.get("analysis"), dict)):
+                # This value comes from the internal reexecution verifier, never model output.
+                analyzed = dict(direct_outcome["analysis"])
+            else:
+                analyzed = analysis.analyze_and_record(result.get("stdout", "") or "",
+                    result.get("stderr", "") or "",
+                    int(result.get("exit_code") if result.get("exit_code") is not None else 1),
+                    params_json, result.get("run_id", "") or "")
             signature = cache_store._extract_error_signature(result.get("stderr", "") or "",
                 result.get("exit_code"), result.get("stdout", "") or "")
             if signature:
@@ -342,6 +385,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id)
         report_result = dict(result or {})
         report_result["total_attempts"] = attempt + 1
+        if used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery":
+            # Preserve receipt-bound history; hide the full binary export only
+            # in this presentation copy instead of dumping base64 into chat.
+            report_result["stdout"] = re.sub(r"__SKILL_PROBE_START__.*?__SKILL_PROBE_END__",
+                "[完整复数结果已保存并独立验证]", report_result.get("stdout", "") or "", flags=re.DOTALL)
         if not report_result.get("image_base64") and analyzed.get("heatmap_png_base64"):
             report_result["image_base64"] = analyzed["heatmap_png_base64"]
         report = execution._build_report(report_result, first_code or code)
@@ -349,6 +397,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             report += (f"\n\n纠错缓存：查询尝试 {cache_queries} 次，命中 {cache_hits} 次。"
                        "提示仅辅助模型修复，每次修复仍重新执行和分析。")
         report += "\n\n## 确定性物理门\n\n" + str(analyzed.get("summary", "未获得分析摘要"))
+        if analyzed.get("units") == "numerical_source_normalization":
+            report += "\n\n场量单位：数值源归一化（numerical_source_normalization）；未标定为 Pa。"
         report += "\n\n质量等级：`" + str(analyzed.get("quality_level", "Q0")) + "`"
         report += "\n\n## 模型审查（不能覆盖物理门）\n\n" + review["content"]
         report += "\n\n## 物理解读\n\n" + explanation["content"]

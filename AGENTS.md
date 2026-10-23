@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-23 阶段3候选：受控Helmholtz可见派生、精确独立比较、原目录Q4接纳、v2检索/消费/新运行复用已通过三题六次原executor实跑；仅精确幅值认证，不泛化/不认证相位。默认关闭、生产未改；自动学习事件/手动界面仍待阶段4/5。见 docs/skills-next/STAGE3_IMPLEMENTATION.md。
+
 > 2026-10-23 阶段2候选：持久trial队列/租约/取消/未知派发对账、完整复数结果与同源指标已实现，原executor三题各一次实跑完成。默认双开关关闭，无HTTP/UI、后台自动启动、独立物理授级或新接纳；schema仍显式18。见 docs/skills-next/STAGE2_IMPLEMENTATION.md，生产未改。
 
 > 2026-10-23 阶段1候选：严格SkillSpec/normalizer_v2、内部草稿幂等版本与CAS、默认17/显式备份扩展18已实现，默认关闭；HTTP/UI/验证worker与新技能接纳尚未实现。见 docs/skills-next/STAGE1_IMPLEMENTATION.md，生产未迁移。

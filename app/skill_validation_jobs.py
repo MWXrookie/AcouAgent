@@ -113,15 +113,20 @@ class ValidationJobs(DraftStore):
         with self._connection() as db:
             return self._view(db, self._row(db, job_id))
 
+    @staticmethod
+    def _intent(intent):
+        if intent != "trial":
+            raise DraftError("validation_not_implemented")
+        return intent
+
     def enqueue(self, draft_id, *, actor_id, expected_revision, idempotency_key, intent="trial"):
         self._enabled()
         _identifier(draft_id); _identity(actor_id, "invalid_actor"); _revision(expected_revision)
-        if intent != "trial":
-            raise DraftError("validation_not_implemented")
+        intent = self._intent(intent)
         if type(idempotency_key) is not str or re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", idempotency_key) is None:
             raise DraftError("invalid_idempotency_key")
         # The actor is server-assigned; no credential or caller-selected policy is persisted.
-        scope = digest(canonical([actor_id, "trial"]))
+        scope = digest(canonical([actor_id, intent]))
         with self._connection(True) as db:
             head = self._head(db, draft_id, actor_id)
             request_sha = digest(canonical(dict(draft_id=draft_id, expected_revision=expected_revision,
@@ -143,8 +148,8 @@ class ValidationJobs(DraftStore):
             db.execute("""INSERT INTO skill_validation_jobs
                 (job_id,draft_id,draft_version,profile_id,profile_version,intent,idempotency_scope,
                  idempotency_key,request_sha256,state,revision,created_ms,updated_ms)
-                VALUES(?,?,?,?,1,'trial',?,?,?,'queued',1,?,?)""",
-                       (job_id, draft_id, head["current_version"], self.profile_id, scope,
+                VALUES(?,?,?,?,1,?,?,?,?,'queued',1,?,?)""",
+                       (job_id, draft_id, head["current_version"], self.profile_id, intent, scope,
                         idempotency_key, request_sha, now, now))
             db.execute("UPDATE skill_drafts SET state='submitted',revision=revision+1,updated_ms=? WHERE draft_id=?",
                        (now, draft_id))
