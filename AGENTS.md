@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-23 方案细化：docs/NEXT_STAGE_PLAN.md 已按官方资料和当前代码核对为七阶段；先做非固定配方技术探针，再开发统一验证与接纳。阶段 3 后自动学习与手动添加可并行。本轮仅计划，未改当前架构或启用能力。
+
 > 2026-10-23：下一阶段以自动学习和用户按统一格式添加技能为 P0，执行范围与验收见 [docs/NEXT_STAGE_PLAN.md](docs/NEXT_STAGE_PLAN.md)。用户内容先校验和实跑，服务端独立核验证据后才接纳，禁止上传自授质量等级。当前架构与发布状态未变。
 
 > 2026-10-22：仓库已更名为 MWXrookie/AcouAgent；README 为产品介绍，技术部署细节迁至 docs/TECHNICAL_GUIDE.md。队友安装和 origin 更新见 docs/TEAM_QUICKSTART.md。内部发行、镜像、容器、数据卷标识与架构保持不变；版本仍为 0.1.0 测试版。
