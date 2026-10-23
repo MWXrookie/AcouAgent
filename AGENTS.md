@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-23 阶段1候选：严格SkillSpec/normalizer_v2、内部草稿幂等版本与CAS、默认17/显式备份扩展18已实现，默认关闭；HTTP/UI/验证worker与新技能接纳尚未实现。见 docs/skills-next/STAGE1_IMPLEMENTATION.md，生产未迁移。
+
 > 2026-10-23 准备完成：SkillSpec/API/迁移/任务与验证合同见 docs/skills-next/；B01–B03原沙箱数值探针通过，17项工具测试及格式/DDL检查通过。下一步阶段1，不将准备验证当新技能接纳/复用已实现；当前生产不变。
 
 > 2026-10-23 方案细化：docs/NEXT_STAGE_PLAN.md 已按官方资料和当前代码核对为七阶段；先做非固定配方技术探针，再开发统一验证与接纳。阶段 3 后自动学习与手动添加可并行。本轮仅计划，未改当前架构或启用能力。

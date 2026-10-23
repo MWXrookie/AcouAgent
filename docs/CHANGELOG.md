@@ -1,3 +1,13 @@
+## 2026-10-23 · 阶段1内部技能格式与草稿版本基础
+
+新增严格SkillSpec解析与normalizer_v2，区分物理身份、内容与代码摘要，拒绝自授可信和不完整物理参数；首版限定二维频域PML点源复压力。草稿支持作者隔离、创建幂等、不可变版本、CAS编辑、分页与归档；不执行或接纳技能。
+
+默认仍初始化schema17，仅显式迁移追加完整18；迁移工具先备份并校验，失败不得前滚。检查真实DDL及防替换触发器，避免同名空触发器或内容唯一键替换破坏历史。旧固定技能初始化、来源读取与重验接受完整扩展，不重算原指纹。开关默认false，生产库、HTTP/UI和executor保持。
+
+验证：隔离原依赖镜像全量回归1685通过、15子测试通过、2项跳过（未配置GW_BASE_URL与独立工作流覆盖的git清单检查）；15项现有依赖弃用警告，耗时78.63秒；新增格式、存储与迁移负例覆盖并发、备份失败、回滚、伪schema和历史保护。Python语法/diff检查通过。两个架构源同步，showcase 9/9、零警告；deliver/visual-check及四个视口包含检查通过，实际查看1440浅色和2048深色截图。HTML SHA256为c8d3322dc69d820406f118b2023967ae5baaae2553a29b3c0d3637c7e1eff947。
+
+实现见app/skill_spec.py、skill_drafts.py、skill_authoring_schema.py及scripts/skill_library/authoring.py；操作、范围和恢复说明见docs/skills-next/STAGE1_IMPLEMENTATION.md。下一阶段实现持久任务和统一执行结果，尚不宣称自动学习/用户添加闭环完成。
+
 ## 2026-10-23 · 技能扩展准备合同与原沙箱数值探针
 
 新增统一SkillSpec/三份草稿、版本化参数与指纹、草稿/任务/证据追加DDL、API与恢复合同、

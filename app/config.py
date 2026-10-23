@@ -45,6 +45,8 @@ SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "
 SKILL_RETRIEVAL_ENABLED = os.environ.get("SKILL_RETRIEVAL_ENABLED", "").lower() == "true"
 SKILL_INJECTION_ENABLED = os.environ.get("SKILL_INJECTION_ENABLED", "").lower() == "true"
 SKILL_LEARNING_ENABLED = os.environ.get("SKILL_LEARNING_ENABLED", "").lower() == "true"
+# Internal authoring foundation only. No flag creates trust or HTTP endpoints.
+SKILL_AUTHORING_ENABLED = os.environ.get("SKILL_AUTHORING_ENABLED", "").lower() == "true"
 SKILL_BOOTSTRAP_ALL_FIXED = os.environ.get("SKILL_BOOTSTRAP_ALL_FIXED", "").lower() == "true"
 
 # Explicit host-only provenance observation is separate from automatic learning.

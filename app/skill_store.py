@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 SCHEMA_VERSION = 17
+AUTHORING_SCHEMA_VERSION = 18
 _LOCK = threading.Lock()
 _STATUSES = {"candidate", "active", "questioned", "retired"}
 SCENARIO_TYPES = {
@@ -313,7 +314,9 @@ class SkillStore:
             db.execute("BEGIN IMMEDIATE")
             db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)")
             applied = {row[0] for row in db.execute("SELECT version FROM schema_migrations")}
-            if applied and (max(applied) > SCHEMA_VERSION or applied != set(range(1, max(applied) + 1))):
+            from app.skill_authoring_schema import schema_ready
+            extended = applied == set(range(1, AUTHORING_SCHEMA_VERSION + 1)) and schema_ready(db)
+            if applied and not extended and (max(applied) > SCHEMA_VERSION or applied != set(range(1, max(applied) + 1))):
                 raise ValueError("unsupported_or_incomplete_skill_schema")
             if 1 not in applied:
                 schema_sql = """
@@ -626,6 +629,29 @@ class SkillStore:
                         WHEN EXISTS(SELECT 1 FROM {table} WHERE {identity})
                         BEGIN SELECT RAISE(ABORT,'append-only'); END""")
                 db.execute("INSERT INTO schema_migrations(version,applied_at) VALUES (?,?)",(17,_now()))
+
+    def migrate_skill_authoring(self) -> None:
+        """Explicit schema18 extension; operator must back up before deployment.
+
+        Default migrate() still initializes only the original schema17. Existing
+        verified skills/versions and their fingerprints are never rewritten.
+        """
+        from app.skill_authoring_schema import install, schema_ready
+        self.migrate()
+        with _LOCK, self._db_existing_write() as db:
+            db.execute("BEGIN IMMEDIATE")
+            versions = [r[0] for r in db.execute("SELECT version FROM schema_migrations ORDER BY version")]
+            if versions == list(range(1, AUTHORING_SCHEMA_VERSION + 1)):
+                if not schema_ready(db):
+                    raise ValueError("incomplete_authoring_schema")
+                return
+            if versions != list(range(1, SCHEMA_VERSION + 1)):
+                raise ValueError("unsupported_or_incomplete_skill_schema")
+            install(db)
+            db.execute("INSERT INTO schema_migrations(version,applied_at) VALUES (?,?)",
+                       (AUTHORING_SCHEMA_VERSION, _now()))
+            if not schema_ready(db):
+                raise ValueError("incomplete_authoring_schema")
 
     def record_fallback_retrieval(self, run_id, nonce, scenario_type, parameters_sha256, reason):
         """Internal denied-lookup audit only. Never records trusted hits."""
@@ -1359,7 +1385,8 @@ class SkillStore:
         validate_candidate_content("pass",{"reason":reason})
         with _LOCK,self._db_existing_write() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute("SELECT max(version) FROM schema_migrations").fetchone()[0]!=SCHEMA_VERSION:
+            from app.skill_authoring_schema import schema_ready
+            if db.execute("SELECT max(version) FROM schema_migrations").fetchone()[0]!=SCHEMA_VERSION and not schema_ready(db):
                 raise ValueError("explicit_schema_migration_required")
             row=db.execute("SELECT status,archived,updated_at FROM simulation_skills WHERE skill_id=?",(skill_id,)).fetchone()
             latest=db.execute("SELECT max(id) FROM skill_events WHERE skill_id=?",(skill_id,)).fetchone()[0]

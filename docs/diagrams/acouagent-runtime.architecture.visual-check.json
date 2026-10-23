@@ -3,11 +3,11 @@
   "ok": true,
   "command": "visual-check",
   "status": "pass",
-  "visualReview": "passed",
+  "visualReview": "pending",
   "artifact": {
-    "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "86cd98d0c66d6e08dbfdb2e5e273bf2e93d188dbc3d3033535d0736189aad517",
-    "bytes": 727163
+    "path": "C:\\Users\\ASUS\\Documents\\Codex\\2026-10-21\\acouagent-local-handoff\\work\\release-readiness\\docs\\diagrams\\acouagent-runtime.architecture.html",
+    "sha256": "c8d3322dc69d820406f118b2023967ae5baaae2553a29b3c0d3637c7e1eff947",
+    "bytes": 727094
   },
   "state": {
     "detail": "read",
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "Chrome"
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
   },
   "diagnostics": [],
   "containment": {
