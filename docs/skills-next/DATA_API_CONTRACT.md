@@ -1,13 +1,13 @@
 # 技能扩展：数据、接口与任务恢复合同
 
-日期：2026-10-23。状态：**阶段1内部格式与草稿存储已实现，尚未部署**。后续任务执行与HTTP接口仍为冻结设计，实施边界见 [阶段1说明](STAGE1_IMPLEMENTATION.md)。生产库未迁移，技能认证未改变。
+日期：2026-10-23。状态：**阶段1格式/草稿与阶段2内部trial任务/结果已实现，尚未部署**。独立物理验证、接纳与HTTP接口仍为冻结设计，实施边界见 [阶段1说明](STAGE1_IMPLEMENTATION.md)。生产库未迁移，技能认证未改变。
 
 依据：[NEXT_STAGE_PLAN](../NEXT_STAGE_PLAN.md)阶段0→1→2→3，阶段4/5后接阶段6。保持现有FastMCP、SQLite、local编排与executor，不增加Redis、Celery、向量数据库或独立服务。实际实施须同步架构JSON/HTML；本准备文档不把拟建组件画成当前运行事实。
 
 ## 1. 兼容与身份边界
 
 - schema17的skills/versions/events、17项精确固定配方、原运行回执、撤回和使用前复核保持原含义；新草稿不伪装成已有run_id的Q2。
-- 旧17项继续原`normalize_parameters`与`skill_fingerprint`，不重算、不重写旧身份。新格式计划实现`normalizer_v2`和`case_fingerprint_v2`，当前尚未实现，旧入口仍拒绝新增字段，不能暗中丢字段。
+- 旧17项继续原`normalize_parameters`与`skill_fingerprint`，不重算、不重写旧身份。新格式已实现`normalizer_v2`和`case_fingerprint_v2`，旧入口仍拒绝新增字段，不能暗中丢字段。
 - `case_fingerprint`仍为场景＋规范参数身份；`code_sha256`为实际执行代码字节身份；`content_sha256`为整份版本内容身份。三者不互代：同代码不同介质不是同题，同题不同代码须新版本/冲突提示。
 - 同一草稿内容重存返回原版本；代码或结果定义改动必须新版本。不同草稿同题可并存供编辑；接纳时归入既有技能的新版本，不静默覆盖active版本。
 - 新受控写入/检索适配器须识别v2规范与带版本域的v2摘要，再接入现有唯一fingerprint身份；不能删掉地图或源字段后调用旧写入函数来规避拒绝。旧行仍按v1验证，新版本元数据记录normalizer/fingerprint版本，禁止无版本混算。
@@ -226,9 +226,13 @@ gmres、tol=1e-5、complex64、FourierSeries属于版本化适配器/profile求�
 计划新增 SKILL_AUTHORING_ENABLED、SKILL_VALIDATION_ENABLED、SKILL_GENERAL_ADMISSION_ENABLED，分别控制编辑入口、验证任务和新类别接纳；实施时校验依赖关系。
 它们不复用现有 SKILL_MANUAL_INTAKE_ENABLED（固定配方接纳）的语义，也不替换既有学习/检索开关。
 自动来源还必须满足原 SKILL_LEARNING_ENABLED；关闭学习不撤销既有已验证技能，关闭新接纳不影响旧17项路径。
-所有开关仅为本阶段冻结名称，尚未加入配置或改变生产环境。
+AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION仍为冻结设计。生产环境未变。
 ## 阶段1实施补充
 
 实际schema18以 `app/skill_authoring_schema.py` 为准：在上述DDL基础上增加 `skill_draft_requests`（按actor/operation/idempotency_key唯一，绑定初始版本）、作者分页索引和版本/请求防更新、防删除、防替换触发器。完整性检查核对表、索引和触发器的真实SQL定义，只有版本号或同名空触发器不算已迁移。
 
 当前版本相同内容更新为无操作；提交历史旧内容返回 `historical_content_conflict`，不回退head。幂等创建重放返回原始版本内容与真实最新head状态。HTTP错误码、验证worker和新接纳仍待后续阶段。
+
+## 阶段2实施补充
+
+内部trial任务与资产实现见 [阶段2说明](STAGE2_IMPLEMENTATION.md)。成功trial使用rejected/trial_completed_ungraded，既无validated也无admitted；这与未来validate的科学失败不同。当前不需要模型凭据，不实现BYOK恢复或接纳outbox。任何任务重建、跨库补记必须先核对真实执行终态，未知派发继续占slot；不借迁移或试运行暗中实现授级。

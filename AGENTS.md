@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-23 阶段2候选：持久trial队列/租约/取消/未知派发对账、完整复数结果与同源指标已实现，原executor三题各一次实跑完成。默认双开关关闭，无HTTP/UI、后台自动启动、独立物理授级或新接纳；schema仍显式18。见 docs/skills-next/STAGE2_IMPLEMENTATION.md，生产未改。
+
 > 2026-10-23 阶段1候选：严格SkillSpec/normalizer_v2、内部草稿幂等版本与CAS、默认17/显式备份扩展18已实现，默认关闭；HTTP/UI/验证worker与新技能接纳尚未实现。见 docs/skills-next/STAGE1_IMPLEMENTATION.md，生产未迁移。
 
 > 2026-10-23 准备完成：SkillSpec/API/迁移/任务与验证合同见 docs/skills-next/；B01–B03原沙箱数值探针通过，17项工具测试及格式/DDL检查通过。下一步阶段1，不将准备验证当新技能接纳/复用已实现；当前生产不变。
