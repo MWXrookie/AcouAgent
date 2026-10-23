@@ -145,6 +145,11 @@ def read_committed_context(*,decision_id,generation_run_id,scenario_type,paramet
         params,ps,cs=decisions._request(scenario_type,parameters_json,original_context)
         store=service.STORE
         with (nullcontext(_db) if _db is not None else store._read_db()) as db:
+            from app import skill_general_library as general
+            context=general.read_connection(db,decision_id=decision_id,generation_run_id=generation_run_id,
+                scenario_type=scenario_type,parameters_json=parameters_json,original_context=original_context,
+                _decision_at=_decision_at)
+            if context!=original_context:return context
             now=time.time_ns()
             decision_at=now if _decision_at is None else _decision_at
             if type(decision_at) is not int or not 0<=decision_at<=now:raise ValueError('decision_time')

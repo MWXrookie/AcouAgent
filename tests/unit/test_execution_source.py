@@ -113,6 +113,7 @@ def test_latest_analysis_summary_is_bounded_and_display_safe(history):
         "field_shape": [32, 32],
         "has_signal": True,
         "summary": "latest",
+        "units": "unknown",
     }
     updates = dashboard.get_analysis_updates(since_id=1)
     assert updates == [{
@@ -124,6 +125,7 @@ def test_latest_analysis_summary_is_bounded_and_display_safe(history):
         "has_signal": True,
         "summary": "latest",
         "analysis_id": 2,
+        "units": "unknown",
     }]
 
 

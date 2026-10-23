@@ -696,6 +696,7 @@ class SkillStore:
         reference_skill_ids: list[str] | None = None,
         idempotent_source_run: bool = False,
         _existing_connection: sqlite3.Connection | None = None,
+        _prepared_spec: Mapping[str, Any] | None = None,
     ) -> str:
         """Persist an evidence-bound candidate; callers cannot activate it here."""
         # Internal authority consumers may reuse their existing writer snapshot.
@@ -725,15 +726,33 @@ class SkillStore:
                 or any(not isinstance(v, str) or not v.strip() or len(v) > 128 for v in references)
                 or len(set(references)) != len(references)):
             raise ValueError("reference_skill_ids must contain at most 3 unique IDs")
-        normalized = normalize_parameters(normalized_params)
+        prepared = None
+        if _prepared_spec is not None:
+            from app.skill_spec import prepare_skill_spec
+            from app.skill_authoring_schema import schema_ready
+            if (_existing_connection is None or not schema_ready(_existing_connection)
+                    or validator_version != "general-helmholtz.v1"):
+                raise ValueError("general_candidate_authority_required")
+            prepared = prepare_skill_spec(_canonical_json(_prepared_spec))
+            if (prepared["spec"]["scenario_type"] != scenario_type
+                    or prepared["spec"]["parameters"] != dict(normalized_params)
+                    or prepared["spec"]["code_template"] != code_template
+                    or physics_evidence.get("spec") != prepared["spec"]):
+                raise ValueError("general_candidate_spec_mismatch")
+            normalized = prepared["normalized_parameters"]
+        else:
+            normalized = normalize_parameters(normalized_params)
         validate_candidate_content(code_template, {
             "state_text": state_text, "parameters": normalized,
             "preconditions": declared, "postconditions": postconditions,
             "physics_evidence": physics_evidence, "source_run_id": source_run_id,
             "validator_version": validator_version, "reference_skill_ids": references})
-        if declared and not preconditions_match(declared, normalized):
+        if prepared is not None:
+            expected = {"dimensions": 2, "parameters_sha256": hashlib.sha256(_canonical_json(normalized).encode()).hexdigest()}
+            if declared != expected:raise ValueError("general_candidate_preconditions")
+        elif declared and not preconditions_match(declared, normalized):
             raise ValueError("parameters do not match preconditions")
-        fingerprint = skill_fingerprint(scenario_type, normalized)
+        fingerprint = prepared["case_fingerprint"] if prepared is not None else skill_fingerprint(scenario_type, normalized)
         skill_id, now = str(uuid.uuid4()), _now()
         code_hash = hashlib.sha256(code_template.encode("utf-8")).hexdigest()
         # Serialize the read/decide/write sequence in this gateway process.
@@ -805,7 +824,14 @@ class SkillStore:
                 previous_refs = json.loads(db.execute(
                     "SELECT reference_skill_ids FROM skill_versions WHERE skill_id=? AND version=?",
                     (skill_id, version)).fetchone()[0])
-                if existing_hash == code_hash and sorted(previous_refs) == sorted(references):
+                same_content = True
+                if prepared is not None:
+                    previous_evidence = db.execute(
+                        "SELECT physics_evidence FROM skill_versions WHERE skill_id=? AND version=?",
+                        (skill_id, version)).fetchone()[0]
+                    previous_spec = prepare_skill_spec(_canonical_json(json.loads(previous_evidence)["spec"]))
+                    same_content = previous_spec["content_sha256"] == prepared["content_sha256"]
+                if existing_hash == code_hash and sorted(previous_refs) == sorted(references) and same_content:
                     db.execute("INSERT INTO skill_events(skill_id,event_type,detail,created_at) VALUES (?, 'candidate_observed', ?, ?)", (skill_id, _canonical_json({"source_run_id": source_run_id, "version": version,
                         "code_hash": code_hash, "evidence_binding": {"postconditions": postconditions,
                         "physics_evidence": physics_evidence, "validator_version": validator_version}}), now))
@@ -878,7 +904,8 @@ class SkillStore:
                     substr(code_template,1,20001) code_template, code_hash,
                     substr(reference_skill_ids,1,1025) reference_skill_ids,
                     substr(source_run_id,1,129) source_run_id,
-                    substr(validator_version,1,129) validator_version, created_at FROM skill_versions
+                    substr(validator_version,1,129) validator_version,
+                    substr(physics_evidence,1,64001) physics_evidence, created_at FROM skill_versions
                     WHERE skill_id=? AND (? IS NULL OR version=?) ORDER BY version DESC LIMIT 1""",
                     (skill_id, version, version)).fetchone()
                 if selected is None:
@@ -888,7 +915,17 @@ class SkillStore:
                         or len(selected["code_template"].encode()) > 20000
                         or len(selected["source_run_id"]) > 128 or len(selected["validator_version"]) > 128):
                     return unavailable
-                selected["normalized_params"] = normalize_parameters(json.loads(selected["normalized_params"]))
+                evidence_raw = selected.pop("physics_evidence")
+                if selected["validator_version"] == "general-helmholtz.v1":
+                    from app.skill_spec import prepare_skill_spec
+                    if len(evidence_raw.encode()) > 64000:return unavailable
+                    prepared = prepare_skill_spec(_canonical_json(json.loads(evidence_raw)["spec"]))
+                    if (prepared["spec"]["parameters"] != json.loads(selected["normalized_params"])
+                            or prepared["spec"]["code_template"] != selected["code_template"]
+                            or prepared["spec"]["scenario_type"] != item["scenario_type"]):return unavailable
+                    selected["normalized_params"] = prepared["normalized_parameters"]
+                else:
+                    selected["normalized_params"] = normalize_parameters(json.loads(selected["normalized_params"]))
                 refs = json.loads(selected["reference_skill_ids"])
                 if (not isinstance(refs, list) or len(refs) > 3 or any(not isinstance(x,str) for x in refs)
                         or len(set(refs)) != len(refs)):
@@ -912,7 +949,7 @@ class SkillStore:
                 if len(json.dumps(item, ensure_ascii=False).encode()) > 32000:
                     return unavailable
                 return {"available": True, "item": item, "trust_verified": False}
-        except (sqlite3.Error, OSError, ValueError, TypeError, RecursionError):
+        except (sqlite3.Error, OSError, ValueError, TypeError, KeyError, RecursionError):
             return unavailable
 
     def read_events(self, skill_id: str, *, after: int = 0, limit: int = 20, until: int | None = None) -> dict[str, Any]:
@@ -1108,6 +1145,22 @@ class SkillStore:
             if consistency is not None:return consistency
             # Indexed immutable execution association, never a caller run/code
             # claim. It identifies executed reuse but not the human actor.
+            local_run=db.execute("""SELECT d.version,v.code_hash,d.reference_sha256,
+                    c.capsule_sha256,c.stdout_sha256,d.generation_run_id,d.decision_id
+                FROM skill_local_reference_dispatches d
+                JOIN skill_local_reference_completions c ON c.run_id=d.run_id
+                JOIN skill_versions v ON v.skill_id=d.skill_id AND v.version=d.version
+                WHERE d.run_id=? AND d.skill_id=? AND c.outcome='verified'
+                    AND v.validator_version='general-helmholtz.v1'""",(run_id,skill_id)).fetchone()
+            if local_run is not None:
+                for key in ("code_hash","reference_sha256","capsule_sha256","stdout_sha256"):
+                    if type(local_run[key]) is not str or not re.fullmatch("[0-9a-f]{64}",local_run[key]):
+                        raise ValueError("general_execution_association_invalid")
+                proof={k:local_run[k] for k in ("reference_sha256","capsule_sha256","stdout_sha256",
+                                               "generation_run_id","decision_id")}
+                return dict(kind="general_validated_reference_execution",version=local_run["version"],
+                    code_sha256=local_run["code_hash"],evidence_binding_sha256=hashlib.sha256(_canonical_json(proof).encode()).hexdigest(),
+                    execution_reuse_verified=True,actual_use_authenticated=False)
             executed=db.execute("""SELECT d.version,v.code_hash,e.observation_sha256,e.stdout_sha256,
                     d.generation_run_id,d.decision_id
                 FROM skill_reference_dispatches d
