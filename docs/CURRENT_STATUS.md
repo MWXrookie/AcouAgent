@@ -1,6 +1,6 @@
 # AcouAgent 当前状态
 
-> **2026-10-23 计划更新**：下一阶段重点为自动学习闭环与用户自行添加技能，见 [下一阶段计划](NEXT_STAGE_PLAN.md)。阶段1已完成内部格式、草稿版本和显式迁移候选实现，默认关闭、未部署；HTTP/UI、自动验证和新技能学习接纳尚待后续阶段，见 [实施说明](skills-next/STAGE1_IMPLEMENTATION.md)。v1.0开放门未关闭。
+> **2026-10-23 计划更新**：下一阶段重点为自动学习闭环与用户自行添加技能，见 [下一阶段计划](NEXT_STAGE_PLAN.md)。阶段1/2已完成内部格式、草稿版本、显式迁移、持久试运行与完整结果候选实现，默认关闭、未部署；HTTP/UI、独立物理认证和新技能学习接纳尚待后续阶段，见 [阶段1](skills-next/STAGE1_IMPLEMENTATION.md)和[阶段2](skills-next/STAGE2_IMPLEMENTATION.md)。v1.0开放门未关闭。
 
 更新：2026-10-21
 
