@@ -1,6 +1,6 @@
 # AcouAgent 当前状态
 
-> **2026-10-23 更新**：阶段1–3已形成内部候选实现，包含格式/草稿、持久任务/完整结果、受控Helmholtz独立验证接纳与新运行复用，三题六次实跑通过。默认关闭、未部署生产；自动学习事件与用户添加界面仍待阶段4/5。见 [阶段3说明](skills-next/STAGE3_IMPLEMENTATION.md)和[实施计划](NEXT_STAGE_PLAN.md)，v1.0开放门未关闭。
+> **2026-10-25 更新**：阶段1–4已形成内部候选实现，包含格式/草稿、持久任务/完整结果、受控Helmholtz独立验证接纳与新运行复用，三题六次实跑通过。默认关闭、未部署生产；自动学习受控事件/后台调度已通过三题九次实跑，用户添加界面仍待阶段5。见 [阶段4说明](skills-next/STAGE4_IMPLEMENTATION.md)及[版本检查点](skills-next/VERSION_CHECKPOINTS.md)和[实施计划](NEXT_STAGE_PLAN.md)，v1.0开放门未关闭。
 
 更新：2026-10-21
 

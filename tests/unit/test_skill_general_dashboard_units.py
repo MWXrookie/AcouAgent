@@ -14,19 +14,20 @@ def history(tmp_path,monkeypatch):
     dashboard.init_db()
     with dashboard._get_db() as db:
         for run,tool,version in [("general","general_reference_execute","gateway-execution.v1"),
+                ("source","automatic_source_execute","gateway-execution.v1"),
                 ("legacy","run_jwave_code","gateway-execution.v1"),
                 ("duplicate","general_reference_execute","gateway-execution.v1"),
                 ("duplicate","general_reference_execute","gateway-execution.v1"),
                 ("untrusted","general_reference_execute","legacy")]:
             db.execute("INSERT INTO executions(timestamp,tool_name,code,run_id,record_version) VALUES('now',?,'pass',?,?)",(tool,run,version))
-    for run in ("general","legacy","duplicate","untrusted","missing"):
+    for run in ("general","source","legacy","duplicate","untrusted","missing"):
         dashboard.record_analysis_event(0,"normal",1.0,0.2,[32,32],True,
             "Pa numerical_source_normalization cannot override identity",None,None,"","",run)
 
 
 def test_both_analysis_interfaces_derive_units_from_unique_execution(history):
-    runs=["general","legacy","duplicate","untrusted","missing"]
-    expected={"general":"numerical_source_normalization","legacy":"Pa","duplicate":"unknown","untrusted":"unknown","missing":"unknown"}
+    runs=["general","source","legacy","duplicate","untrusted","missing"]
+    expected={"general":"numerical_source_normalization","source":"numerical_source_normalization","legacy":"Pa","duplicate":"unknown","untrusted":"unknown","missing":"unknown"}
     latest=dashboard.get_latest_analysis_by_run_ids(runs)
     assert {run:row["units"] for run,row in latest.items()}==expected
     updates=dashboard.get_analysis_updates()

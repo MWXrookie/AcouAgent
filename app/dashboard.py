@@ -258,7 +258,7 @@ def _analysis_units_by_run_ids(db, run_ids):
         min(record_version) record_version,min(tool_name) tool_name
         FROM executions WHERE run_id IN ({placeholders}) GROUP BY run_id""", unique).fetchall()
     return {row["run_id"]: ("numerical_source_normalization"
-            if row["tool_name"] == "general_reference_execute" else "Pa")
+            if row["tool_name"] in {"general_reference_execute", "automatic_source_execute"} else "Pa")
             if row["record_count"] == 1 and row["record_version"] == "gateway-execution.v1"
             else "unknown" for row in rows}
 

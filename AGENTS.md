@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-25 阶段3验收完成（cd4c93e，五项CI成功，checkpoint/skill-stage3-20261025），阶段4候选已实现受控来源→自动建稿/验证/接纳与后台恢复；三题9次真实求解、3候选/3验证/3接纳/3复用，默认关闭、无生产写入。见 docs/skills-next/STAGE4_IMPLEMENTATION.md 与 VERSION_CHECKPOINTS.md；接着阶段5手动入口。
+
 > 2026-10-23 阶段3候选：受控Helmholtz可见派生、精确独立比较、原目录Q4接纳、v2检索/消费/新运行复用已通过三题六次原executor实跑；仅精确幅值认证，不泛化/不认证相位。默认关闭、生产未改；自动学习事件/手动界面仍待阶段4/5。见 docs/skills-next/STAGE3_IMPLEMENTATION.md。
 
 > 2026-10-23 阶段2候选：持久trial队列/租约/取消/未知派发对账、完整复数结果与同源指标已实现，原executor三题各一次实跑完成。默认双开关关闭，无HTTP/UI、后台自动启动、独立物理授级或新接纳；schema仍显式18。见 docs/skills-next/STAGE2_IMPLEMENTATION.md，生产未改。

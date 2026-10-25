@@ -93,7 +93,9 @@ class GeneralLibrary:
             if head["revision"] != expected_revision or head["state"] != "editing":
                 raise DraftError("revision_conflict")
             version, now = head["current_version"] + 1, time.time_ns() // 1_000_000
-            drafts._version(db, draft_id, version, derived, now)
+            source_version = db.execute("SELECT source_run_id FROM skill_draft_versions WHERE draft_id=? AND version=?",
+                                        (draft_id, head["current_version"])).fetchone()
+            drafts._version(db, draft_id, version, derived, now, source_run_id=source_version[0])
             binding = digest(canonical({k: derived[k] for k in ("source_content_sha256", "derived_content_sha256",
                                                                "adapter_sha256", "construction_sha256")}))
             db.execute("INSERT INTO skill_draft_requests VALUES(?,?,?,?,?,?,?)",
@@ -268,15 +270,31 @@ class GeneralLibrary:
             raise ValueError("independent_proof_mismatch")
         return proof["comparison"]["numeric_pass"]
 
-    def admit(self, job_id, *, actor_id, expected_revision):
+    def admit(self, job_id, *, actor_id, expected_revision, _automatic=False):
         self._enabled(); _revision(expected_revision)
+        if _automatic and config.SKILL_LEARNING_ENABLED is not True:
+            raise ValueError("learning_disabled")
         with DraftStore(self.store)._connection() as before:
             pre_job = ValidationJobs._view(before, ValidationJobs._row(before, job_id, actor_id))
+            persisted = before.execute("""SELECT origin FROM skill_drafts WHERE draft_id=?""", (pre_job["draft_id"],)).fetchone()
+            automatic_marker = before.execute("SELECT 1 FROM skill_draft_requests WHERE draft_id=? AND actor_id='internal-auto-learning' AND operation='auto-source' LIMIT 1", (pre_job["draft_id"],)).fetchone()
+            _automatic = bool(_automatic or persisted[0] == "automatic" or automatic_marker)
+            if _automatic and config.SKILL_LEARNING_ENABLED is not True:
+                raise ValueError("learning_disabled")
             pre_attempt = pre_job["attempt"]
             self.verify_proof(before, pre_job, pre_attempt["output_manifest_sha256"], pre_attempt["receipt_sha256"])
         with DraftStore(self.store)._connection(True) as db:
             row = ValidationJobs._row(db, job_id, actor_id)
             job = ValidationJobs._view(db, row)
+            if db.execute("SELECT origin FROM skill_drafts WHERE draft_id=?", (job["draft_id"],)).fetchone()[0] == "automatic":
+                _automatic = True
+            if _automatic:
+                if config.SKILL_LEARNING_ENABLED is not True:
+                    raise ValueError("learning_disabled")
+                source_run = db.execute("SELECT source_run_id FROM skill_draft_versions WHERE draft_id=? AND version=?",
+                                        (job["draft_id"], job["draft_version"])).fetchone()[0]
+                from app.skill_auto_source import require_source_connection
+                require_source_connection(db, source_run)
             prior = db.execute("SELECT * FROM skill_validation_admissions WHERE job_id=?", (job_id,)).fetchone()
             if prior:
                 current = self.verify_connection(db, {"skill_id": prior["skill_id"], "version": prior["skill_version"]},
@@ -317,6 +335,8 @@ class GeneralLibrary:
                        (skill_id, "general_physics_admitted", canonical(dict(job_id=job_id, version=version, proof_sha256=evidence["manifest_sha256"], quality_level="Q4")), now))
             db.execute("UPDATE skill_validation_jobs SET state='admitted',revision=revision+1,updated_ms=? WHERE job_id=?", (time.time_ns() // 1_000_000, job_id))
             self._enabled()
+            if _automatic and config.SKILL_LEARNING_ENABLED is not True:
+                raise ValueError("learning_disabled_before_commit")
             return {"admitted": True, "duplicate": False, "skill_id": skill_id, "version": version, "quality_level": "Q4"}
 
     def verify_connection(self, db, candidate, scenario, envelope):

@@ -117,16 +117,16 @@ class DraftStore:
                     created_ms=head["created_ms"], updated_ms=head["updated_ms"])
 
     @staticmethod
-    def _version(db, draft_id, version, prepared, now):
+    def _version(db, draft_id, version, prepared, now, source_run_id=None):
         db.execute("""INSERT INTO skill_draft_versions
             (draft_id,version,spec_version,spec_json,content_sha256,case_fingerprint,
              normalizer_version,fingerprint_version,code_sha256,source_run_id,created_ms)
-            VALUES (?,?,?,?,?,?,?,?,?,NULL,?)""",
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (draft_id,version,prepared["spec"]["schema_version"],
              json.dumps(prepared["spec"],sort_keys=True,ensure_ascii=False,allow_nan=False),
              prepared["content_sha256"],prepared["case_fingerprint"],
              prepared["normalizer_version"],prepared["fingerprint_version"],
-             prepared["code_sha256"],now))
+             prepared["code_sha256"],source_run_id,now))
 
     def create(self, raw, *, actor_id, idempotency_key, origin="manual"):
         self._enabled()

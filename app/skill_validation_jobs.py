@@ -190,8 +190,10 @@ class ValidationJobs(DraftStore):
         with self._connection(True) as db:
             return self._recover(db, _now())
 
-    def claim(self, owner):
+    def claim(self, owner, *, expected_job_id=None):
         _identity(owner, "invalid_owner")
+        if expected_job_id is not None:
+            _identifier(expected_job_id)
         with self._connection(True) as db:
             now = _now()
             self._recover(db, now)
@@ -200,6 +202,8 @@ class ValidationJobs(DraftStore):
             self._profile(db)
             row = db.execute("SELECT * FROM skill_validation_jobs WHERE state='queued' ORDER BY created_ms,job_id LIMIT 1").fetchone()
             if row is None:
+                return None
+            if expected_job_id is not None and row["job_id"] != expected_job_id:
                 return None
             if row["created_ms"] + JOB_BUDGET_MS <= now:
                 db.execute("UPDATE skill_validation_jobs SET state='failed',reason_code='job_budget_exhausted',revision=revision+1,updated_ms=? WHERE job_id=?",

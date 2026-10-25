@@ -82,7 +82,7 @@ def _extraction_prompt(query: str) -> str:
     return f"""你是 jwave 0.2.1 声学仿真参数提取器。只输出一个 JSON 对象，不输出解释。
 用户需求：{query}
 输出结构：
-{{"scenario_type":"point_source_2d|plane_wave_2d|interface_2d|initial_pressure_2d|attenuation_2d|point_source_3d|initial_pressure_3d",
+{{"scenario_type":"point_source_2d|plane_wave_2d|interface_2d|heterogeneous_2d|initial_pressure_2d|attenuation_2d|point_source_3d|initial_pressure_3d",
 "simulation_params":{{"完整的物理参数键":"对应值"}},
 "skill_query":{{"scenario_type":"同上","parameters":{{}}}},"description":"完整需求摘要"}}
 simulation_params 必须包含完整物理合同，不能只把激励信息放入 skill_query。
@@ -92,8 +92,16 @@ simulation_params 必须包含完整物理合同，不能只把激励信息放�
 modal_wavenumber_rad_per_m、boundary_condition、initial_velocity 及用户给出的全部 SI 参数。
 高斯初压保留 source_type=gaussian_initial_pressure、initial_pressure_pa、initial_sigma_m 和零初速度。
 用户提供完整 SI 字段时保留字段和值；缺项不得从技能名或技能库补齐。
-频域稳态点源案例只有用户完整提供 v2 参数和 result_spec 时，才在顶层原样保留 result_spec。
-不得猜测材料区域、源强、吸收或结果合同；不完整则沿原代码生成路径。
+二维频域稳态点源可选在顶层给出 result_spec；只提取用户明确声明的物理输入和结果量。
+频域 simulation_params 使用完整 SI v2 字段：dimensions、solver_mode、medium_type、sound_speed_m_s、
+density_kg_m3、grid_shape、dx_m、frequency_hz、pml_size、source_index、source_type、source_geometry、
+helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regions、boundary_condition。
+材料区域保留 start/stop 半开索引及其声速/密度；用户未明确声明均匀介质、无损或源系数时不能填默认值。
+只在用户明确要求完整二维单频稳态复压力、轴序和数值源归一化约定时给出 result_spec：
+{{"kind":"steady_complex_pressure","units":"numerical_source_normalization","axis_order":["x","y"],
+"grid_shape":["用户网格x","用户网格y"],"full_complex":true,"downsample":1}}。
+已有完整 result_spec 则原样保留；缺项不得从技能名、参考答案或已验证技能补齐。
+不得猜测材料区域、源强、吸收、单位或结果合同，也不得提供参考数组、答案图或用户自授质量等级。
 skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
 
 
@@ -234,6 +242,55 @@ def _passed(result: dict | None, analyzed: dict) -> bool:
                 and analyzed.get("quality_level") in {"Q1", "Q2", "Q3", "Q4"})
 
 
+def _auto_source_enabled() -> bool:
+    # Avoid loading the new lifecycle when automatic learning is disabled.
+    from app import config
+    if config.SKILL_LEARNING_ENABLED is not True:
+        return False
+    from app.skill_auto_source import enabled
+    return enabled() is True
+
+
+def _learning_status(value: Any) -> dict:
+    """Only bounded status facts may enter a public report or usage event."""
+    source = value if isinstance(value, dict) else {}
+    progress = source.get("progress")
+    # A bounded scheduler tick can service an older source. Its success must
+    # never be relabeled as this request's admission, including under races
+    # with the background pump.
+    same_job = (isinstance(progress, dict) and isinstance(source.get("job_id"), str)
+                and progress.get("job_id") == source["job_id"])
+    same_source = (isinstance(progress, dict) and isinstance(source.get("source_run_id"), str)
+                   and progress.get("source_run_id") == source["source_run_id"])
+    current = progress if same_job or same_source else source
+    state = current.get("state")
+    known_state = state in {"queued", "running", "needs_reconciliation", "cancel_requested",
+                            "validated", "admitted", "cancelled", "failed", "rejected"}
+    result = {
+        "recorded": source.get("recorded") is True or source.get("observed") is True or current.get("observed") is True,
+        "queued": state == "queued" if known_state else current.get("queued") is True,
+        "validated": state in {"validated", "admitted"} if known_state else current.get("validated") is True,
+        "admitted": state == "admitted" if known_state else current.get("admitted") is True,
+    }
+    reason = current.get("reason")
+    result["reason"] = reason if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_-]{1,80}", reason) else "learning_status_unavailable"
+    counts = source.get("counts", current.get("counters", source.get("counters")))
+    if isinstance(counts, dict):
+        result["counts"] = {key: counts[key] for key in ("candidates", "validated", "admitted", "reused")
+                            if type(counts.get(key)) is int and 0 <= counts[key] <= 2**53-1}
+    return result
+
+
+def _learning_message(status: dict) -> str:
+    if status.get("admitted"):
+        return "本次执行已记录，独立验证通过并接纳；后续精确请求可复用。首次执行结果仍为 Q2。"
+    if status.get("validated"):
+        return "独立验证已通过，技能尚未接纳；首次执行结果仍为 Q2。"
+    if status.get("recorded") or status.get("queued"):
+        return "本次执行已记录为学习候选，待独立验证与接纳；首次执行结果仍为 Q2。"
+    return "首次仿真已完成，本次自动学习未接纳技能；首次执行结果仍为 Q2。"
+
+
 async def workflow_events(query: str, user: str, profile_id: str | None) -> AsyncIterator[dict]:
     del user  # session identity remains at the portal boundary; no model receives it.
     request_id, workflow_run_id = str(uuid.uuid4()), str(uuid.uuid4())
@@ -293,9 +350,29 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                        "request_id": request_id, "workflow_run_id": workflow_run_id}
 
         result, direct_outcome, code = None, None, ""
+        used_auto_source, learning_status = False, None
         if query_data is not None:
             result, direct_outcome = await asyncio.to_thread(_direct_reference,
                 generation.get("skill_usage", {}), query_data[0], query_data[1], original_context)
+        if ("result_spec" in extracted and query_data is not None and result is None
+                and not (direct_outcome or {}).get("run_id") and _auto_source_enabled()):
+            yield {"event": "progress", "stage": "本地编排：受控首次求解与自动学习", "request_id": request_id,
+                   "workflow_run_id": workflow_run_id}
+            from app.skill_auto_source import execute_source
+            direct_outcome = await asyncio.to_thread(execute_source, scenario_type=query_data[0],
+                parameters_json=query_data[1], request_key=request_id)
+            if (isinstance(direct_outcome, dict) and direct_outcome.get("source_execution_verified") is True
+                    and isinstance(direct_outcome.get("analysis"), dict)):
+                result = dashboard.get_execution_by_run_id(direct_outcome.get("run_id", ""))
+                used_auto_source = result is not None
+                if used_auto_source:
+                    learning_status = _learning_status(direct_outcome.get("learning"))
+                    notice = {"stage": "automatic_learning", "message": _learning_message(learning_status),
+                              "run_id": direct_outcome["run_id"], "learning": learning_status,
+                              "model_adoption_authenticated": False}
+                    notices.append(notice)
+                    yield {"event": "skill_usage", "skill_usage": notice,
+                           "request_id": request_id, "workflow_run_id": workflow_run_id}
         used_direct_reference = result is not None
         if "result_spec" in extracted and result is None:
             yield {"event": "result", "report": "未找到可用的已验证技能，需要先完成独立验证并接纳；如已派发执行，请检查本次执行记录。",
@@ -323,7 +400,12 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                        "request_id": request_id, "workflow_run_id": workflow_run_id}
                 result = await asyncio.to_thread(_tool_functions()["run_jwave_code"],
                                                  code, 30, "", scenario, params_json)
-            if (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"
+            if used_auto_source:
+                # First execution and later validation are distinct runs. A newly
+                # admitted skill cannot retroactively promote this source run.
+                analyzed = dict(direct_outcome["analysis"])
+                analyzed["quality_level"] = "Q2"
+            elif (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"
                     and direct_outcome.get("execution_reuse_verified") is True
                     and isinstance(direct_outcome.get("analysis"), dict)):
                 # This value comes from the internal reexecution verifier, never model output.
@@ -385,11 +467,12 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id)
         report_result = dict(result or {})
         report_result["total_attempts"] = attempt + 1
-        if used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery":
+        if used_auto_source or (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"):
             # Preserve receipt-bound history; hide the full binary export only
             # in this presentation copy instead of dumping base64 into chat.
             report_result["stdout"] = re.sub(r"__SKILL_PROBE_START__.*?__SKILL_PROBE_END__",
-                "[完整复数结果已保存并独立验证]", report_result.get("stdout", "") or "", flags=re.DOTALL)
+                "[完整复数结果已保存]" if used_auto_source else "[完整复数结果已保存并独立验证]",
+                report_result.get("stdout", "") or "", flags=re.DOTALL)
         if not report_result.get("image_base64") and analyzed.get("heatmap_png_base64"):
             report_result["image_base64"] = analyzed["heatmap_png_base64"]
         report = execution._build_report(report_result, first_code or code)
@@ -400,6 +483,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         if analyzed.get("units") == "numerical_source_normalization":
             report += "\n\n场量单位：数值源归一化（numerical_source_normalization）；未标定为 Pa。"
         report += "\n\n质量等级：`" + str(analyzed.get("quality_level", "Q0")) + "`"
+        if learning_status is not None:
+            report += "\n\n自动学习：" + _learning_message(learning_status)
         report += "\n\n## 模型审查（不能覆盖物理门）\n\n" + review["content"]
         report += "\n\n## 物理解读\n\n" + explanation["content"]
         report += ("\n\n---\n\n本次本地编排模型：`" + review["profile_id"] + "` / `"
@@ -410,6 +495,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "skill_usage": notices, "model_profile": review["profile_id"],
                "model": review["model"], "orchestration_backend": "local",
                "quality_level": analyzed.get("quality_level", "Q0"),
+               **({"learning": learning_status} if learning_status is not None else {}),
                "cache_usage": {"queries": cache_queries, "hits": cache_hits},
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}
     except model_profiles.ModelProfileError as exc:

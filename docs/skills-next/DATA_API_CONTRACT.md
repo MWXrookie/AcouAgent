@@ -240,3 +240,7 @@ AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION已实现
 ## 阶段3实施补充
 
 受控派生、独立比较、原目录Q4接纳、generation decision/consumption及新运行重验已贯通，见 [阶段3说明](STAGE3_IMPLEMENTATION.md)。沿用18表，执行manifest与比较proof分开，evidence绑定proof资产；版本保留完整spec和授权job/proof指针。跨库断点由reconcile核对，admission在同skill库事务；未新增后台outbox调度或HTTP接口。数值解析在写锁外，事务内重哈希实际文件/历史，预检缺失拒绝。
+
+## 阶段4实施补充
+
+沿用18的trial job/attempt与append-only draft_requests保存受控source；源draft、trial job、controlled-source-job标记同事务。自动学习draft另绑定原run，outbox记录推进/稳定失败，不能替代lease或独立证明。FastMCP lifespan中的后台pump按5秒有界推进；默认四开关关闭、启动无迁移。自动origin强制提交源守卫，完整链路见STAGE4_IMPLEMENTATION。

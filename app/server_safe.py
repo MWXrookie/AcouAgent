@@ -12,6 +12,8 @@
 入口保持 `python /app/server_safe.py`（Dockerfile APP_FILE 不变）。
 """
 
+import asyncio
+from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 
 try:
@@ -31,7 +33,18 @@ auth = StaticTokenVerifier(
     tokens={config.MCP_AUTH_TOKEN: {"client_id": "dify", "scopes": ["mcp:tools"]}},
     required_scopes=["mcp:tools"],
 )
-mcp = FastMCP("Dify JWave Tools", auth=auth)
+@asynccontextmanager
+async def _learning_lifespan(_server):
+    from app.skill_auto_worker import start_worker
+    worker = start_worker()
+    try:
+        yield {}
+    finally:
+        if worker is not None:
+            await asyncio.to_thread(worker.stop)
+
+
+mcp = FastMCP("Dify JWave Tools", auth=auth, lifespan=_learning_lifespan)
 
 register_tools(mcp)
 register_portal(mcp)
