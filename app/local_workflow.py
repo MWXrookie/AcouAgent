@@ -147,8 +147,8 @@ def _explicit_frequency_contract(query: str) -> dict | None:
                 result_spec=normalized["result_spec"], skill_query=None)
 
 
-def _explicit_modal_parameters(query: str) -> dict | None:
-    """A complete structured user declaration takes precedence over model defaults."""
+def _explicit_initial_contract(query: str) -> dict | None:
+    """Preserve copied Gaussian or modal initial conditions over model defaults."""
     start = query.find("{")
     if start < 0:
         return None
@@ -158,15 +158,26 @@ def _explicit_modal_parameters(query: str) -> dict | None:
     try:
         value = json.loads(text, object_pairs_hook=_unique, parse_constant=_reject_constant)
     except (ValueError, LocalWorkflowError):
+        if any(source in text for source in ('"modal_initial_pressure"', '"gaussian_initial_pressure"')):
+            raise LocalWorkflowError("explicit_initial_contract_invalid") from None
         return None
-    if isinstance(value, dict) and value.get("source_type") == "modal_initial_pressure":
+    if isinstance(value, dict) and value.get("source_type") in ("modal_initial_pressure", "gaussian_initial_pressure"):
         # The skill UI includes scenario metadata beside the physical fields.
         value = dict(value)
         declared_scenario = value.pop("scenario_type", "initial_pressure_2d")
-        if declared_scenario != "initial_pressure_2d":
+        allowed = {"initial_pressure_2d"}
+        if value["source_type"] == "gaussian_initial_pressure":
+            allowed.add("interface_2d")
+        if declared_scenario not in allowed:
             raise LocalWorkflowError("declared_scenario_mismatch")
-        return value
+        return dict(scenario_type=declared_scenario, simulation_params=value)
     return None
+
+
+def _explicit_modal_parameters(query: str) -> dict | None:
+    """Parameter-only compatibility view of a checked initial declaration."""
+    declaration = _explicit_initial_contract(query)
+    return declaration["simulation_params"] if declaration is not None else None
 
 
 def _code_prompt(query: str, extracted: dict, context: str) -> str:
@@ -206,7 +217,7 @@ def _retry_context(query: str, extracted: dict, analyzed: dict) -> str:
 def _safe_analysis(analyzed: dict) -> dict:
     return {key: analyzed.get(key) for key in (
         "verdict", "quality_level", "max_pressure", "rms_pressure", "field_shape",
-        "has_signal", "summary", "timing_diagnostic", "physics_checks", "units"
+        "has_signal", "summary", "timing_diagnostic", "physics_checks", "units", "result_kind", "metric_basis"
     )}
 
 
@@ -357,13 +368,15 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 raise LocalWorkflowError("declared_scenario_mismatch")
             extracted.update(frequency)
             params = frequency["simulation_params"]
-        declared = _explicit_modal_parameters(query)
+        declared = _explicit_initial_contract(query)
         if declared is not None:
-            if scenario != "initial_pressure_2d":
-                raise LocalWorkflowError("declared_scenario_mismatch")
+            # The declaration itself checks its scenario metadata. The model's
+            # reclassification cannot override the user's explicit initial state.
+            scenario = declared["scenario_type"]
+            extracted["scenario_type"] = scenario
             from app.skill_store import normalize_parameters
             # Preserve omissions and changed boundaries; validation must reject them.
-            params = declared
+            params = declared["simulation_params"]
             extracted["simulation_params"] = params
             extracted["skill_query"] = {"scenario_type": scenario,
                                        "parameters": normalize_parameters(params)}
@@ -521,8 +534,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             report_result["stdout"] = re.sub(r"__SKILL_PROBE_START__.*?__SKILL_PROBE_END__",
                 "[完整复数结果已保存]" if used_auto_source else "[完整复数结果已保存并独立验证]",
                 report_result.get("stdout", "") or "", flags=re.DOTALL)
-        if not report_result.get("image_base64") and analyzed.get("heatmap_png_base64"):
-            report_result["image_base64"] = analyzed["heatmap_png_base64"]
+        if analyzed.get("result_kind") == "sensor_time":
+            report_result["stdout"] = "[完整原始传感器波形保留在本次执行记录；图中展示两个传感器，非二维场]"
+        display_image = analyzed.get("heatmap_png_base64") or analyzed.get("waveform_png_base64")
+        if not report_result.get("image_base64") and display_image:
+            report_result["image_base64"] = display_image
         report = execution._build_report(report_result, first_code or code)
         if cache_queries:
             report += (f"\n\n纠错缓存：查询尝试 {cache_queries} 次，命中 {cache_hits} 次。"
