@@ -5,6 +5,7 @@ import json
 import pytest
 
 from app import analysis
+from app.execution import _build_report
 from tests.unit.test_plane_wave_evidence import evidence
 from tests.unit.test_interface_waveform import raw
 from scripts.validation import interface_waveform
@@ -50,3 +51,11 @@ def test_invalid_trace_cannot_hide_behind_a_pass_claim(case, fault):
     result = analysis._fixed_sensor_result(json.dumps(value), "error" if fault == "stderr" else "",
         1 if fault == "exit" else 0, {"timed_out": fault == "timeout"})
     assert result is None
+
+
+def test_sensor_report_does_not_call_a_waveform_a_field_or_lose_its_time_axis():
+    report = _build_report(dict(exit_code=0, timed_out=False, stdout="[display projection]",
+        stderr="", display_kind="sensor_time", image_base64="actual-image"), "")
+    assert "![传感器时间波形]" in report and "![仿真压力场热力图]" not in report
+    assert "时间轴或物理参数不足" not in report
+    assert "不据此声明稳态" in report

@@ -280,7 +280,9 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
     total_attempts = result.get("total_attempts", 1)
     image_base64 = result.get("image_base64")
 
-    timing_note = _timing_report_note(stdout) if exit_code == 0 and not timed_out else None
+    sensor_display = result.get("display_kind") == "sensor_time"
+    timing_note = (("本次展示传感器时间波形；未导出二维压力场，也不据此声明稳态。数值校验结论见下方确定性物理门。"
+                    if sensor_display else _timing_report_note(stdout)) if exit_code == 0 and not timed_out else None)
 
     # 剔除场数据 JSON 块（__ACOU_FIELD_START__/END__ 仅供 analyze 分析，不展示给用户）
     stdout = re.sub(
@@ -372,7 +374,8 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
     if image_base64:
         lines.append("### 🖼 仿真图像")
         lines.append("")
-        lines.append(f"![仿真压力场热力图](data:image/png;base64,{image_base64})")
+        image_label = "传感器时间波形" if sensor_display else "仿真压力场热力图"
+        lines.append(f"![{image_label}](data:image/png;base64,{image_base64})")
         lines.append("")
 
     return "\n".join(lines)

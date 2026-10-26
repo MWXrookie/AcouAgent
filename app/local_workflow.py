@@ -536,6 +536,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 report_result.get("stdout", "") or "", flags=re.DOTALL)
         if analyzed.get("result_kind") == "sensor_time":
             report_result["stdout"] = "[完整原始传感器波形保留在本次执行记录；图中展示两个传感器，非二维场]"
+            report_result["display_kind"] = "sensor_time"
         display_image = analyzed.get("heatmap_png_base64") or analyzed.get("waveform_png_base64")
         if not report_result.get("image_base64") and display_image:
             report_result["image_base64"] = display_image
