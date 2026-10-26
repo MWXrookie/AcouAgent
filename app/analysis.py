@@ -393,6 +393,55 @@ def _periodic_view(stdout, stderr, exit_code):
     except (ValueError,TypeError,KeyError,IndexError,OverflowError,RecursionError,UnicodeError):
         return None
 
+def _fixed_sensor_result(stdout, stderr, exit_code, source):
+    """Display independently checked traces without inventing a spatial field."""
+    try:
+        if exit_code != 0 or stderr or source.get("timed_out") or len(stdout.encode()) > 500000:
+            return None
+        from scripts.validation.host_forward_signature import unique, reject
+        body = json.loads(stdout, object_pairs_hook=unique, parse_constant=reject)
+        raw = body["raw_evidence"]
+        if raw["profile"] == "val1-plane-wave-v2":
+            from scripts.validation.plane_wave_evidence import validate_plane_wave
+            numeric = validate_plane_wave(body)
+            traces = [raw["pressure_x1"], raw["pressure_x2"]]
+        elif raw["profile"] == "val1-interface-wide-v2":
+            from scripts.validation.interface_waveform import validate_wide
+            numeric = validate_wide(stdout)
+            traces = [raw["pressure_left"], raw["pressure_right"]]
+        else:
+            return None
+        if numeric.get("numeric_pass") is not True:
+            return None
+        samples = [v for trace in traces for v in trace]
+        peak = max(abs(v) for v in samples)
+        rms = math.sqrt(sum(v*v for v in samples) / len(samples))
+        image = None
+        if _plt is not None:
+            fig, ax = _plt.subplots(figsize=(7, 3), dpi=100)
+            try:
+                for i, trace in enumerate(traces):
+                    ax.plot(raw["time"], trace, label="Sensor " + str(i+1))
+                ax.set(xlabel="Time (s)", ylabel="Pressure (Pa)", title="Validated sensor traces (not a spatial field)")
+                ax.legend(); fig.tight_layout()
+                buf = io.BytesIO(); fig.savefig(buf, format="png", bbox_inches="tight")
+                image = base64.b64encode(buf.getvalue()).decode("ascii")
+            finally:
+                _plt.close(fig)
+        return dict(verdict="normal", quality_level="Q2", has_signal=peak > 0,
+            max_pressure=peak, rms_pressure=rms, field_shape=[], units="Pa",
+            result_kind="sensor_time", metric_basis="all_samples_of_two_sensor_traces",
+            heatmap_png_base64=None, waveform_png_base64=image, waveform_kind="sensor_time",
+            sensor_samples=len(raw["time"]), sensor_peak_pressure=peak,
+            fixed_numeric_diagnostic=numeric, run_id=source.get("run_id") or None, execution_source=source,
+            physics_checks=[dict(check_id="fixed_sensor_waveform", passed=True,
+                detail="Pinned independent waveform validator passed; no spatial field or reusable grade inferred")],
+            summary=f"固定双传感器时间波形通过独立数值校验；采样峰值 {peak:.7g} Pa，采样 RMS {rms:.7g} Pa。"
+                "仅表示两个传感器的采样统计，不是二维压力场或全场峰值；Q2不授予技能复用许可。")
+    except (ValueError, TypeError, KeyError, IndexError, OverflowError, RecursionError, UnicodeError):
+        return None
+
+
 def _analyze_impl(
     stdout_text: str,
     stderr_text: str = "",
@@ -424,6 +473,10 @@ def _analyze_impl(
     source["approval_consumption_reason"] = consumed.get("reason")
     run_id = source.get("run_id", "")
     payload = _extract_field(stdout_text or "")
+    if payload is None:
+        trace_result = _fixed_sensor_result(stdout_text or "", stderr_text or "", exit_code, source)
+        if trace_result is not None:
+            return trace_result
     sensor = _extract_sensor(stdout_text or "")
     fixed_view = _periodic_view(stdout_text, stderr_text, exit_code) if payload is None else None
     if fixed_view:

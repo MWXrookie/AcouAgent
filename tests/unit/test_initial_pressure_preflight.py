@@ -120,6 +120,56 @@ def test_explicit_user_modal_contract_wins_over_model_defaults(monkeypatch, boun
     reached = any(e.get("stage") == "本地编排：检索技能" for e in events)
     assert reached is (boundary == "periodic")
 
+
+@pytest.mark.parametrize("amplitude", [1., 2.])
+@pytest.mark.parametrize("extracted_scenario", ["initial_pressure_2d", "plane_wave_2d"])
+@pytest.mark.parametrize("scope", ["managed-local-plane-wave.v1", "managed-local-interface-wide.v1"])
+def test_copied_gaussian_contract_reaches_lookup_unchanged(monkeypatch, validate, amplitude, extracted_scenario, scope):
+    spec = skill_local_catalog.specification(scope)
+    p = copy.deepcopy(spec["parameters"])
+    p["initial_pressure_pa"] = amplitude
+    async def model(profile_id, task, prompt, run_id):
+        if task == "parameter_extraction":
+            return {"content": json.dumps({"scenario_type": extracted_scenario,
+                "simulation_params": {"sound_speed": 1500., "density": 1000.},
+                "skill_query": None}), "profile_id": "test"}
+        raise local_workflow.LocalWorkflowError("stop_after_retrieval")
+    observed = []
+    def generation(original, **kwargs):
+        observed.append(json.loads(kwargs["parameters_json"]))
+        return {"context": original, "skill_usage": {"skills": [], "fallback": True}}
+    monkeypatch.setattr(local_workflow, "_model", model)
+    monkeypatch.setattr(skill_retrieval, "generation_context", generation)
+    async def collect():
+        query = "请按以下完整参数仿真：\n" + json.dumps(dict(p, scenario_type=spec["scene"]))
+        return [e async for e in local_workflow.workflow_events(query, "session", "test")]
+    events = asyncio.run(collect())
+    assert observed == [p]
+    assert events[-1]["error_code"] == "stop_after_retrieval"
+    assert p["initial_pressure_pa"] == amplitude
+
+
+@pytest.mark.parametrize("kind", ["duplicate", "nonfinite", "wrong_scenario"])
+def test_bad_explicit_gaussian_declaration_fails_closed(kind):
+    p = copy.deepcopy(skill_local_catalog.specification("managed-local-plane-wave.v1")["parameters"])
+    p["scenario_type"] = "point_source_2d" if kind == "wrong_scenario" else "initial_pressure_2d"
+    raw = json.dumps(p)
+    if kind == "duplicate":
+        raw = raw[:-1] + ', "initial_pressure_pa": 2}'
+    elif kind == "nonfinite":
+        p["initial_pressure_pa"] = float("nan")
+        raw = json.dumps(p)
+    with pytest.raises(local_workflow.LocalWorkflowError):
+        local_workflow._explicit_modal_parameters("explicit: " + raw)
+
+
+def test_copied_gaussian_omission_is_not_filled_from_catalog(validate):
+    p = copy.deepcopy(skill_local_catalog.specification("managed-local-plane-wave.v1")["parameters"])
+    del p["initial_sigma_m"]
+    declared = local_workflow._explicit_modal_parameters(json.dumps(dict(p, scenario_type="initial_pressure_2d")))
+    assert declared == p and "initial_sigma_m" not in declared
+    assert not validate(json.dumps(declared))["valid"]
+
 def test_fixed_reference_report_uses_analyzed_heatmap_without_mutating_history(monkeypatch):
     p = air()
     history = {"exit_code": 0, "timed_out": False, "run_id": "fixed-run", "stdout": "raw",
