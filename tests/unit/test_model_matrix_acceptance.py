@@ -33,14 +33,14 @@ def test_local_task_keeps_only_compact_evidence(monkeypatch):
             "code": "must not persist",
         },
         {
-            "executions": [{
+            "execution": {
                 "id": 7,
                 "run_id": run_id,
                 "exit_code": 0,
                 "timed_out": False,
                 "code": "must not persist",
                 "stdout": "must not persist",
-            }]
+            }
         },
     ))
     monkeypatch.setattr(matrix.first_uat, "_request_json", lambda *args, **kwargs: next(responses))

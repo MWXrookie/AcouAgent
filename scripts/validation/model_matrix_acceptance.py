@@ -157,18 +157,12 @@ def _execution_for(base_url: str, run_id: str) -> dict[str, Any] | None:
     for _ in range(5):
         payload = first_uat._request_json(
             "GET",
-            first_uat._url(base_url, "/dashboard/api/executions?limit=500"),
+            first_uat._url(base_url, "/dashboard/api/executions/by-run/" + urllib.parse.quote(run_id, safe="")),
             None,
             15,
         )
-        execution = next(
-            (
-                item for item in payload.get("executions", [])
-                if isinstance(item, dict) and item.get("run_id") == run_id
-            ),
-            None,
-        )
-        if execution is not None:
+        execution = payload.get("execution")
+        if isinstance(execution, dict) and execution.get("run_id") == run_id:
             return execution
         time.sleep(1)
     return None
