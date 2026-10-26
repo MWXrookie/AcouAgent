@@ -244,3 +244,13 @@ AUTHORING与VALIDATION已加入配置且默认false；GENERAL_ADMISSION已实现
 ## 阶段4实施补充
 
 沿用18的trial job/attempt与append-only draft_requests保存受控source；源draft、trial job、controlled-source-job标记同事务。自动学习draft另绑定原run，outbox记录推进/稳定失败，不能替代lease或独立证明。FastMCP lifespan中的后台pump按5秒有界推进；默认四开关关闭、启动无迁移。自动origin强制提交源守卫，完整链路见STAGE4_IMPLEMENTATION。
+
+## 阶段5实施补充
+
+`/skills/authoring` 已实现管理员标准格式工作台，新增v1路由在旧动态路由之前注册。JSON schema、三模板可公开读取，敏感读取/写入均使用临时X-Admin-Token、服务端actor `portal-admin`；单站点管理员语义不变。
+
+在第6节拟定接口基础上，实际新增 GET `/drafts`（20条、after_id分页）、POST `/drafts/{id}/archive`、POST `/drafts/{id}/controlled`（expected_revision/apply，预览真实diff或显式新版本）、GET `/drafts/{id}/jobs`（最近20条）、POST `/jobs/{id}/admit`（expected_revision，独立验证后显式接纳）。路径均带 `/skills/api/v1` 前缀。
+
+`resume` 和 `reconcile` 只接受needs_reconciliation，核对原历史且不重新派发；当前不需模型凭据的受控执行没有虚构blocked_credentials恢复。GET `/jobs/{id}/result` 返回受保护结果/热图/比较摘要；GET `/jobs/{id}/field` 重核同源绑定后下载完整复数NPY，allow_pickle=false，固定附件名，不接受任意资产路径。
+
+当前HTTP错误结构保留稳定code、JSON Pointer、retryable与request_id；不回显输入代码、SQL、Key或文件路径。详情见STAGE5_IMPLEMENTATION。功能仍默认关闭，所有profile/运行时/扩展schema须先由已有操作CLI显式准备。

@@ -78,6 +78,8 @@ async def _merge_requirement(requirement: str, message: str,
 
 def register(mcp) -> None:
     """向 FastMCP 实例注册本模块的全部 Web 路由。"""
+    from app.skill_authoring_api import register as register_authoring_api
+    register_authoring_api(mcp)
     from app.skill_api import register as register_skill_api
     register_skill_api(mcp)
 

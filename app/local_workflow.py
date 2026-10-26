@@ -105,6 +105,41 @@ helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regi
 skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
 
 
+def _explicit_frequency_contract(query: str) -> dict | None:
+    """Preserve a complete user declaration when the extraction model omits it.
+
+    Like the modal declaration below, this only accepts explicit user bytes. No
+    result fields, units, material or reference values are filled from a skill.
+    """
+    start = query.find("{")
+    if start < 0:
+        return None
+    text = query[start:]
+    if len(text.encode("utf-8")) > 4096:
+        return None
+    from app.skill_spec import _decode
+    try:
+        value = _decode(text)
+    except ValueError:
+        # An explicit v2-shaped document must not fall through to weaker legacy
+        # parsing when malformed, duplicated, or nonfinite.
+        if '"result_spec"' in text or '"normalizer_version"' in text:
+            raise LocalWorkflowError("explicit_frequency_contract_invalid") from None
+        return None
+    if not {"simulation_params", "result_spec"} <= value.keys():
+        return None
+    if set(value) != {"scenario_type", "simulation_params", "result_spec"}:
+        raise LocalWorkflowError("explicit_frequency_contract_invalid")
+    from app.skill_general_library import normalize_query
+    try:
+        normalized = normalize_query(value["scenario_type"], json.dumps(dict(normalizer_version="normalizer_v2",
+            parameters=value["simulation_params"], result_spec=value["result_spec"]), allow_nan=False))
+    except (ValueError, TypeError, KeyError, OverflowError):
+        raise LocalWorkflowError("explicit_frequency_contract_invalid") from None
+    return dict(scenario_type=value["scenario_type"], simulation_params=normalized["parameters"],
+                result_spec=normalized["result_spec"], skill_query=None)
+
+
 def _explicit_modal_parameters(query: str) -> dict | None:
     """A complete structured user declaration takes precedence over model defaults."""
     start = query.find("{")
@@ -208,7 +243,7 @@ def _skill_notices(usage: dict) -> list[dict]:
                 "stage": "reference_delivered", "skill_id": skill.get("skill_id"),
                 "version": skill.get("version"),
                 "name": skill.get("scope") or skill.get("scenario_type") or "固定技能",
-                "message": "本地编排已交付经服务端重核的固定技能参考",
+                  "message": "本地编排已交付经服务端重核的技能参考",
                 "model_adoption_authenticated": False,
             })
     return notices[:3]
@@ -309,6 +344,12 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
         if not isinstance(scenario, str) or not isinstance(params, dict):
             raise LocalWorkflowError("parameter_schema_invalid")
+        frequency = _explicit_frequency_contract(query)
+        if frequency is not None:
+            if scenario != frequency["scenario_type"]:
+                raise LocalWorkflowError("declared_scenario_mismatch")
+            extracted.update(frequency)
+            params = frequency["simulation_params"]
         declared = _explicit_modal_parameters(query)
         if declared is not None:
             if scenario != "initial_pressure_2d":
@@ -485,6 +526,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         report += "\n\n质量等级：`" + str(analyzed.get("quality_level", "Q0")) + "`"
         if learning_status is not None:
             report += "\n\n自动学习：" + _learning_message(learning_status)
+        if used_direct_reference and (direct_outcome or {}).get("execution_reuse_verified") is True:
+            report += "\n\n技能复用：已重新实际执行，并通过本次独立核验。"
         report += "\n\n## 模型审查（不能覆盖物理门）\n\n" + review["content"]
         report += "\n\n## 物理解读\n\n" + explanation["content"]
         report += ("\n\n---\n\n本次本地编排模型：`" + review["profile_id"] + "` / `"
@@ -495,6 +538,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "skill_usage": notices, "model_profile": review["profile_id"],
                "model": review["model"], "orchestration_backend": "local",
                "quality_level": analyzed.get("quality_level", "Q0"),
+               "execution_reuse_verified": used_direct_reference and (direct_outcome or {}).get("execution_reuse_verified") is True,
                **({"learning": learning_status} if learning_status is not None else {}),
                "cache_usage": {"queries": cache_queries, "hits": cache_hits},
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}

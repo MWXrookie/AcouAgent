@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AcouAgent SkillSpec v1 author submission (preparation contract)",
-  "description": "Untrusted authoring input only. Structural validity never grants executable, reusable or scientific trust.",
+  "title": "AcouAgent SkillSpec v1 supported author submission",
+  "description": "Untrusted 2D frequency-domain input. Structural validity grants no scientific trust. Server also checks physical resolution, PML/source/region bounds, matching result shape and byte budgets.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -33,9 +33,6 @@
     "scenario_type": {
       "enum": [
         "point_source_2d",
-        "point_source_3d",
-        "plane_wave_2d",
-        "initial_pressure_2d",
         "interface_2d",
         "attenuation_helmholtz_2d",
         "heterogeneous_2d"
@@ -138,20 +135,22 @@
         "density_kg_m3",
         "grid_shape",
         "dx_m",
-        "pml_size"
+        "pml_size",
+        "frequency_hz",
+        "source_index",
+        "source_type",
+        "source_geometry",
+        "boundary_condition",
+        "helmholtz_source_coefficient",
+        "background_attenuation_db_mhz2_cm",
+        "material_regions"
       ],
       "properties": {
         "dimensions": {
-          "enum": [
-            2,
-            3
-          ]
+          "const": 2
         },
         "solver_mode": {
-          "enum": [
-            "time_domain",
-            "frequency_domain"
-          ]
+          "const": "frequency_domain"
         },
         "medium_type": {
           "enum": [
@@ -168,6 +167,20 @@
           "exclusiveMinimum": 0
         },
         "density_kg_m3": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "grid_shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 1024
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "dx_m": {
           "oneOf": [
             {
               "type": "number",
@@ -179,35 +192,8 @@
                 "type": "number",
                 "exclusiveMinimum": 0
               },
-              "minItems": 1,
-              "maxItems": 2
-            }
-          ]
-        },
-        "grid_shape": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 3,
-          "items": {
-            "type": "integer",
-            "minimum": 32,
-            "maximum": 1024
-          }
-        },
-        "dx_m": {
-          "oneOf": [
-            {
-              "type": "number",
-              "exclusiveMinimum": 0
-            },
-            {
-              "type": "array",
               "minItems": 2,
-              "maxItems": 3,
-              "items": {
-                "type": "number",
-                "exclusiveMinimum": 0
-              }
+              "maxItems": 2
             }
           ]
         },
@@ -215,124 +201,64 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
-        "t_end_s": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "cfl": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 0.3
-        },
         "pml_size": {
           "type": "integer",
-          "minimum": 0,
+          "minimum": 1,
           "maximum": 511
         },
         "source_index": {
           "type": "array",
           "items": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 1023
           },
           "minItems": 2,
-          "maxItems": 3
+          "maxItems": 2
         },
         "sensor_index": {
           "type": "array",
           "items": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 1023
           },
           "minItems": 2,
-          "maxItems": 3
+          "maxItems": 2
         },
         "sensor_indices": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 3,
           "items": {
             "type": "array",
             "items": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "maximum": 1023
             },
             "minItems": 2,
-            "maxItems": 3
-          }
+            "maxItems": 2
+          },
+          "minItems": 1,
+          "maxItems": 3
         },
         "source_type": {
-          "enum": [
-            "continuous_sinusoid",
-            "gaussian_initial_pressure",
-            "modal_initial_pressure"
-          ]
+          "const": "continuous_sinusoid"
         },
         "source_geometry": {
-          "enum": [
-            "point",
-            "radial_gaussian",
-            "planar_x_uniform_y"
-          ]
-        },
-        "initial_pressure_pa": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "initial_sigma_m": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "initial_velocity": {
-          "const": "zero"
-        },
-        "smooth_initial": {
-          "type": "boolean"
+          "const": "point"
         },
         "boundary_condition": {
-          "enum": [
-            "periodic",
-            "absorbing_pml",
-            "rigid",
-            "open"
-          ]
-        },
-        "secondary_sound_speed_m_s": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "interface_position_m": {
-          "type": "number"
-        },
-        "modal_amplitudes_pa": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "type": "number"
-          }
-        },
-        "modal_wavenumber_rad_per_m": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 3,
-            "items": {
-              "type": "number"
-            }
-          }
+          "const": "absorbing_pml"
         },
         "helmholtz_source_coefficient": {
           "type": "number",
-          "description": "Planned normalizer_v2 field. Numerical FourierSeries source coefficient, not a pressure in Pa."
+          "not": {
+            "const": 0
+          }
         },
         "background_attenuation_db_mhz2_cm": {
           "type": "number",
-          "minimum": 0,
-          "description": "Planned normalizer_v2 field, explicit y=2 background coefficient."
+          "minimum": 0
         },
         "material_regions": {
           "type": "array",
@@ -395,106 +321,9 @@
           },
           "minItems": 0,
           "maxItems": 8,
-          "description": "Planned normalizer_v2 extension, 2D zero-based half-open index regions. Full maps must enter physical identity."
+          "description": "Supported normalizer_v2 field, 2D zero-based half-open index regions. Full maps must enter physical identity."
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "dimensions": {
-                "const": 2
-              }
-            },
-            "required": [
-              "dimensions"
-            ]
-          },
-          "then": {
-            "properties": {
-              "grid_shape": {
-                "minItems": 2,
-                "maxItems": 2
-              },
-              "source_index": {
-                "minItems": 2,
-                "maxItems": 2
-              },
-              "sensor_index": {
-                "minItems": 2,
-                "maxItems": 2
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "dimensions": {
-                "const": 3
-              }
-            },
-            "required": [
-              "dimensions"
-            ]
-          },
-          "then": {
-            "properties": {
-              "grid_shape": {
-                "minItems": 3,
-                "maxItems": 3
-              },
-              "source_index": {
-                "minItems": 3,
-                "maxItems": 3
-              },
-              "sensor_index": {
-                "minItems": 3,
-                "maxItems": 3
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "solver_mode": {
-                "const": "frequency_domain"
-              }
-            },
-            "required": [
-              "solver_mode"
-            ]
-          },
-          "then": {
-            "required": [
-              "frequency_hz",
-              "helmholtz_source_coefficient",
-              "background_attenuation_db_mhz2_cm",
-              "material_regions",
-              "boundary_condition"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "solver_mode": {
-                "const": "time_domain"
-              }
-            },
-            "required": [
-              "solver_mode"
-            ]
-          },
-          "then": {
-            "required": [
-              "t_end_s",
-              "cfl"
-            ]
-          }
-        }
-      ]
+      }
     }
   }
 }

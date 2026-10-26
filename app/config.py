@@ -45,7 +45,7 @@ SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "
 SKILL_RETRIEVAL_ENABLED = os.environ.get("SKILL_RETRIEVAL_ENABLED", "").lower() == "true"
 SKILL_INJECTION_ENABLED = os.environ.get("SKILL_INJECTION_ENABLED", "").lower() == "true"
 SKILL_LEARNING_ENABLED = os.environ.get("SKILL_LEARNING_ENABLED", "").lower() == "true"
-# Internal authoring foundation only. No flag creates trust or HTTP endpoints.
+# Authoring HTTP and workers are opt-in. No flag creates schema, profiles or trust.
 SKILL_AUTHORING_ENABLED = os.environ.get("SKILL_AUTHORING_ENABLED", "").lower() == "true"
 SKILL_VALIDATION_ENABLED = os.environ.get("SKILL_VALIDATION_ENABLED", "").lower() == "true"
 SKILL_GENERAL_ADMISSION_ENABLED = os.environ.get("SKILL_GENERAL_ADMISSION_ENABLED", "").lower() == "true"

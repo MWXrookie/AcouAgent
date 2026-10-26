@@ -63,10 +63,21 @@ def flow(monkeypatch):
                 source_calls=source_calls, model_calls=model_calls, reports=reports, raw_stdout=raw_stdout)
 
 
-def collect():
+def collect(query="完整明确的二维频域输入"):
     async def run():
-        return [event async for event in workflow.workflow_events("完整明确的二维频域输入", "session", "test")]
+        return [event async for event in workflow.workflow_events(query, "session", "test")]
     return asyncio.run(run())
+
+
+def test_explicit_contract_survives_realistic_model_result_omission(flow):
+    declared = spec()
+    del flow["extracted"]["result_spec"]
+    query = "请仿真以下明确物理输入\n" + json.dumps(dict(scenario_type=declared["scenario_type"],
+        simulation_params=declared["parameters"], result_spec=declared["result_spec"]))
+    result = collect(query)[-1]
+    assert result["workflow_status"] == "succeeded" and result["quality_level"] == "Q2"
+    assert result["execution_reuse_verified"] is False
+    assert len(flow["source_calls"]) == 1
 
 
 def test_first_source_is_q2_even_when_its_learned_skill_is_admitted(flow):

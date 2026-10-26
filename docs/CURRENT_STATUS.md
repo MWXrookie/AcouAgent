@@ -1,5 +1,7 @@
 # AcouAgent 当前状态
 
+> **2026-10-26 更新**：阶段4 d46192a五项CI已过并设验收标签；阶段5手动入口候选完成，真实Chrome21项、实际模型新任务Q4重执行、1940项回归通过。支持标准JSON添加/编辑、代码差异、原任务验证/显式接纳、同源热图和完整复数NPY下载。默认关闭、生产/main未改；阶段5最终CI和阶段6交付仍按[版本检查点](skills-next/VERSION_CHECKPOINTS.md)推进，见[实现说明](skills-next/STAGE5_IMPLEMENTATION.md)。
+
 > **2026-10-25 更新**：阶段1–4已形成内部候选实现，包含格式/草稿、持久任务/完整结果、受控Helmholtz独立验证接纳与新运行复用，三题六次实跑通过。默认关闭、未部署生产；自动学习受控事件/后台调度已通过三题九次实跑，用户添加界面仍待阶段5。见 [阶段4说明](skills-next/STAGE4_IMPLEMENTATION.md)及[版本检查点](skills-next/VERSION_CHECKPOINTS.md)和[实施计划](NEXT_STAGE_PLAN.md)，v1.0开放门未关闭。
 
 更新：2026-10-21

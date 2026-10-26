@@ -36,12 +36,16 @@ auth = StaticTokenVerifier(
 @asynccontextmanager
 async def _learning_lifespan(_server):
     from app.skill_auto_worker import start_worker
+    from app.skill_manual_worker import start_worker as start_manual_worker
     worker = start_worker()
+    manual_worker = start_manual_worker()
     try:
         yield {}
     finally:
         if worker is not None:
             await asyncio.to_thread(worker.stop)
+        if manual_worker is not None:
+            await asyncio.to_thread(manual_worker.stop)
 
 
 mcp = FastMCP("Dify JWave Tools", auth=auth, lifespan=_learning_lifespan)

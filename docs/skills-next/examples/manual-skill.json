@@ -35,7 +35,7 @@
     "policy": "server_required",
     "reference_case_id": "B01"
   },
-  "author_notes": "B01未验证格式草稿，代码主动终止，不是可复用模板。omega=1.5e6 rad/s，源系数1不是1 Pa，不额外乘omega；显式无损。结果保留数值源归一化，不擅称绝对Pa。新增源/材料字段仅为计划normalizer_v2扩展，当前normalize_parameters不接受它们。",
+  "author_notes": "B01未验证格式草稿，代码主动终止，不是可复用模板。omega=1.5e6 rad/s，源系数1不是1 Pa，不额外乘omega；显式无损。结果保留数值源归一化，不擅称绝对Pa。源、材料与结果字段由 SkillSpec normalizer_v2 完整保存，旧检索参数不自动升级。",
   "result_spec": {
     "kind": "steady_complex_pressure",
     "units": "numerical_source_normalization",
