@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AcouAgent SkillSpec v1 supported author submission",
+  "description": "Untrusted 2D frequency-domain input. Structural validity grants no scientific trust. Server also checks physical resolution, PML/source/region bounds, matching result shape and byte budgets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "description",
+    "scenario_type",
+    "parameters",
+    "code_template",
+    "validation_request",
+    "result_spec"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "skill-spec.v1"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "\\S"
+    },
+    "scenario_type": {
+      "enum": [
+        "point_source_2d",
+        "interface_2d",
+        "attenuation_helmholtz_2d",
+        "heterogeneous_2d"
+      ]
+    },
+    "parameters": {
+      "$ref": "#/$defs/parameters"
+    },
+    "code_template": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000,
+      "pattern": "\\S",
+      "description": "Python source. UTF-8 <=20000 bytes, AST/storage checks and original isolated executor are mandatory outside this schema."
+    },
+    "validation_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy"
+      ],
+      "properties": {
+        "policy": {
+          "const": "server_required"
+        },
+        "reference_case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "description": "Untrusted reference claim; resolve only against server-owned vetted registry. No paths, URLs or custom validator code."
+        }
+      }
+    },
+    "author_notes": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "result_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "units",
+        "axis_order",
+        "grid_shape",
+        "full_complex",
+        "downsample"
+      ],
+      "properties": {
+        "kind": {
+          "const": "steady_complex_pressure"
+        },
+        "units": {
+          "const": "numerical_source_normalization"
+        },
+        "axis_order": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "x"
+            },
+            {
+              "const": "y"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "grid_shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 1024
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "full_complex": {
+          "const": true
+        },
+        "downsample": {
+          "const": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 32,
+      "required": [
+        "dimensions",
+        "solver_mode",
+        "medium_type",
+        "sound_speed_m_s",
+        "density_kg_m3",
+        "grid_shape",
+        "dx_m",
+        "pml_size",
+        "frequency_hz",
+        "source_index",
+        "source_type",
+        "source_geometry",
+        "boundary_condition",
+        "helmholtz_source_coefficient",
+        "background_attenuation_db_mhz2_cm",
+        "material_regions"
+      ],
+      "properties": {
+        "dimensions": {
+          "const": 2
+        },
+        "solver_mode": {
+          "const": "frequency_domain"
+        },
+        "medium_type": {
+          "enum": [
+            "water",
+            "homogeneous_water",
+            "homogeneous",
+            "heterogeneous",
+            "tissue",
+            "air"
+          ]
+        },
+        "sound_speed_m_s": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "density_kg_m3": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "grid_shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 1024
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "dx_m": {
+          "oneOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "frequency_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pml_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 511
+        },
+        "source_index": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1023
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "sensor_index": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1023
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "sensor_indices": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1023
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "source_type": {
+          "const": "continuous_sinusoid"
+        },
+        "source_geometry": {
+          "const": "point"
+        },
+        "boundary_condition": {
+          "const": "absorbing_pml"
+        },
+        "helmholtz_source_coefficient": {
+          "type": "number",
+          "not": {
+            "const": 0
+          }
+        },
+        "background_attenuation_db_mhz2_cm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "material_regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "geometry",
+              "start",
+              "stop"
+            ],
+            "properties": {
+              "geometry": {
+                "enum": [
+                  "rectangle",
+                  "half_space"
+                ]
+              },
+              "start": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1024
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "stop": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1024
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "sound_speed_m_s": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "density_kg_m3": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "sound_speed_m_s"
+                ]
+              },
+              {
+                "required": [
+                  "density_kg_m3"
+                ]
+              }
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": "Supported normalizer_v2 field, 2D zero-based half-open index regions. Full maps must enter physical identity."
+        }
+      }
+    }
+  }
+}

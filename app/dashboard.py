@@ -248,6 +248,21 @@ def _json_safe_metric(value: object) -> int | float | None:
     return value if math.isfinite(value) else None
 
 
+def _analysis_units_by_run_ids(db, run_ids):
+    """Units follow one gateway record identity; output prose never assigns units."""
+    unique = list(dict.fromkeys(run_ids))[:500]
+    if not unique:
+        return {}
+    placeholders = ",".join("?" for _ in unique)
+    rows = db.execute(f"""SELECT run_id,count(*) record_count,
+        min(record_version) record_version,min(tool_name) tool_name
+        FROM executions WHERE run_id IN ({placeholders}) GROUP BY run_id""", unique).fetchall()
+    return {row["run_id"]: ("numerical_source_normalization"
+            if row["tool_name"] in {"general_reference_execute", "automatic_source_execute"} else "Pa")
+            if row["record_count"] == 1 and row["record_version"] == "gateway-execution.v1"
+            else "unknown" for row in rows}
+
+
 def get_latest_analysis_by_run_ids(run_ids: list[str], *, include_images: bool = False) -> dict[str, dict]:
     """Return one bounded, display-safe analysis summary for each execution run."""
     unique_ids = list(dict.fromkeys(
@@ -266,12 +281,14 @@ def get_latest_analysis_by_run_ids(run_ids: list[str], *, include_images: bool =
             ORDER BY id DESC""",
         unique_ids,
     ).fetchall()
+    units = _analysis_units_by_run_ids(db, [row["run_id"] for row in rows])
     db.close()
     result: dict[str, dict] = {}
     for row in rows:
         if row["run_id"] in result:
             continue
         item = dict(row)
+        item["units"] = units.get(row["run_id"], "unknown")
         if not include_images:
             item.pop("heatmap_base64", None)
         item.pop("id", None)
@@ -310,10 +327,12 @@ def get_analysis_updates(limit: int = 100, since_id: int = 0, *, include_images:
                LIMIT ?""",
             (since_id, bounded_limit),
         ).fetchall()
+    units = _analysis_units_by_run_ids(db, [row["run_id"] for row in rows])
     db.close()
     result = []
     for row in rows:
         item = dict(row)
+        item["units"] = units.get(row["run_id"], "unknown")
         if not include_images:
             item.pop("heatmap_base64", None)
         item["analysis_id"] = item.pop("id")

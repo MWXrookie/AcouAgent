@@ -3,11 +3,11 @@
   "ok": true,
   "command": "visual-check",
   "status": "pass",
-  "visualReview": "passed",
+  "visualReview": "pending",
   "artifact": {
-    "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "86cd98d0c66d6e08dbfdb2e5e273bf2e93d188dbc3d3033535d0736189aad517",
-    "bytes": 727163
+    "path": "acouagent-runtime.architecture.html",
+    "sha256": "54c0d6edad11e37bbacdf71ea852f9b00431502dd34a87dfca9c331f863dd4df",
+    "bytes": 726990
   },
   "state": {
     "detail": "read",
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "Chrome"
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
   },
   "diagnostics": [],
   "containment": {

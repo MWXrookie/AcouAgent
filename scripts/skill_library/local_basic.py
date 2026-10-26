@@ -13,6 +13,7 @@ import uuid
 from app import config, dashboard, execution, skill_library_service as service
 from app import skill_local_profile as local, skill_retrieval
 from app.skill_store import SCHEMA_VERSION
+from app.skill_authoring_schema import schema_ready
 from scripts.validation.host_forward_signature import canonical
 
 OBSOLETE_PLANE_CODE_SHA256="4561ef66b6daa4ffdd40ff6d9c35005fbdb1a3958fa70fb9309a29d4928d6b2b"
@@ -31,7 +32,8 @@ def initialize():
     if path.exists():
         with service.STORE._read_db() as db:
             versions={row[0] for row in db.execute("SELECT version FROM schema_migrations")}
-        return dict(ready=versions==set(range(1,SCHEMA_VERSION+1)),
+            ready=versions==set(range(1,SCHEMA_VERSION+1)) or schema_ready(db)
+        return dict(ready=ready,
                     created=False, reason="existing_store_not_modified")
     path.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive reservation prevents an accidental overwrite during bootstrap.

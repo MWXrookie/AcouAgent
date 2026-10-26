@@ -31,6 +31,13 @@ def _request(scenario_type, parameters_json, limit):
         raise ValueError("unsupported_scenario")
     if not isinstance(parameters_json, str) or len(parameters_json) > 4096 or len(parameters_json.encode()) > 4096:
         raise ValueError("parameter_size_limit")
+    from app import skill_general_library as general
+    try:
+        parsed = json.loads(parameters_json, object_pairs_hook=_unique, parse_constant=_nonfinite)
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError("invalid_parameters") from None
+    if general.is_general_query(parsed):
+        return general.normalize_query(scenario_type, parameters_json)
     try:
         parameters = normalize_parameters(json.loads(parameters_json,
             object_pairs_hook=_unique, parse_constant=_nonfinite))
@@ -55,6 +62,15 @@ def _shortlist(store, db, scenario_type, parameters, limit):
     Prefer exact canonical case identity before recency. Never load code or
     raw evidence. The bounded scan and dependency walk share a read snapshot.
     """
+    from app import skill_general_library as general
+    if general.is_general_query(parameters):
+        fingerprint = general.query_fingerprint(scenario_type, parameters)
+        rows = db.execute("""SELECT skill_id,(SELECT MAX(version) FROM skill_versions v
+            WHERE v.skill_id=s.skill_id) version FROM simulation_skills s
+            WHERE scenario_type=? AND fingerprint=? AND status='active'
+            AND quality_level='Q4' AND archived=0 LIMIT ?""",
+            (scenario_type,fingerprint,limit)).fetchall()
+        return [dict(row) for row in rows]
     fingerprint = skill_fingerprint(scenario_type, parameters)
     columns = """SELECT skill_id, substr(preconditions,1,4097) preconditions,
         (SELECT MAX(version) FROM skill_versions v WHERE v.skill_id=s.skill_id) version
@@ -146,7 +162,10 @@ def search(scenario_type, parameters_json, limit=3):
             for candidate in candidates:
                 try:
                     from app import skill_local_profile
-                    checked=skill_local_profile.verify_connection(store,db,candidate,scenario_type,parameters)
+                    from app import skill_general_library as general
+                    checked=general.verify_connection(store,db,candidate,scenario_type,parameters)
+                    if checked is None:
+                        checked=skill_local_profile.verify_connection(store,db,candidate,scenario_type,parameters)
                     if checked is None:
                         checked=skill_reference_registry.verified_metadata_connection(
                             store,db,candidate,scenario_type,parameters,time.time_ns())
@@ -191,6 +210,12 @@ def generation_context(original_context, *, scenario_type, parameters_json, refe
         generation_run_id=str(uuid.uuid4())
         consumed=None
         if reference_evidence is None:
+            from app import skill_general_library as general
+            general_result=general.consume(decision_id=prepared["decision_id"],nonce=prepared["nonce"],
+                generation_run_id=generation_run_id,scenario_type=scenario_type,
+                parameters_json=parameters_json,original_context=original_context)
+            if general_result["consumed"]:consumed=general_result
+        if reference_evidence is None and consumed is None:
             from app import skill_local_profile
             local=skill_local_profile.consume(decision_id=prepared["decision_id"],nonce=prepared["nonce"],
                 generation_run_id=generation_run_id,scenario_type=scenario_type,

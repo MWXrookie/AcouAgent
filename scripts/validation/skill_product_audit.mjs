@@ -1,0 +1,52 @@
+/** Compare rendered dashboard/cache/history against a separately collected SQLite ledger. */
+import {createRequire} from 'node:module';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import path from 'node:path';
+const {chromium}=createRequire(import.meta.url)('playwright');
+const base=process.env.GW_BASE_URL,token=process.env.SKILL_TEST_ADMIN_TOKEN;
+if(!base||!token||!process.env.SKILL_TEST_LEDGER||!process.env.SKILL_TEST_AUTHORING_REPORT||!process.env.SKILL_TEST_FEEDBACK_REPORT||process.env.SKILL_TEST_DISPOSABLE!=='true')throw Error('explicit_disposable_reports_and_ledger_required');
+const ledger=JSON.parse(await readFile(process.env.SKILL_TEST_LEDGER,'utf8'));
+const author=JSON.parse(await readFile(process.env.SKILL_TEST_AUTHORING_REPORT,'utf8'));
+const feedback=JSON.parse(await readFile(process.env.SKILL_TEST_FEEDBACK_REPORT,'utf8'));
+const out=path.resolve(process.env.SKILL_BROWSER_OUTPUT||'outputs/skill-product-audit');await mkdir(out,{recursive:true});
+const browser=await chromium.launch({headless:true,channel:process.env.SKILL_BROWSER_CHANNEL||'chrome'});
+const page=await browser.newPage({viewport:{width:1440,height:1000}}),checks=[],errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+function check(value,name){if(!value)throw Error(name);checks.push(name);}
+try{
+ await page.goto(base+'/dashboard');
+ await page.waitForFunction(()=>document.querySelector('#stat-total').textContent!=='-');
+ check(Number(await page.locator('#stat-total').innerText())===ledger.stats.total,'rendered_total_matches_sqlite');
+ check(Number(await page.locator('#stat-ok').innerText())===ledger.stats.success,'rendered_success_matches_sqlite');
+ const api=await (await page.request.get(base+'/dashboard/api/executions?limit=100')).json();
+ check(Object.keys(ledger.stats).every(k=>api.stats[k]===ledger.stats[k]),'api_statistics_match_sqlite');
+ const focus=api.executions.find(e=>e.run_id===ledger.focus.run_id);
+ check(focus&&Math.abs(focus.analysis.max_pressure-ledger.focus.analysis.max_pressure)<1e-12,'run_bound_metric_matches_sqlite');
+ await page.locator('tr.execution-row').filter({has:page.locator('input.cmp-cb[data-id="'+focus.id+'"]')}).click();
+ await page.locator('#detail-'+focus.id+'.open').waitFor();
+ check(/归一化|numerical_source_normalization/.test(await page.locator('#detail-'+focus.id).innerText()),'dashboard_uses_actual_units');
+ await page.waitForFunction(id=>{const row=document.querySelector('input.cmp-cb[data-id="'+id+'"]')?.closest('tr');const images=[...(row?.querySelectorAll('img.result-img')||[])];return images.length>0&&images.every(i=>i.complete&&i.naturalWidth>0);},focus.id,{timeout:15000});
+ await page.locator('#detail-'+focus.id).scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'dashboard-same-run.png'),fullPage:true});
+ await page.goto(base+'/cache');await page.locator('#summary .num').first().waitFor();
+ check(Number(await page.locator('#summary .num').nth(0).innerText())===ledger.cache.total_entries,'cache_entry_count_matches_sqlite');
+ check(Number(await page.locator('#summary .num').nth(1).innerText())===ledger.cache.total_hits,'cache_attempt_count_matches_sqlite');
+ check((await page.locator('#summary').innerText()).includes('包含首次学习'),'cache_counter_meaning_is_explicit');
+ await page.screenshot({path:path.join(out,'cache-real-repair.png'),fullPage:true});
+ await page.goto(base+'/skills/authoring');await page.getByText('标准模板已就绪。先解锁以保存和验证。',{exact:true}).waitFor();
+ await page.locator('#token').fill(token);await page.locator('#unlock').click();
+ await page.waitForFunction(()=>!document.querySelector('#save').disabled);
+ const headers={'X-Admin-Token':token};
+ const draft=await (await page.request.get(base+'/skills/api/v1/drafts/'+author.draft_id,{headers})).json();
+ await page.locator('#drafts button').filter({hasText:draft.spec.name}).click();
+ await page.locator('#jobs button').filter({hasText:author.job.job_id.slice(0,8)}).click();
+ await page.locator('#result').click();await page.locator('#result-panel:not([hidden])').waitFor();
+ check((await page.locator('#metrics').innerText()).includes('历史 Q4，当前不可复用'),'superseded_result_is_not_current_authority');
+ const old=await (await page.request.get(base+author.job.result_url,{headers})).json();
+ const current=await (await page.request.get(base+feedback.new_validation.result_url,{headers})).json();
+ check(old.recorded_quality_level==='Q4'&&old.currently_reusable===false&&old.quality_level===null,'historical_grade_is_separate');
+ check(current.currently_reusable===true&&current.quality_level==='Q4','fresh_proof_is_current_authority');
+ await page.screenshot({path:path.join(out,'historical-result.png'),fullPage:true});
+ check(errors.length===0,'product_pages_no_javascript_errors');
+ await writeFile(path.join(out,'product-audit.json'),JSON.stringify({checks,ledger,production_database_writes:0},null,2));
+ console.log(JSON.stringify({product_audit_checks:checks.length,sqlite_execution_records:ledger.stats.total,cache_entries:ledger.cache.total_entries}));
+}finally{await browser.close();}

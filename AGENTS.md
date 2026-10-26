@@ -1,5 +1,21 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-26 阶段6功能验收通过：1961回归、原Dockerfile镜像/151运行文件核对、17项新卷自举、手动21项/反馈6项/产品12项浏览器检查、B02/B03自动学习到新运行Q4复用、纯文字B01、关学习复用、真实缓存命中及旧镜像17恢复均通过。新增历史质量/当前许可分离、任意trial不授级、固定来源下载回退；录屏已生成。扩展默认关闭，main最终集成CI/生产部署须完成后记录；旧开发目录有未提交工作，不覆盖。见docs/skills-next/STAGE6_IMPLEMENTATION.md。
+
+> 2026-10-26 阶段5 bcdeeec（PR34）五项CI成功，checkpoint/skill-stage5-20261026已推送。阶段6补齐显式重验边界、固定参考准备与网关镜像源身份副本；1957回归通过，实际发行镜像/持久卷与浏览器交付矩阵仍在验收。默认关闭、生产/main未改；见docs/skills-next/STAGE6_IMPLEMENTATION.md。
+
+> 2026-10-26 阶段4验收完成（d46192a，PR33五项CI成功，checkpoint/skill-stage4-20261025）。阶段5候选新增管理员手动草稿、可见代码派生、原队列验证/接纳、热图及版本恢复；18项真实浏览器检查与真实模型新任务Q4重执行通过。模型漏回完整频域结果合同的问题已修复并加入负例。默认关闭、schema18、无生产写入；最终回归/CI及阶段6见docs/skills-next/STAGE5_IMPLEMENTATION.md。
+
+> 2026-10-25 阶段3验收完成（cd4c93e，五项CI成功，checkpoint/skill-stage3-20261025），阶段4候选已实现受控来源→自动建稿/验证/接纳与后台恢复；三题9次真实求解、3候选/3验证/3接纳/3复用，默认关闭、无生产写入。见 docs/skills-next/STAGE4_IMPLEMENTATION.md 与 VERSION_CHECKPOINTS.md；接着阶段5手动入口。
+
+> 2026-10-23 阶段3候选：受控Helmholtz可见派生、精确独立比较、原目录Q4接纳、v2检索/消费/新运行复用已通过三题六次原executor实跑；仅精确幅值认证，不泛化/不认证相位。默认关闭、生产未改；自动学习事件/手动界面仍待阶段4/5。见 docs/skills-next/STAGE3_IMPLEMENTATION.md。
+
+> 2026-10-23 阶段2候选：持久trial队列/租约/取消/未知派发对账、完整复数结果与同源指标已实现，原executor三题各一次实跑完成。默认双开关关闭，无HTTP/UI、后台自动启动、独立物理授级或新接纳；schema仍显式18。见 docs/skills-next/STAGE2_IMPLEMENTATION.md，生产未改。
+
+> 2026-10-23 阶段1候选：严格SkillSpec/normalizer_v2、内部草稿幂等版本与CAS、默认17/显式备份扩展18已实现，默认关闭；HTTP/UI/验证worker与新技能接纳尚未实现。见 docs/skills-next/STAGE1_IMPLEMENTATION.md，生产未迁移。
+
+> 2026-10-23 准备完成：SkillSpec/API/迁移/任务与验证合同见 docs/skills-next/；B01–B03原沙箱数值探针通过，17项工具测试及格式/DDL检查通过。下一步阶段1，不将准备验证当新技能接纳/复用已实现；当前生产不变。
+
 > 2026-10-23 方案细化：docs/NEXT_STAGE_PLAN.md 已按官方资料和当前代码核对为七阶段；先做非固定配方技术探针，再开发统一验证与接纳。阶段 3 后自动学习与手动添加可并行。本轮仅计划，未改当前架构或启用能力。
 
 > 2026-10-23：下一阶段以自动学习和用户按统一格式添加技能为 P0，执行范围与验收见 [docs/NEXT_STAGE_PLAN.md](docs/NEXT_STAGE_PLAN.md)。用户内容先校验和实跑，服务端独立核验证据后才接纳，禁止上传自授质量等级。当前架构与发布状态未变。

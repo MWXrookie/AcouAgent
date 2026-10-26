@@ -1,0 +1,66 @@
+{
+  "schema_version": "skill-spec.v1",
+  "name": "B03 密度半空间界面草稿",
+  "description": "B03全物理参数表达的未验证格式草稿；代码主动终止，无运行证据，不接纳。",
+  "scenario_type": "interface_2d",
+  "parameters": {
+    "dimensions": 2,
+    "solver_mode": "frequency_domain",
+    "medium_type": "heterogeneous",
+    "sound_speed_m_s": 1500,
+    "density_kg_m3": 1000,
+    "grid_shape": [
+      128,
+      128
+    ],
+    "dx_m": [
+      0.001,
+      0.001
+    ],
+    "frequency_hz": 159154.94309189534,
+    "pml_size": 16,
+    "source_index": [
+      32,
+      64
+    ],
+    "source_type": "continuous_sinusoid",
+    "source_geometry": "point",
+    "helmholtz_source_coefficient": 1,
+    "background_attenuation_db_mhz2_cm": 0,
+    "material_regions": [
+      {
+        "geometry": "half_space",
+        "start": [
+          64,
+          0
+        ],
+        "stop": [
+          128,
+          128
+        ],
+        "density_kg_m3": 2000
+      }
+    ],
+    "boundary_condition": "absorbing_pml"
+  },
+  "code_template": "# Draft format example only. No result or reference answer is embedded.\nraise RuntimeError('draft_template_not_implemented')\n",
+  "validation_request": {
+    "policy": "server_required",
+    "reference_case_id": "B03"
+  },
+  "author_notes": "B03未验证格式草稿，不是探针实跑代码。全部区域使用Python零起始、右端不包含。未覆盖材料属性继承显式背景。源系数1保留原数值归一化，不擅称Pa。地图和源系数需要计划normalizer_v2；没有run_id、质量或状态声明。",
+  "result_spec": {
+    "kind": "steady_complex_pressure",
+    "units": "numerical_source_normalization",
+    "axis_order": [
+      "x",
+      "y"
+    ],
+    "grid_shape": [
+      128,
+      128
+    ],
+    "full_complex": true,
+    "downsample": 1
+  }
+}

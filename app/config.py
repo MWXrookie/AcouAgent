@@ -45,6 +45,13 @@ SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "
 SKILL_RETRIEVAL_ENABLED = os.environ.get("SKILL_RETRIEVAL_ENABLED", "").lower() == "true"
 SKILL_INJECTION_ENABLED = os.environ.get("SKILL_INJECTION_ENABLED", "").lower() == "true"
 SKILL_LEARNING_ENABLED = os.environ.get("SKILL_LEARNING_ENABLED", "").lower() == "true"
+# Authoring HTTP and workers are opt-in. No flag creates schema, profiles or trust.
+SKILL_AUTHORING_ENABLED = os.environ.get("SKILL_AUTHORING_ENABLED", "").lower() == "true"
+SKILL_VALIDATION_ENABLED = os.environ.get("SKILL_VALIDATION_ENABLED", "").lower() == "true"
+SKILL_GENERAL_ADMISSION_ENABLED = os.environ.get("SKILL_GENERAL_ADMISSION_ENABLED", "").lower() == "true"
+SKILL_GENERAL_ASSET_ROOT = os.environ.get("SKILL_GENERAL_ASSET_ROOT", "/app/data/skill_assets")
+SKILL_GENERAL_REFERENCE_ROOT = os.environ.get("SKILL_GENERAL_REFERENCE_ROOT", "/app/skill-references")
+SKILL_GENERAL_RUNTIME_SHA256 = os.environ.get("SKILL_GENERAL_RUNTIME_SHA256", "")
 SKILL_BOOTSTRAP_ALL_FIXED = os.environ.get("SKILL_BOOTSTRAP_ALL_FIXED", "").lower() == "true"
 
 # Explicit host-only provenance observation is separate from automatic learning.
