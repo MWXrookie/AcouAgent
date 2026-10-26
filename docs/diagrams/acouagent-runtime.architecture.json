@@ -38,7 +38,7 @@
           "model_provider",
           "state_store"
         ],
-        "note": "提取不可用时仅保留用户显式JSON，仍须校验与新执行；纯自然语言不补猜。分别审计提取/说明可用性，失败不改物理等级；Reasoner低强度有限预算，截断拒绝，推理链不展示；按run_id有界回查。"
+        "note": "Dify先用共享初压校验器校验用户原始JSON，失败即停。提取不可用仅可保留显式参数继续严格校验和新执行，纯自然语言须成功提取。单列模型可用性，说明失败不改物理等级；Reasoner低强度有界预算，截断拒绝；按run_id有界回查。"
       },
       {
         "id": "isolation-boundary",
@@ -127,7 +127,7 @@
       "id": "dify_workflow",
       "type": "cloud",
       "label": "Dify 兼容工作流",
-      "sublabel": "既有 63 节点 / 70 边路径",
+      "sublabel": "共享初压校验 / 64 节点候选",
       "pos": [
         150,
         570
