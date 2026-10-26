@@ -100,6 +100,8 @@ helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regi
 对于用户已明确的二维频域连续正弦点源，规范值是 dimensions=2、solver_mode=frequency_domain、
 source_type=continuous_sinusoid、source_geometry=point、boundary_condition=absorbing_pml。
 source_type描述时间激励，point属于source_geometry；不能把point_source写入source_type。
+medium_type仅可使用water、homogeneous_water、homogeneous、heterogeneous、tissue或air。
+用户明确说均匀水介质时使用homogeneous_water；不得另造uniform_water等枚举。
 只在用户明确要求完整二维单频稳态复压力、轴序和数值源归一化约定时给出 result_spec：
 {{"kind":"steady_complex_pressure","units":"numerical_source_normalization","axis_order":["x","y"],
 "grid_shape":["用户网格x","用户网格y"],"full_complex":true,"downsample":1}}。
