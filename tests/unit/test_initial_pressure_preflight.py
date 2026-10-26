@@ -2,6 +2,7 @@
 import asyncio
 import copy
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -124,12 +125,15 @@ def test_explicit_user_modal_contract_wins_over_model_defaults(monkeypatch, boun
 @pytest.mark.parametrize("amplitude", [1., 2.])
 @pytest.mark.parametrize("extracted_scenario", ["initial_pressure_2d", "plane_wave_2d"])
 @pytest.mark.parametrize("scope", ["managed-local-plane-wave.v1", "managed-local-interface-wide.v1"])
-def test_copied_gaussian_contract_reaches_lookup_unchanged(monkeypatch, validate, amplitude, extracted_scenario, scope):
+@pytest.mark.parametrize("transport_failure", [False, True])
+def test_copied_gaussian_contract_reaches_lookup_unchanged(monkeypatch, validate, amplitude, extracted_scenario, scope, transport_failure):
     spec = skill_local_catalog.specification(scope)
     p = copy.deepcopy(spec["parameters"])
     p["initial_pressure_pa"] = amplitude
     async def model(profile_id, task, prompt, run_id):
         if task == "parameter_extraction":
+            if transport_failure:
+                raise local_workflow.model_client.ModelCallError("model_transport_failed")
             return {"content": json.dumps({"scenario_type": extracted_scenario,
                 "simulation_params": {"sound_speed": 1500., "density": 1000.},
                 "skill_query": None}), "profile_id": "test"}
@@ -139,6 +143,8 @@ def test_copied_gaussian_contract_reaches_lookup_unchanged(monkeypatch, validate
         observed.append(json.loads(kwargs["parameters_json"]))
         return {"context": original, "skill_usage": {"skills": [], "fallback": True}}
     monkeypatch.setattr(local_workflow, "_model", model)
+    monkeypatch.setattr(local_workflow.model_profiles, "resolve", lambda *args:
+        (SimpleNamespace(model="test", audit_profile_id=lambda: "test"), None))
     monkeypatch.setattr(skill_retrieval, "generation_context", generation)
     async def collect():
         query = "请按以下完整参数仿真：\n" + json.dumps(dict(p, scenario_type=spec["scene"]))
@@ -147,6 +153,28 @@ def test_copied_gaussian_contract_reaches_lookup_unchanged(monkeypatch, validate
     assert observed == [p]
     assert events[-1]["error_code"] == "stop_after_retrieval"
     assert p["initial_pressure_pa"] == amplitude
+
+
+@pytest.mark.parametrize("fault", ["missing", "bad_boundary", "expired_profile"])
+def test_unavailable_extraction_does_not_fill_or_dispatch_invalid_contract(monkeypatch, validate, fault):
+    p = air()
+    if fault == "missing": del p["modal_amplitudes_pa"]
+    if fault == "bad_boundary": p["boundary_condition"] = "open"
+    async def model(*args):
+        raise local_workflow.model_client.ModelCallError("model_transport_failed")
+    def profile(*args):
+        if fault == "expired_profile":
+            raise local_workflow.model_profiles.ModelProfileError("byok_session_missing_or_expired")
+        return SimpleNamespace(model="test", audit_profile_id=lambda: "test"), None
+    def forbidden(*args, **kwargs): raise AssertionError("invalid declaration must not reach retrieval/execution")
+    monkeypatch.setattr(local_workflow, "_model", model)
+    monkeypatch.setattr(local_workflow.model_profiles, "resolve", profile)
+    monkeypatch.setattr(skill_retrieval, "generation_context", forbidden)
+    monkeypatch.setattr(local_workflow, "_tool_functions", lambda: {"validate_simulation_params": validate, "run_jwave_code": forbidden})
+    async def collect():
+        return [e async for e in local_workflow.workflow_events(json.dumps(p), "session", "test")]
+    result = asyncio.run(collect())[-1]
+    assert result["workflow_status"] == "error" and not result.get("run_id")
 
 
 @pytest.mark.parametrize("kind", ["duplicate", "nonfinite", "wrong_scenario"])

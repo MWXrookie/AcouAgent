@@ -1848,8 +1848,8 @@ var BYOK_PRESETS = {
   deepseek: {
     baseUrl: 'https://api.deepseek.com',
     models: [
-      ['deepseek-chat', 'DeepSeek Chat'],
-      ['deepseek-reasoner', 'DeepSeek Reasoner']
+      ['deepseek-flash', 'DeepSeek Flash'],
+      ['deepseek-v4-pro', 'DeepSeek V4 Pro']
     ]
   },
   qwen: {

@@ -134,8 +134,16 @@ def _url(value: object, allow_insecure_http: bool) -> str:
     return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
-def _task_settings(name: str, raw: object) -> TaskSettings:
+def _official_deepseek(base_url: str) -> bool:
+    parsed = urlsplit(base_url)
+    return parsed.scheme == "https" and parsed.hostname == "api.deepseek.com"
+
+
+def _task_settings(name: str, raw: object, *, reasoner: bool = False) -> TaskSettings:
     defaults = _DEFAULT_TASKS[name]
+    if reasoner:
+        # Thinking and final output share this budget. Explicit task limits win.
+        defaults = dict(defaults, max_tokens=max(4096, defaults["max_tokens"]), thinking=True)
     if raw is None:
         raw = {}
     if not isinstance(raw, dict) or not set(raw) <= set(defaults):
@@ -185,9 +193,11 @@ def _parse(profile_id: str, raw: object) -> ModelProfile:
     if (not isinstance(capabilities, list) or not capabilities
             or any(not isinstance(item, str) or not _ID.fullmatch(item) for item in capabilities)):
         raise ModelProfileError("model_profile_capabilities_invalid")
-    tasks = {name: _task_settings(name, tasks_raw.get(name)) for name in TASKS}
+    base_url = _url(raw.get("base_url"), allow_http)
+    reasoner = _official_deepseek(base_url) and model == "deepseek-reasoner"
+    tasks = {name: _task_settings(name, tasks_raw.get(name), reasoner=reasoner) for name in TASKS}
     return ModelProfile(profile_id, label, provider,
-                        _url(raw.get("base_url"), allow_http), model, api_key_env,
+                        base_url, model, api_key_env,
                         allow_http, tasks, frozenset(capabilities))
 
 
@@ -280,7 +290,8 @@ def register_session_profile(payload: object) -> dict[str, object]:
         model=model.strip(),
         api_key_env=None,
         allow_insecure_http=allow_private,
-        tasks={name: _task_settings(name, None) for name in TASKS},
+        tasks={name: _task_settings(name, None, reasoner=(
+            _official_deepseek(normalized_url) and model.strip() == "deepseek-reasoner")) for name in TASKS},
         capabilities=frozenset({"chat", "json", "code"}),
         api_key_value=api_key.strip(),
     )

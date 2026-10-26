@@ -27,6 +27,7 @@ from app.dashboard import (
     clear_executions,
     get_analysis_updates,
     get_execution,
+    get_execution_by_run_id,
     get_executions,
     get_latest_analysis_by_run_ids,
     get_stats,
@@ -286,6 +287,24 @@ def register(mcp) -> None:
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:
         return _serve_html("dashboard.html")
+
+    @mcp.custom_route("/dashboard/api/executions/by-run/{run_id}", methods=["GET"])
+    async def execution_status_api(request: Request) -> PlainTextResponse:
+        """Read bounded execution facts without loading unrelated report payloads."""
+        run_id = request.path_params["run_id"]
+        try:
+            if str(uuid.UUID(run_id)) != run_id:
+                raise ValueError("noncanonical_uuid")
+        except (ValueError, TypeError, AttributeError):
+            return PlainTextResponse('{"error":"invalid_run_id"}', status_code=400,
+                media_type="application/json", headers={"Cache-Control": "no-store"})
+        row = get_execution_by_run_id(run_id)
+        if row is None or row.get("run_id") != run_id:
+            return PlainTextResponse('{"error":"execution_not_found"}', status_code=404,
+                media_type="application/json", headers={"Cache-Control": "no-store"})
+        return PlainTextResponse(json.dumps({"execution": {key: row.get(key) for key in
+            ("id", "run_id", "tool_name", "exit_code", "timed_out")}}, allow_nan=False),
+            media_type="application/json", headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/dashboard/api/executions", methods=["GET"])
     async def dashboard_api(request: Request) -> PlainTextResponse:

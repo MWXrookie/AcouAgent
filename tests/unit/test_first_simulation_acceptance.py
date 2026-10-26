@@ -14,8 +14,8 @@ def test_evaluate_records_only_sanitized_success(monkeypatch):
          "run_id": run_id, "quality_level": "Q2", "model": "acoustic-fast",
          "request_id": "request-1", "workflow_run_id": "workflow-1",
          "report": "large report must not enter receipt", "code": "secret-like-code"},
-        {"executions": [{"id": 7, "run_id": run_id, "exit_code": 0,
-                          "timed_out": False, "code": "do not copy"}]},
+        {"execution": {"id": 7, "run_id": run_id, "exit_code": 0,
+                       "timed_out": False, "code": "do not copy"}},
     ))
     monkeypatch.setattr(acceptance, "_request_json", lambda *args, **kwargs: next(responses))
 
@@ -66,8 +66,8 @@ def test_evaluate_rejects_timed_out_execution(monkeypatch):
          "profiles": [{"id": "fast"}]},
         {"workflow_status": "succeeded", "orchestration_backend": "local",
          "run_id": run_id, "quality_level": "Q2"},
-        {"executions": [{"id": 8, "run_id": run_id, "exit_code": 0,
-                          "timed_out": 1}]},
+        {"execution": {"id": 8, "run_id": run_id, "exit_code": 0,
+                       "timed_out": 1}},
     ))
     monkeypatch.setattr(acceptance, "_request_json", lambda *args, **kwargs: next(responses))
 

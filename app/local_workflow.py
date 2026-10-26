@@ -100,6 +100,8 @@ helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regi
 对于用户已明确的二维频域连续正弦点源，规范值是 dimensions=2、solver_mode=frequency_domain、
 source_type=continuous_sinusoid、source_geometry=point、boundary_condition=absorbing_pml。
 source_type描述时间激励，point属于source_geometry；不能把point_source写入source_type。
+medium_type仅可使用water、homogeneous_water、homogeneous、heterogeneous、tissue或air。
+用户明确说均匀水介质时使用homogeneous_water；不得另造uniform_water等枚举。
 只在用户明确要求完整二维单频稳态复压力、轴序和数值源归一化约定时给出 result_spec：
 {{"kind":"steady_complex_pressure","units":"numerical_source_normalization","axis_order":["x","y"],
 "grid_shape":["用户网格x","用户网格y"],"full_complex":true,"downsample":1}}。
@@ -289,6 +291,19 @@ async def _model(profile_id: str | None, task: str, prompt: str, run_id: str) ->
     return await model_client.complete(profile_id, task, [{"role": "user", "content": prompt}], run_id=run_id)
 
 
+async def _commentary_model(profile_id, task, prompt, run_id, extracted_response):
+    """Optional model prose cannot discard a completed deterministic execution."""
+    try:
+        return dict(await _model(profile_id, task, prompt, run_id), available=True)
+    except (model_client.ModelCallError, model_profiles.ModelProfileError) as exc:
+        allowed = {"model_transport_failed", "model_response_empty", "model_response_invalid",
+                   "model_response_too_large", "model_output_truncated"}
+        code = str(exc) if str(exc) in allowed else "model_commentary_unavailable"
+        return dict(content="模型说明暂不可用（" + code + "）。请以实际执行记录和确定性物理门为准。",
+            profile_id=extracted_response["profile_id"], model=extracted_response.get("model", "configured-model"),
+            available=False)
+
+
 def _passed(result: dict | None, analyzed: dict) -> bool:
     return bool(result and result.get("exit_code") == 0 and result.get("timed_out") is False
                 and analyzed.get("verdict") == "normal"
@@ -357,18 +372,29 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
     try:
         yield {"event": "progress", "stage": "本地编排：提取参数", "request_id": request_id,
                "workflow_run_id": workflow_run_id}
-        extracted_response = await _model(profile_id, "parameter_extraction", _extraction_prompt(query), workflow_run_id)
+        frequency = _explicit_frequency_contract(query)
+        declared = _explicit_initial_contract(query)
+        parameter_extraction_available = True
+        try:
+            extracted_response = await _model(profile_id, "parameter_extraction", _extraction_prompt(query), workflow_run_id)
+        except model_client.ModelCallError:
+            if frequency is None and declared is None:
+                raise
+            # No inference or catalog defaults: the original user declaration
+            # still goes through the same validation, retrieval and execution.
+            profile, _ = model_profiles.resolve(profile_id, "parameter_extraction")
+            extracted_response = dict(content=json.dumps(frequency or declared, allow_nan=False),
+                profile_id=profile.audit_profile_id(), model=profile.model)
+            parameter_extraction_available = False
         extracted = _json_object(extracted_response["content"])
         scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
         if not isinstance(scenario, str) or not isinstance(params, dict):
             raise LocalWorkflowError("parameter_schema_invalid")
-        frequency = _explicit_frequency_contract(query)
         if frequency is not None:
             if scenario != frequency["scenario_type"]:
                 raise LocalWorkflowError("declared_scenario_mismatch")
             extracted.update(frequency)
             params = frequency["simulation_params"]
-        declared = _explicit_initial_contract(query)
         if declared is not None:
             # The declaration itself checks its scenario metadata. The model's
             # reclassification cannot override the user's explicit initial state.
@@ -392,6 +418,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             yield {"event": "result", "report": "参数物理检查未通过：" + detail,
                    "workflow_status": "error", "request_id": request_id,
                    "workflow_run_id": workflow_run_id, "skill_usage": [],
+                   "model_parameter_extraction_available": parameter_extraction_available,
                    "model_profile": extracted_response["profile_id"], "orchestration_backend": "local"}
             return
 
@@ -520,12 +547,12 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         safe = json.dumps(_safe_analysis(analyzed), ensure_ascii=False, sort_keys=True)
         facts = json.dumps({"attempts": attempt + 1, "observed_errors": observed_errors,
                             "cache_queries": cache_queries, "cache_hits": cache_hits}, ensure_ascii=False)
-        review = await _model(profile_id, "result_review",
+        review = await _commentary_model(profile_id, "result_review",
             f"确定性物理门不能被覆盖。用户需求：{query}\n门控结果：{safe}\n"
-            f"服务端执行事实：{facts}。不得将需求中的计划、故障注入或重试描述为已经发生；只按执行事实陈述。\n简短说明通过或失败原因。", workflow_run_id)
-        explanation = await _model(profile_id, "result_explanation",
+            f"服务端执行事实：{facts}。不得将需求中的计划、故障注入或重试描述为已经发生；只按执行事实陈述。\n简短说明通过或失败原因。", workflow_run_id, extracted_response)
+        explanation = await _commentary_model(profile_id, "result_explanation",
             f"用3至6句中文解读，只引用给定数值；不得把normal/Q1/Q2写成完整物理正确证明。\n用户需求：{query}\n分析：{safe}\n"
-            f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id)
+            f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id, extracted_response)
         report_result = dict(result or {})
         report_result["total_attempts"] = attempt + 1
         if used_auto_source or (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"):
@@ -541,6 +568,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         if not report_result.get("image_base64") and display_image:
             report_result["image_base64"] = display_image
         report = execution._build_report(report_result, first_code or code)
+        if not parameter_extraction_available:
+            report += "\n\n参数提取模型暂不可用；本次仅按用户原始JSON进行参数校验、技能检索和实际执行，未补猜参数。"
         if cache_queries:
             report += (f"\n\n纠错缓存：查询尝试 {cache_queries} 次，命中 {cache_hits} 次。"
                        "提示仅辅助模型修复，每次修复仍重新执行和分析。")
@@ -563,6 +592,9 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "model": review["model"], "orchestration_backend": "local",
                "quality_level": analyzed.get("quality_level", "Q0"),
                "execution_reuse_verified": used_direct_reference and (direct_outcome or {}).get("execution_reuse_verified") is True,
+               "model_review_available": review["available"],
+               "model_parameter_extraction_available": parameter_extraction_available,
+               "model_explanation_available": explanation["available"],
                **({"learning": learning_status} if learning_status is not None else {}),
                "cache_usage": {"queries": cache_queries, "hits": cache_hits},
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}

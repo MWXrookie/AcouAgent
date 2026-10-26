@@ -33,9 +33,11 @@ def _responses():
     }
 
 
-def _collect(monkeypatch, analyzed):
+def _collect(monkeypatch, analyzed, failed_task=None, error_code="model_transport_failed"):
     responses = _responses()
     async def fake_model(profile_id, task, prompt, run_id):
+        if task == failed_task:
+            raise local_workflow.model_client.ModelCallError(error_code)
         return {"content": responses[task], "profile_id": profile_id or "fast",
                 "model": "model-a", "task": task}
     monkeypatch.setattr(local_workflow, "_model", fake_model)
@@ -51,6 +53,36 @@ def _collect(monkeypatch, analyzed):
     async def run():
         return [item async for item in local_workflow.workflow_events("simulate", "session", "fast")]
     return asyncio.run(run())
+
+
+@pytest.mark.parametrize("task", ["result_review", "result_explanation"])
+@pytest.mark.parametrize("error", ["model_transport_failed", "model_response_empty", "model_output_truncated"])
+@pytest.mark.parametrize("passed", [True, False])
+def test_optional_model_failure_preserves_run_and_actual_physics(monkeypatch, task, error, passed):
+    monkeypatch.setattr(local_workflow, "MAX_RETRIES", 0)
+    analyzed = dict(verdict="normal" if passed else "abnormal", quality_level="Q2" if passed else "Q0",
+        max_pressure=1. if passed else 0., rms_pressure=.2 if passed else 0.,
+        field_shape=[64, 64] if passed else [], has_signal=passed, summary="actual gate")
+    result = _collect(monkeypatch, analyzed, task, error)[-1]
+    assert result["workflow_status"] == ("succeeded" if passed else "error")
+    assert result["run_id"] == "run-1" and result["quality_level"] == analyzed["quality_level"]
+    assert result["model_review_available"] is (task != "result_review")
+    assert result["model_explanation_available"] is (task != "result_explanation")
+    assert "模型说明暂不可用" in result["report"] and "actual gate" in result["report"]
+
+
+@pytest.mark.parametrize("task", ["parameter_extraction", "code_generation"])
+def test_required_model_stage_still_fails_closed(monkeypatch, task):
+    result = _collect(monkeypatch, {}, task)[-1]
+    assert result["workflow_status"] == "error" and result["error_code"] == "model_transport_failed"
+    assert not result.get("run_id")
+
+
+def test_optional_model_error_does_not_expose_unrecognized_provider_text(monkeypatch):
+    analyzed = dict(verdict="normal", quality_level="Q2", summary="actual gate")
+    result = _collect(monkeypatch, analyzed, "result_review", "private-provider-secret")[-1]
+    assert "private-provider-secret" not in str(result)
+    assert "model_commentary_unavailable" in result["report"]
 
 
 def test_local_workflow_runs_generation_executor_gate_and_profile(monkeypatch):
@@ -96,8 +128,8 @@ def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
     for expected in (
         "DeepSeek 官方 API",
         "https://api.deepseek.com",
-        "deepseek-chat",
-        "deepseek-reasoner",
+        "deepseek-flash",
+        "deepseek-v4-pro",
         "阿里云百炼 · Qwen（中国站）",
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "qwen-plus",

@@ -110,18 +110,12 @@ def evaluate(
     execution = None
     for _ in range(5):
         dashboard = _request_json(
-            "GET", _url(base_url, "/dashboard/api/executions?limit=100"), None, 15
+            "GET", _url(base_url, "/dashboard/api/executions/by-run/" + urllib.parse.quote(run_id, safe="")), None, 15
         )
-        execution = next(
-            (
-                item
-                for item in dashboard.get("executions", [])
-                if isinstance(item, dict) and item.get("run_id") == run_id
-            ),
-            None,
-        )
-        if execution is not None:
+        execution = dashboard.get("execution")
+        if isinstance(execution, dict) and execution.get("run_id") == run_id:
             break
+        execution = None
         time.sleep(1)
     if execution is None:
         raise AcceptanceError("execution_record_missing")

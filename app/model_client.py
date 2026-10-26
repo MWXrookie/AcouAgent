@@ -24,6 +24,8 @@ def _content(payload: Any) -> str:
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise ModelCallError("model_response_invalid")
+    if choices[0].get("finish_reason") == "length":
+        raise ModelCallError("model_output_truncated")
     message = choices[0].get("message")
     if not isinstance(message, dict) or not isinstance(message.get("content"), str):
         raise ModelCallError("model_response_invalid")
@@ -58,7 +60,13 @@ async def _complete_resolved(
         "temperature": settings.temperature,
         "max_tokens": settings.max_tokens,
     }
-    if settings.thinking:
+    if model_profiles._official_deepseek(profile.base_url):
+        body["thinking"] = {"type": "enabled" if settings.thinking else "disabled"}
+        if settings.thinking:
+            # These are bounded extraction/code/review tasks, not open-ended
+            # proofs. Keep reasoning explicit and within the existing deadlines.
+            body["reasoning_effort"] = "low"
+    elif settings.thinking:
         body["thinking"] = True
     headers = {
         "Authorization": f"Bearer {profile.api_key()}",
@@ -78,12 +86,16 @@ async def _complete_resolved(
                     if len(raw) > MAX_RESPONSE_BYTES:
                         raise ModelCallError("model_response_too_large")
         payload = json.loads(raw)
-        text = _content(payload)
     except ModelCallError:
         raise
     except (httpx.HTTPError, json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
         raise ModelCallError("model_transport_failed") from exc
     usage = payload.get("usage") if isinstance(payload, dict) else None
+    content_error = None
+    try:
+        text = _content(payload)
+    except ModelCallError as exc:
+        content_error = exc
     actual_run_id = run_id or str(uuid.uuid4())
     try:
         dashboard.record_llm_usage(
@@ -100,10 +112,14 @@ async def _complete_resolved(
                 "max_tokens": settings.max_tokens,
                 "thinking": settings.thinking,
                 "timeout_seconds": settings.timeout_seconds,
+                **({"reasoning_effort": body["reasoning_effort"]} if "reasoning_effort" in body else {}),
+                **({"response_error": str(content_error)} if content_error is not None else {}),
             },
         )
     except Exception:
         pass
+    if content_error is not None:
+        raise content_error
     return {
         "content": text,
         "profile_id": profile.audit_profile_id(),
@@ -115,6 +131,7 @@ async def _complete_resolved(
             "max_tokens": settings.max_tokens,
             "thinking": settings.thinking,
             "timeout_seconds": settings.timeout_seconds,
+            **({"reasoning_effort": body["reasoning_effort"]} if "reasoning_effort" in body else {}),
         },
         "usage": usage if isinstance(usage, dict) else {},
         "run_id": actual_run_id,

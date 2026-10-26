@@ -38,7 +38,7 @@
           "model_provider",
           "state_store"
         ],
-        "note": "local 重试共用 model_client 受限传输；缓存查询移出异步事件循环，读写故障均按尽力使用处理，不中止纠错或丢弃已完成结果。成功仍只由 executor 回执和确定性物理门决定。报告记录真实查询、命中及总尝试次数；结构化初压修复仅保留物理参数。"
+        "note": "Dify先用共享校验器校验原始初压，失败即停。提取失败仅可按已校验的用户显式声明继续，不补参；报告标记可用性，说明失败保留真实物理结论。无完整声明仍失败；Reasoner低强度有界预算、截断拒绝，按run_id有界回查。"
       },
       {
         "id": "isolation-boundary",
@@ -127,7 +127,7 @@
       "id": "dify_workflow",
       "type": "cloud",
       "label": "Dify 兼容工作流",
-      "sublabel": "既有 63 节点 / 70 边路径",
+      "sublabel": "原始声明守卫 / 69 节点",
       "pos": [
         150,
         570
