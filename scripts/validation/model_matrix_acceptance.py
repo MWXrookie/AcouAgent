@@ -276,8 +276,22 @@ def run_local_task(
 def normalize_dify_record(
     compact: dict[str, Any], lane_id: str, task: dict[str, Any], tasks_sha256: str
 ) -> dict[str, Any]:
+    outcome = compact.get("outcome")
+    degraded = bool(
+        compact.get("workflow_status") == "partial-succeeded"
+        and compact.get("transport_error") is None
+        and task.get("expected_reference") is True
+        and compact.get("end_report_present") is True
+        and compact.get("runner_execution_pass") is True
+        and type(compact.get("model_parameter_extraction_available")) is bool
+        and compact.get("reference_delivered") is True
+        and compact.get("verdict") == "normal"
+        and compact.get("independent_numeric_pass") is True
+    )
+    if degraded:
+        outcome = "completed"
     completed = bool(
-        compact.get("outcome") == "completed"
+        outcome == "completed"
         and compact.get("verdict") == "normal"
         and compact.get("independent_numeric_pass") is True
     )
@@ -292,19 +306,43 @@ def normalize_dify_record(
         "task_kind": task["kind"],
         "expected_behavior": task["expected_behavior"],
         "prompt_sha256": _sha_text(task["prompt"]),
-        "outcome": compact.get("outcome"),
-        "workflow_status": compact.get("outcome"),
+        "outcome": outcome,
+        "workflow_status": compact.get("workflow_status") or compact.get("outcome"),
+        "model_parameter_extraction_available": compact.get("model_parameter_extraction_available"),
         "duration_ms": compact.get("duration_ms"),
         "run_id": compact.get("run_id"),
         "workflow_run_id": compact.get("workflow_run_id"),
         "quality_level": None,
-        "execution_pass": compact.get("outcome") == "completed",
+        "execution_pass": outcome == "completed",
         "deterministic_gate_pass": completed,
         "reference_delivered": compact.get("reference_delivered") is True,
         "error_code": (
-            None if compact.get("outcome") == "completed"
+            "model_step_degraded" if degraded else None if outcome == "completed"
             else _safe_error(compact.get("transport_error"), "workflow_failed")
         ),
+    }
+
+
+def _dify_result_metadata(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Keep platform status; a handled model error alone cannot prove success."""
+    finished = next((e.get("data") or {} for e in reversed(events)
+                     if e.get("event") == "workflow_finished"), {})
+    outputs = finished.get("outputs") or {}
+    if not isinstance(outputs, dict):
+        outputs = {}
+    available = outputs.get("model_parameter_extraction_available")
+    nodes = {e["data"]["node_id"]: e["data"] for e in events
+             if e.get("event") == "node_finished" and isinstance(e.get("data"), dict)
+             and e["data"].get("node_id")}
+    raw_runner = dify_batch._outputs(nodes, dify_batch.RUNNERS)
+    runner = dify_batch._one(raw_runner.get("json")) or raw_runner
+    attempts = runner.get("total_attempts")
+    return {
+        "workflow_status": finished.get("status"),
+        "model_parameter_extraction_available": available if type(available) is bool else None,
+        "end_report_present": isinstance(outputs.get("text"), str) and bool(outputs["text"].strip()),
+        "runner_execution_pass": (type(runner.get("exit_code")) is int and runner["exit_code"] == 0
+            and runner.get("timed_out") is False and type(attempts) is int and 1 <= attempts <= 8),
     }
 
 
@@ -390,6 +428,7 @@ def run_dify_task(
         hasher.hexdigest(),
         transport_error,
     )
+    compact.update(_dify_result_metadata(events))
     return normalize_dify_record(compact, lane_id, task, tasks_sha256)
 
 

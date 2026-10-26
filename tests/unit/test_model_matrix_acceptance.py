@@ -113,6 +113,60 @@ def test_dify_normalization_discards_raw_payload_fields():
     assert task["prompt"] not in encoded
 
 
+def test_dify_handled_model_error_retains_platform_status_and_physics():
+    document, digest = _tasks_document()
+    compact = dict(outcome="failed", workflow_status="partial-succeeded", end_report_present=True,
+        runner_execution_pass=True, model_parameter_extraction_available=False,
+        reference_delivered=True, verdict="normal", independent_numeric_pass=True)
+    row = matrix.normalize_dify_record(compact, "dify", document["tasks"][0], digest)
+    assert row["outcome"] == "completed" and row["deterministic_gate_pass"] is True
+    assert row["workflow_status"] == "partial-succeeded"
+    assert row["model_parameter_extraction_available"] is False
+    assert row["error_code"] == "model_step_degraded"
+
+
+@pytest.mark.parametrize("change", [
+    {"end_report_present": False}, {"runner_execution_pass": False},
+    {"model_parameter_extraction_available": "false"}, {"model_parameter_extraction_available": None},
+    {"reference_delivered": False}, {"verdict": "abnormal"}, {"independent_numeric_pass": False},
+    {"transport_error": "timeout"}, {"workflow_status": "failed"},
+])
+def test_dify_partial_without_complete_independent_result_never_passes(change):
+    document, digest = _tasks_document()
+    compact = dict(outcome="failed", workflow_status="partial-succeeded", end_report_present=True,
+        runner_execution_pass=True, model_parameter_extraction_available=False,
+        reference_delivered=True, verdict="normal", independent_numeric_pass=True)
+    compact.update(change)
+    row = matrix.normalize_dify_record(compact, "dify", document["tasks"][0], digest)
+    assert row["outcome"] != "completed" and row["deterministic_gate_pass"] is False
+
+
+def test_dify_partial_cannot_complete_a_missing_parameter_task():
+    document, digest = _tasks_document()
+    task = next(x for x in document["tasks"] if x["kind"] == "missing")
+    compact = dict(outcome="failed", workflow_status="partial-succeeded", end_report_present=True,
+        runner_execution_pass=True, model_parameter_extraction_available=False,
+        reference_delivered=True, verdict="normal", independent_numeric_pass=True)
+    assert matrix.normalize_dify_record(compact, "dify", task, digest)["outcome"] == "failed"
+
+
+@pytest.mark.parametrize("exit_code,timed_out,attempts,available", [
+    (0, False, 1, False), (True, False, 1, False), (0, 0, 1, False),
+    (0, False, True, False), (0, False, 0, False), (0, False, 1, "false"),
+])
+def test_dify_stream_metadata_requires_typed_executor_facts(exit_code, timed_out, attempts, available):
+    runner = {"exit_code": exit_code, "timed_out": timed_out, "total_attempts": attempts}
+    events = [
+        {"event": "node_finished", "data": {"node_id": next(iter(matrix.dify_batch.RUNNERS)), "outputs": {"json": [runner]}}},
+        {"event": "workflow_finished", "data": {"status": "partial-succeeded", "outputs": {
+            "text": "actual report", "model_parameter_extraction_available": available}}},
+    ]
+    value = matrix._dify_result_metadata(events)
+    assert value["runner_execution_pass"] is (type(exit_code) is int and exit_code == 0
+        and timed_out is False and type(attempts) is int and attempts >= 1)
+    assert value["model_parameter_extraction_available"] == (available if type(available) is bool else None)
+
+
 def test_dify_wall_deadline_stops_pinged_workflow(monkeypatch):
     document, tasks_sha256 = _tasks_document()
     task = document["tasks"][0]
