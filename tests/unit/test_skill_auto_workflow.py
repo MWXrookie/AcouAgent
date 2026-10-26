@@ -4,7 +4,7 @@ import copy
 import json
 from pathlib import Path
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -78,6 +78,24 @@ def test_explicit_contract_survives_realistic_model_result_omission(flow):
     assert result["workflow_status"] == "succeeded" and result["quality_level"] == "Q2"
     assert result["execution_reuse_verified"] is False
     assert len(flow["source_calls"]) == 1
+
+
+def test_explicit_frequency_contract_survives_unavailable_extraction(flow, monkeypatch):
+    declared = spec()
+    original = workflow._model
+    async def model(profile, task, prompt, run):
+        if task == "parameter_extraction":
+            raise workflow.model_client.ModelCallError("model_transport_failed")
+        return await original(profile, task, prompt, run)
+    monkeypatch.setattr(workflow, "_model", model)
+    monkeypatch.setattr(workflow.model_profiles, "resolve", lambda *args:
+        (SimpleNamespace(model="test", audit_profile_id=lambda: "test"), None))
+    query = "仿真\n" + json.dumps(dict(scenario_type=declared["scenario_type"],
+        simulation_params=declared["parameters"], result_spec=declared["result_spec"]))
+    result = collect(query)[-1]
+    assert result["workflow_status"] == "succeeded" and result["quality_level"] == "Q2"
+    assert result["model_parameter_extraction_available"] is False
+    assert "未补猜参数" in result["report"] and len(flow["source_calls"]) == 1
 
 
 def test_model_geometry_name_cannot_replace_time_excitation_type(flow):

@@ -128,8 +128,8 @@ def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
     for expected in (
         "DeepSeek 官方 API",
         "https://api.deepseek.com",
-        "deepseek-chat",
-        "deepseek-reasoner",
+        "deepseek-flash",
+        "deepseek-v4-pro",
         "阿里云百炼 · Qwen（中国站）",
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "qwen-plus",

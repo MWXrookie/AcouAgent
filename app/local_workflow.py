@@ -370,18 +370,29 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
     try:
         yield {"event": "progress", "stage": "本地编排：提取参数", "request_id": request_id,
                "workflow_run_id": workflow_run_id}
-        extracted_response = await _model(profile_id, "parameter_extraction", _extraction_prompt(query), workflow_run_id)
+        frequency = _explicit_frequency_contract(query)
+        declared = _explicit_initial_contract(query)
+        parameter_extraction_available = True
+        try:
+            extracted_response = await _model(profile_id, "parameter_extraction", _extraction_prompt(query), workflow_run_id)
+        except model_client.ModelCallError:
+            if frequency is None and declared is None:
+                raise
+            # No inference or catalog defaults: the original user declaration
+            # still goes through the same validation, retrieval and execution.
+            profile, _ = model_profiles.resolve(profile_id, "parameter_extraction")
+            extracted_response = dict(content=json.dumps(frequency or declared, allow_nan=False),
+                profile_id=profile.audit_profile_id(), model=profile.model)
+            parameter_extraction_available = False
         extracted = _json_object(extracted_response["content"])
         scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
         if not isinstance(scenario, str) or not isinstance(params, dict):
             raise LocalWorkflowError("parameter_schema_invalid")
-        frequency = _explicit_frequency_contract(query)
         if frequency is not None:
             if scenario != frequency["scenario_type"]:
                 raise LocalWorkflowError("declared_scenario_mismatch")
             extracted.update(frequency)
             params = frequency["simulation_params"]
-        declared = _explicit_initial_contract(query)
         if declared is not None:
             # The declaration itself checks its scenario metadata. The model's
             # reclassification cannot override the user's explicit initial state.
@@ -405,6 +416,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             yield {"event": "result", "report": "参数物理检查未通过：" + detail,
                    "workflow_status": "error", "request_id": request_id,
                    "workflow_run_id": workflow_run_id, "skill_usage": [],
+                   "model_parameter_extraction_available": parameter_extraction_available,
                    "model_profile": extracted_response["profile_id"], "orchestration_backend": "local"}
             return
 
@@ -554,6 +566,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         if not report_result.get("image_base64") and display_image:
             report_result["image_base64"] = display_image
         report = execution._build_report(report_result, first_code or code)
+        if not parameter_extraction_available:
+            report += "\n\n参数提取模型暂不可用；本次仅按用户原始JSON进行参数校验、技能检索和实际执行，未补猜参数。"
         if cache_queries:
             report += (f"\n\n纠错缓存：查询尝试 {cache_queries} 次，命中 {cache_hits} 次。"
                        "提示仅辅助模型修复，每次修复仍重新执行和分析。")
@@ -577,6 +591,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "quality_level": analyzed.get("quality_level", "Q0"),
                "execution_reuse_verified": used_direct_reference and (direct_outcome or {}).get("execution_reuse_verified") is True,
                "model_review_available": review["available"],
+               "model_parameter_extraction_available": parameter_extraction_available,
                "model_explanation_available": explanation["available"],
                **({"learning": learning_status} if learning_status is not None else {}),
                "cache_usage": {"queries": cache_queries, "hits": cache_hits},
