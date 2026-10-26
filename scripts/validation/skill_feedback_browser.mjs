@@ -44,7 +44,7 @@ try{
  await page.locator('#drafts button').filter({hasText:draft.spec.name}).click();
  await page.waitForFunction(()=>!document.querySelector('#validate').disabled);
  await click('validate');
- await page.waitForFunction(()=>document.querySelector('#job-state').textContent.startsWith('独立验证通过'),{timeout:120000});
+ await page.waitForFunction(()=>document.querySelector('#job-state').textContent.startsWith('独立验证通过'),null,{timeout:120000});
  const jobs=await (await page.request.get(base+'/skills/api/v1/drafts/'+author.draft_id+'/jobs',{headers})).json();
  const fresh=jobs.items.find(j=>j.state==='validated');
  check(fresh&&fresh.job_id!==author.job.job_id&&fresh.run_id!==author.job.run_id,'fresh_independent_run_required');

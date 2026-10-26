@@ -10,12 +10,12 @@ const base=process.env.GW_BASE_URL,token=process.env.SKILL_TEST_ADMIN_TOKEN;
 if(!base||!token||process.env.SKILL_TEST_DISPOSABLE!=='true')throw Error('explicit_disposable_gateway_and_token_required');
 const out=path.resolve(process.env.SKILL_BROWSER_OUTPUT||'outputs/skill-authoring-browser');await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.SKILL_BROWSER_CHANNEL||'chrome'});
-const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const page=await browser.newPage({viewport:{width:1440,height:1000},...(process.env.SKILL_TEST_RECORD_VIDEO==='true'?{recordVideo:{dir:out,size:{width:1440,height:1000}}}:{})});
 const issues=[];page.on('pageerror',e=>issues.push(e.message));
 const checks=[];
 function check(condition,name){if(!condition)throw Error(name);checks.push(name);}
 async function click(id){await page.locator('#'+id).click();}
-async function idle(){await page.waitForFunction(()=>!document.querySelector('#save').disabled,{timeout:20000});}
+async function idle(){await page.waitForFunction(()=>!document.querySelector('#save').disabled,null,{timeout:20000});}
 async function screenshot(name){await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});}
 try{
   await page.goto(base+'/skills/authoring');
@@ -46,7 +46,7 @@ try{
   await screenshot('02-code-diff');await click('apply');
   await page.waitForFunction(()=>document.querySelector('#identity').textContent.includes('版本 2'));
   await idle();await click('validate');
-  await page.waitForFunction(()=>document.querySelector('#job-state').textContent.includes('独立验证通过'),{timeout:120000});
+  await page.waitForFunction(()=>document.querySelector('#job-state').textContent.includes('独立验证通过'),null,{timeout:120000});
   await click('result');await page.locator('#result-panel:not([hidden])').waitFor();
   await page.waitForFunction(()=>{const i=document.querySelector('#heatmap');return i.complete&&i.naturalWidth>0;});
   check((await page.locator('#metrics').innerText()).includes('128 × 128'),'real_result_shape_displayed');
@@ -85,4 +85,4 @@ try{
   check(issues.length===0,'no_browser_javascript_errors');
   await writeFile(path.join(out,'browser-report.json'),JSON.stringify({kind:'real_browser_manual_authoring',checks,draft_id:draftId,job:items.items[0],result:proof,production_database_writes:0},null,2));
   console.log(JSON.stringify({passed:checks.length,draft_id:draftId,run_id:proof.job.run_id,error:proof.comparison.relative_magnitude_linf}));
-}finally{await browser.close();}
+}finally{const video=page.video();try{if(video){await page.close();await video.saveAs(path.join(out,'manual-authoring.webm'));}}finally{await browser.close();}}

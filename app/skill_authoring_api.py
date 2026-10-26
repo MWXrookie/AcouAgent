@@ -90,7 +90,8 @@ def _result(library, job):
     if job["state"] not in ("rejected", "failed", "cancelled", "validated", "admitted"):
         raise RequestError("result_not_ready", 409)
     attempt = job.get("attempt")
-    result = dict(job=_job_view(job), has_result=False, quality_level=None, phase_certified=False)
+    result = dict(job=_job_view(job), has_result=False, quality_level=None, recorded_quality_level=None,
+                  currently_reusable=False, phase_certified=False)
     if not attempt or not attempt["output_manifest_sha256"]:
         return result
     manifest = library.assets.read_manifest(attempt["output_manifest_sha256"])
@@ -111,12 +112,26 @@ def _result(library, job):
         raise RequestError("result_binding_failed", 409)
     view = library.assets.present(manifest["field_asset_sha256"], manifest["result_spec"])
     result.update(has_result=True, shape=view["shape"], units=view["units"], max_pressure=view["max_pressure"],
-                  rms_pressure=view["rms_pressure"], axis_order=view["axis_order"], quality_level="Q2")
+                  rms_pressure=view["rms_pressure"], axis_order=view["axis_order"])
     if job["intent"] == "validate":
         proof = library._comparison(job, attempt["output_manifest_sha256"])
         result["comparison"] = proof["comparison"]
         if job["state"] in ("validated", "admitted") and proof["comparison"]["numeric_pass"]:
-            result["quality_level"] = "Q4" if job["state"] == "admitted" else None
+            result["quality_level"] = result["recorded_quality_level"] = None
+            if job["state"] == "admitted":
+                from app.skill_general_library import enabled
+                with library.store._read_db() as db:
+                    admission = db.execute("SELECT skill_id,skill_version FROM skill_validation_admissions WHERE job_id=?", (job["job_id"],)).fetchone()
+                    if admission is not None:
+                        result["recorded_quality_level"] = "Q4"
+                        result["skill_id"] = admission["skill_id"]
+                        if enabled():
+                            result["currently_reusable"] = library.verify_connection(db,
+                                {"skill_id": admission["skill_id"], "version": admission["skill_version"]},
+                                job["spec"]["scenario_type"], dict(normalizer_version="normalizer_v2",
+                                parameters=job["spec"]["parameters"], result_spec=job["spec"]["result_spec"])) is not None
+                if result["currently_reusable"]:
+                    result["quality_level"] = "Q4"
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     figure = Figure(figsize=(6, 4.5)); canvas = FigureCanvasAgg(figure)

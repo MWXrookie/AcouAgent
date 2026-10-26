@@ -97,10 +97,17 @@ modal_wavenumber_rad_per_m、boundary_condition、initial_velocity 及用户给�
 density_kg_m3、grid_shape、dx_m、frequency_hz、pml_size、source_index、source_type、source_geometry、
 helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regions、boundary_condition。
 材料区域保留 start/stop 半开索引及其声速/密度；用户未明确声明均匀介质、无损或源系数时不能填默认值。
+对于用户已明确的二维频域连续正弦点源，规范值是 dimensions=2、solver_mode=frequency_domain、
+source_type=continuous_sinusoid、source_geometry=point、boundary_condition=absorbing_pml。
+source_type描述时间激励，point属于source_geometry；不能把point_source写入source_type。
 只在用户明确要求完整二维单频稳态复压力、轴序和数值源归一化约定时给出 result_spec：
 {{"kind":"steady_complex_pressure","units":"numerical_source_normalization","axis_order":["x","y"],
 "grid_shape":["用户网格x","用户网格y"],"full_complex":true,"downsample":1}}。
 已有完整 result_spec 则原样保留；缺项不得从技能名、参考答案或已验证技能补齐。
+当用户已明确要求二维频域、完整稳态复压力、x/y轴序、原网格不降采样和数值源归一化时，
+必须在顶层输出 result_spec，不能因通用输出结构未列它而遗漏。
+该频域分支输出完整 v2 simulation_params 和 result_spec，并将 skill_query 设为 null；
+不要混入旧时域字段或另造一份不完整的 skill_query.parameters。
 不得猜测材料区域、源强、吸收、单位或结果合同，也不得提供参考数组、答案图或用户自授质量等级。
 skill_query.parameters 只有在能完整给出技能库规范参数时才填写，否则设为 null；不得猜测固定技能条件。"""
 

@@ -86,6 +86,7 @@ def test_manual_full_lifecycle_and_edit_cannot_inherit_validation(client, env):
     accepted = client.post(jobpath + "/admit", json={"expected_revision": job["revision"]})
     assert accepted.status_code == 200 and accepted.json()["admitted"], accepted.text
     assert client.get(jobpath + "/result").json()["quality_level"] == "Q4"
+    assert client.get(jobpath + "/result").json()["currently_reusable"] is True
     current = client.get(path).json()
     changed = copy.deepcopy(current["spec"]); changed["description"] += " changed"
     edited = client.put(path, json={"expected_revision": current["revision"], "spec": changed})
@@ -94,6 +95,12 @@ def test_manual_full_lifecycle_and_edit_cannot_inherit_validation(client, env):
     # No admission for the edited version until a new independently validated job exists.
     with env["store"]._read_db() as db:
         assert db.execute("SELECT count(*) FROM skill_validation_admissions").fetchone()[0] == 1
+    negative = client.post("/skills/api/" + accepted.json()["skill_id"], json={"action": "negative_feedback",
+        "run_id": job["run_id"], "reason": "Observed invalid result"})
+    assert negative.status_code == 200, negative.text
+    historical = client.get(jobpath + "/result").json()
+    assert historical["has_result"] and historical["recorded_quality_level"] == "Q4"
+    assert historical["quality_level"] is None and historical["currently_reusable"] is False
 
 
 @pytest.mark.parametrize("method,path", [("get", "/drafts"), ("post", "/drafts"), ("get", "/jobs/unknown"),
@@ -150,6 +157,17 @@ def test_trial_cannot_admit_and_cancel_does_not_dispatch(client, env):
     assert client.post(path + "/cancel", json={"expected_revision": 1}).json()["state"] == "cancelled"
     pump.tick(env["library"], "worker")
     assert not env["calls"]
+
+
+def test_successful_arbitrary_trial_displays_data_without_assigning_scientific_grade(client, env):
+    draft = create(client, env)
+    response = client.post(P + "/drafts/" + draft["draft_id"] + "/trials",
+        json={"expected_revision": draft["revision"], "draft_version": draft["version"]}, headers={"Idempotency-Key": "trial"})
+    assert response.status_code == 202
+    pump.tick(env["library"], "trial-worker")
+    result = client.get(P + "/jobs/" + response.json()["job_id"] + "/result").json()
+    assert result["has_result"] and result["currently_reusable"] is False
+    assert result["quality_level"] is None and result["recorded_quality_level"] is None
 
 
 def test_disabled_no_storage_initialization(client, env, monkeypatch, tmp_path):

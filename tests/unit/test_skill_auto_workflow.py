@@ -80,6 +80,13 @@ def test_explicit_contract_survives_realistic_model_result_omission(flow):
     assert len(flow["source_calls"]) == 1
 
 
+def test_model_geometry_name_cannot_replace_time_excitation_type(flow):
+    flow["extracted"]["simulation_params"]["source_type"] = "point_source"
+    result = collect()[-1]
+    assert result["workflow_status"] == "error"
+    assert not flow["source_calls"]
+
+
 def test_first_source_is_q2_even_when_its_learned_skill_is_admitted(flow):
     # Defensive: even a future source helper must not retroactively label this run Q4.
     flow["outcome"]["analysis"]["quality_level"] = "Q4"

@@ -65,6 +65,8 @@ docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
 
 ## 仓库已更名为 AcouAgent
 
+自动学习和用户手动添加属于可选扩展，默认关闭。基础安装完成后，按 [启用指南](skills-next/ENABLE_SKILLS.md) 备份并准备三项独立参考；无需自行搭建签名服务或向量数据库。只更新代码不会自动迁移扩展数据或开启学习。
+
 GitHub 地址为 `https://github.com/MWXrookie/AcouAgent`。已有克隆可继续在原目录更新，
 并按上方命令修改 origin；不要为了改目录名而移动或重建持久数据卷。
 镜像、Docker 服务名、容器名及内部兼容标识继续使用原值，避免影响已有部署。

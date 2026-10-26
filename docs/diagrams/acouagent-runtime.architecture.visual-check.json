@@ -5,9 +5,9 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "C:\\Users\\ASUS\\Documents\\Codex\\2026-10-21\\acouagent-local-handoff\\work\\release-readiness\\docs\\diagrams\\acouagent-runtime.architecture.html",
-    "sha256": "3c9e9830552065586d57892400d32cd0782a22b8a41551c9e08e6eba35a794a6",
-    "bytes": 726994
+    "path": "acouagent-runtime.architecture.html",
+    "sha256": "54c0d6edad11e37bbacdf71ea852f9b00431502dd34a87dfca9c331f863dd4df",
+    "bytes": 726990
   },
   "state": {
     "detail": "read",

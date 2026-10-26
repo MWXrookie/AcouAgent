@@ -5,6 +5,7 @@ enters the executor: its sole preparation call is a harmless runtime receipt pro
 Does not edit .env, start workers, activate skills, or enable automatic learning.
 """
 import argparse
+import base64
 from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
@@ -16,6 +17,7 @@ import struct
 import tempfile
 import time
 import urllib.request
+import urllib.error
 import uuid
 import zlib
 
@@ -79,10 +81,28 @@ def download_reference(case):
         raise ValueError("unsupported_reference")
     url = "https://raw.githubusercontent.com/ucl-bug/jwave-data/" + COMMIT + "/tests/kwave_data/" + MAT[case][0] + ".mat"
     request = urllib.request.Request(url, headers={"User-Agent": "AcouAgent-reference-preparation/1"})
-    with urllib.request.build_opener(_NoRedirect()).open(request, timeout=15) as response:
-        if response.status != 200:
+    opener = urllib.request.build_opener(_NoRedirect())
+    try:
+        with opener.open(request, timeout=15) as response:
+            if response.status != 200:
+                raise ValueError("reference_download_failed")
+            raw = response.read(1_048_577)
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
+        # The raw-content CDN is unreachable on some deployment networks. One
+        # bounded first-party Contents API request reads the exact same commit.
+        # Never use its download_url, accept a different digest, or follow redirects.
+        api = ("https://api.github.com/repos/ucl-bug/jwave-data/contents/tests/kwave_data/"
+               + MAT[case][0] + ".mat?ref=" + COMMIT)
+        request = urllib.request.Request(api, headers={"User-Agent": "AcouAgent-reference-preparation/1",
+                                                     "Accept": "application/vnd.github+json"})
+        with opener.open(request, timeout=15) as response:
+            payload = response.read(2_097_153)
+            if response.status != 200 or len(payload) > 2_097_152:
+                raise ValueError("reference_download_failed")
+        value = json.loads(payload)
+        if type(value) is not dict or value.get("encoding") != "base64" or type(value.get("content")) is not str:
             raise ValueError("reference_download_failed")
-        raw = response.read(1_048_577)
+        raw = base64.b64decode("".join(value["content"].split()), validate=True)
     return convert_pinned_mat(case, raw)
 
 

@@ -75,3 +75,37 @@ def test_backup_integrity_and_missing_database_no_create(tmp_path):
 def test_redirects_not_followed():
     with pytest.raises(ValueError,match='reference_redirect_rejected'):
         setup._NoRedirect().redirect_request(None,None,None,None,None,None)
+
+
+def test_raw_network_failure_uses_same_commit_first_party_api_once(pinned,monkeypatch):
+    import base64,json,urllib.error
+    _,matrix,raw=pinned;source=raw(matrix);calls=[]
+    class Reply:
+        status=200
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def read(self,limit):return json.dumps({'encoding':'base64','content':base64.b64encode(source).decode()}).encode()
+    class Opener:
+        def open(self,request,timeout):
+            calls.append(request.full_url)
+            if len(calls)==1:raise urllib.error.URLError('raw CDN unavailable')
+            return Reply()
+    monkeypatch.setattr(setup.urllib.request,'build_opener',lambda *args:Opener())
+    result=setup.download_reference('B01')
+    assert hashlib.sha256(result).hexdigest()==setup.REFERENCES['B01']
+    assert len(calls)==2 and calls[1].startswith('https://api.github.com/repos/ucl-bug/jwave-data/contents/')
+    assert calls[1].endswith('ref='+setup.COMMIT)
+
+
+def test_bad_primary_digest_is_not_retried_or_replaced_by_another_source(pinned,monkeypatch):
+    calls=[]
+    class Reply:
+        status=200
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def read(self,limit):return b'wrong bytes'
+    class Opener:
+        def open(self,*args,**kwargs):calls.append(1);return Reply()
+    monkeypatch.setattr(setup.urllib.request,'build_opener',lambda *args:Opener())
+    with pytest.raises(ValueError,match='reference_mat_digest_mismatch'):setup.download_reference('B01')
+    assert len(calls)==1
