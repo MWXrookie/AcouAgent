@@ -1,5 +1,7 @@
 # 队友从 main 安装与更新
 
+2026-10-26：PR37已合入main，模型兼容版已完成正式/演示部署、升级回退及真实浏览器复验。当前是`0.1.0`测试版，可按下列步骤使用；验收范围见[交付记录](validation/stage7/PRODUCTION_MODEL_COMPAT_2026-10-26.md)。
+
 这份说明适用于本地自部署。需要 Git、已启动的 Docker Compose，以及自己的
 OpenAI-compatible 模型 API 地址、模型名和 API Key。Windows 使用 Docker Desktop
 的 Linux 容器模式；公开科学计算镜像当前面向 linux/amd64。无需部署 Dify。
