@@ -290,6 +290,8 @@ def normalize_dify_record(
     )
     if degraded:
         outcome = "completed"
+    elif compact.get("workflow_status") == "succeeded" and compact.get("end_report_present") is False:
+        outcome = "failed"
     completed = bool(
         outcome == "completed"
         and compact.get("verdict") == "normal"
@@ -313,7 +315,7 @@ def normalize_dify_record(
         "run_id": compact.get("run_id"),
         "workflow_run_id": compact.get("workflow_run_id"),
         "quality_level": None,
-        "execution_pass": outcome == "completed",
+        "execution_pass": compact.get("runner_execution_pass", outcome == "completed") is True,
         "deterministic_gate_pass": completed,
         "reference_delivered": compact.get("reference_delivered") is True,
         "error_code": (

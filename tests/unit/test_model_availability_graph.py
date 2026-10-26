@@ -62,7 +62,7 @@ def test_real_graph_routes_success_and_error_and_labels_both_end_reports():
     assert len(result["nodes"]) == 69 and len(result["edges"]) == 77
     edges = [e for e in result["edges"] if e["source"] == BINDINGS["parameter"]]
     assert {(e["sourceHandle"], e["target"]) for e in edges} == {
-        ("success-branch", module.SUCCESS), ("fail-branch", module.FALLBACK)}
+        ("source", module.SUCCESS), ("fail-branch", module.FALLBACK)}
     assert nodes[BINDINGS["parameter"]]["error_strategy"] == "fail-branch"
     for key in (BINDINGS["review"], BINDINGS["explanation"]):
         assert nodes[key]["error_strategy"] == "default-value"

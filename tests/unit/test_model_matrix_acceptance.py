@@ -125,6 +125,15 @@ def test_dify_handled_model_error_retains_platform_status_and_physics():
     assert row["error_code"] == "model_step_degraded"
 
 
+def test_dify_platform_success_without_terminal_report_or_runner_is_not_completion():
+    document, digest = _tasks_document()
+    compact = dict(outcome="completed", workflow_status="succeeded", end_report_present=False,
+        runner_execution_pass=False, reference_delivered=False, independent_numeric_pass=False)
+    row = matrix.normalize_dify_record(compact, "dify", document["tasks"][0], digest)
+    assert row["workflow_status"] == "succeeded" and row["outcome"] == "failed"
+    assert row["execution_pass"] is False and row["deterministic_gate_pass"] is False
+
+
 @pytest.mark.parametrize("change", [
     {"end_report_present": False}, {"runner_execution_pass": False},
     {"model_parameter_extraction_available": "false"}, {"model_parameter_extraction_available": None},

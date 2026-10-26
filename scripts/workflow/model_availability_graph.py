@@ -109,7 +109,7 @@ def patch(graph, *, parameter, review, explanation):
         }},
     ])
     index[parameter]["data"]["error_strategy"] = "fail-branch"
-    edges.extend([_edge(parameter, SUCCESS, "llm", "code", "success-branch"), _edge(SUCCESS, AGGREGATOR, "code", "variable-aggregator"),
+    edges.extend([_edge(parameter, SUCCESS, "llm", "code"), _edge(SUCCESS, AGGREGATOR, "code", "variable-aggregator"),
                   _edge(parameter, FALLBACK, "llm", "code", "fail-branch"),
                   _edge(FALLBACK, AGGREGATOR, "code", "variable-aggregator")])
     for key, note in ((review, REVIEW_NOTE), (explanation, EXPLANATION_NOTE)):

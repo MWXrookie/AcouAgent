@@ -4203,11 +4203,11 @@
       "selected": false
     },
     {
-      "id": "1783991048409-success-branch-to-acouagent-parameter-model-success-v1",
+      "id": "1783991048409-source-to-acouagent-parameter-model-success-v1",
       "type": "custom",
       "source": "1783991048409",
       "target": "acouagent-parameter-model-success-v1",
-      "sourceHandle": "success-branch",
+      "sourceHandle": "source",
       "targetHandle": "target",
       "data": {
         "sourceType": "llm",
