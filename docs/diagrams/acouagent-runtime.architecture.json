@@ -38,7 +38,7 @@
           "model_provider",
           "state_store"
         ],
-        "note": "物理门独立判定，模型说明失败保留真实run并明确标注；空/截断响应记录已返回usage，推理链不展示。Reasoner使用有界思考预算，显式配置优先。缓存故障不丢结果；验收按run_id精确回查，保留2MiB预算。"
+        "note": "物理门独立判定，模型说明失败保留真实run并明确标注；空/截断响应记录已返回usage，推理链不展示。Reasoner使用低强度、有界思考预算，显式配置优先。缓存故障不丢结果；验收按run_id精确回查，保留2MiB预算。"
       },
       {
         "id": "isolation-boundary",

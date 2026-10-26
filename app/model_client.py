@@ -62,6 +62,10 @@ async def _complete_resolved(
     }
     if model_profiles._official_deepseek(profile.base_url):
         body["thinking"] = {"type": "enabled" if settings.thinking else "disabled"}
+        if settings.thinking:
+            # These are bounded extraction/code/review tasks, not open-ended
+            # proofs. Keep reasoning explicit and within the existing deadlines.
+            body["reasoning_effort"] = "low"
     elif settings.thinking:
         body["thinking"] = True
     headers = {
@@ -108,6 +112,7 @@ async def _complete_resolved(
                 "max_tokens": settings.max_tokens,
                 "thinking": settings.thinking,
                 "timeout_seconds": settings.timeout_seconds,
+                **({"reasoning_effort": body["reasoning_effort"]} if "reasoning_effort" in body else {}),
                 **({"response_error": str(content_error)} if content_error is not None else {}),
             },
         )
@@ -126,6 +131,7 @@ async def _complete_resolved(
             "max_tokens": settings.max_tokens,
             "thinking": settings.thinking,
             "timeout_seconds": settings.timeout_seconds,
+            **({"reasoning_effort": body["reasoning_effort"]} if "reasoning_effort" in body else {}),
         },
         "usage": usage if isinstance(usage, dict) else {},
         "run_id": actual_run_id,

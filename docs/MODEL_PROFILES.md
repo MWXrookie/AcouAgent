@@ -114,7 +114,7 @@ MODEL_PROFILES_JSON={"cloud-a":{"label":"Cloud A","provider":"openai-compatible"
 
 ## DeepSeek 思考模式与结果说明（2026-10-26候选）
 
-仅对已校验的官方HTTPS主机，按其[当前协议](https://api-docs.deepseek.com/guides/thinking_mode/)发送thinking.type的enabled/disabled；其他OpenAI-compatible端点保持原传输。用户选择deepseek-reasoner时，默认明确启用思考，单任务预算至少4096 token；代码/重试仍沿用原8192上限，显式tasks设置优先，不自动重试或扩大响应/沙箱预算。该预算兼顾思考与最终输出；空响应或finish_reason=length仍拒绝作为代码/参数使用。
+仅对已校验的官方HTTPS主机，按其[当前协议](https://api-docs.deepseek.com/guides/thinking_mode/)发送thinking.type的enabled/disabled，启用时明确采用low思考强度并记录审计；其他OpenAI-compatible端点保持原传输。用户选择deepseek-reasoner时，默认明确启用思考，单任务预算至少4096 token；代码/重试仍沿用原8192上限，显式tasks设置优先，不自动重试或扩大响应/沙箱预算。该预算兼顾思考与最终输出；空响应或finish_reason=length仍拒绝作为代码/参数使用。
 
 已返回usage的空/截断响应也记录实际token用量和稳定错误码；不保存或展示reasoning_content，不把它当最终回答。网络失败未返回usage时不能推算真实账单，费用仍按本地配置估算。
 

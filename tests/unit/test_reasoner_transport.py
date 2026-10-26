@@ -45,6 +45,10 @@ def test_official_thinking_protocol_does_not_change_other_providers(monkeypatch,
     result = asyncio.run(model_client.complete("test", "result_review", [{"role": "user", "content": "request"}]))
     assert calls[0].get("thinking") == thinking and calls[0]["max_tokens"] == tokens
     assert result["content"] == "safe answer" and len(records) == 1
+    expected_effort = "low" if base == "https://api.deepseek.com" and thinking == {"type": "enabled"} else None
+    assert calls[0].get("reasoning_effort") == expected_effort
+    assert records[0][1]["metadata"].get("reasoning_effort") == expected_effort
+    assert result["settings"].get("reasoning_effort") == expected_effort
     assert "private reasoning" not in json.dumps(records)
 
 
