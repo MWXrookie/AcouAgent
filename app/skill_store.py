@@ -1377,7 +1377,12 @@ class SkillStore:
             failed_recent = db.execute(
                 f"SELECT COUNT(*) FROM skill_feedback WHERE skill_id=? AND run_id IN ({placeholders})",
                 (skill_id, *sorted(recent_ids))).fetchone()[0] if recent_ids else 0
-            status = "questioned" if skill["status"] == "active" and failed_recent >= 2 else skill["status"]
+            # General exact-reference skills already stop delivery on the first
+            # bound negative. Reflect that conservative gate in the UI lifecycle,
+            # so the administrator can explicitly request fresh revalidation.
+            general = db.execute("SELECT validator_version FROM skill_versions WHERE skill_id=? ORDER BY version DESC LIMIT 1", (skill_id,)).fetchone()
+            exact_reference = general is not None and general[0] == "general-helmholtz.v1"
+            status = "questioned" if skill["status"] == "active" and (exact_reference or failed_recent >= 2) else skill["status"]
             db.execute("UPDATE simulation_skills SET failure_count=failure_count+1,status=?,updated_at=? WHERE skill_id=?",
                        (status, now, skill_id))
             db.execute("INSERT INTO skill_events(skill_id,event_type,detail,created_at) VALUES (?,?,?,?)",

@@ -1,5 +1,7 @@
 # AGENTS.md — AcouAgent 项目指令手册
 
+> 2026-10-26 阶段5 bcdeeec（PR34）五项CI成功，checkpoint/skill-stage5-20261026已推送。阶段6补齐显式重验边界、固定参考准备与网关镜像源身份副本；1957回归通过，实际发行镜像/持久卷与浏览器交付矩阵仍在验收。默认关闭、生产/main未改；见docs/skills-next/STAGE6_IMPLEMENTATION.md。
+
 > 2026-10-26 阶段4验收完成（d46192a，PR33五项CI成功，checkpoint/skill-stage4-20261025）。阶段5候选新增管理员手动草稿、可见代码派生、原队列验证/接纳、热图及版本恢复；18项真实浏览器检查与真实模型新任务Q4重执行通过。模型漏回完整频域结果合同的问题已修复并加入负例。默认关闭、schema18、无生产写入；最终回归/CI及阶段6见docs/skills-next/STAGE5_IMPLEMENTATION.md。
 
 > 2026-10-25 阶段3验收完成（cd4c93e，五项CI成功，checkpoint/skill-stage3-20261025），阶段4候选已实现受控来源→自动建稿/验证/接纳与后台恢复；三题9次真实求解、3候选/3验证/3接纳/3复用，默认关闭、无生产写入。见 docs/skills-next/STAGE4_IMPLEMENTATION.md 与 VERSION_CHECKPOINTS.md；接着阶段5手动入口。

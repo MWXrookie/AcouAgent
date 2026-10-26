@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir --timeout 120 --retries 10 \
     -r /app/requirements.lock.txt
 
 COPY app/ /app/app/
+# Reviewed source identity only; the gateway never launches the executor here.
+COPY executor/executor.py /app/executor/executor.py
 # Server-owned fixed VAL-1 recipe/validator; no caller-selected code assets.
 COPY scripts/validation/ /app/scripts/validation/
 # Explicit operator preparation/status/reuse CLI; learning remains opt-in.

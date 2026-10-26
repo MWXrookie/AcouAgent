@@ -220,7 +220,16 @@ def _operation(request, body):
     if action == "admit":
         if job["intent"] != "validate":
             raise RequestError("trial_cannot_be_admitted", 409)
-        return library.admit(resource, actor_id=ACTOR, expected_revision=body["expected_revision"]), 200
+        if job["state"] not in ("validated", "admitted"):
+            raise RequestError("job_not_admissible", 409)
+        try:
+            return library.admit(resource, actor_id=ACTOR, expected_revision=body["expected_revision"]), 200
+        except ValueError as error:
+            code = str(error)
+            if code in {"revision_conflict", "draft_changed_since_validation", "withdrawn_skill_cannot_be_reactivated",
+                        "negative_feedback_prevents_readmission", "job_not_admissible"}:
+                raise RequestError(code, 409) from None
+            raise RequestError("independent_admission_unavailable", 503) from None
     raise RequestError("not_found", 404)
 
 
@@ -250,7 +259,8 @@ def register(mcp):
     @mcp.custom_route(PREFIX + "/spec-schema", methods=["GET"])
     async def schema(request):
         if config.SKILL_AUTHORING_ENABLED is not True:
-            return JSONResponse({"error": "disabled"}, status_code=404)
+            return JSONResponse({"error": {"code": "authoring_disabled", "message": "authoring_disabled", "retryable": False},
+                                 "request_id": uuid.uuid4().hex}, status_code=404)
         return JSONResponse(dict(spec_version="skill-spec.v1", schema=json.loads((ROOT / "skill-spec-v1.schema.json").read_text(encoding="utf-8")),
             templates={case: json.loads((ROOT / "examples" / filename).read_text(encoding="utf-8")) for case, filename in
                        (("B01", "manual-skill.json"), ("B02", "b02-manual-skill.json"), ("B03", "b03-manual-skill.json"))}))

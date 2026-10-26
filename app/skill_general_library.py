@@ -78,6 +78,32 @@ class GeneralLibrary:
         if not enabled():
             raise DraftError("general_admission_disabled")
 
+    @staticmethod
+    def _feedback_allows(db, skill_id, job, *, automatic=False):
+        """A negative history requires an explicit epoch and a fresh manual run.
+
+        Feedback remains append-only. Neither automatic learning nor an old
+        validated job can clear a withdrawal by numerically passing again.
+        """
+        feedback = db.execute("SELECT 1 FROM skill_feedback WHERE skill_id=? LIMIT 1", (skill_id,)).fetchone()
+        event = db.execute("SELECT id,detail FROM skill_events WHERE skill_id=? AND event_type='revalidation_requested' ORDER BY id DESC LIMIT 1", (skill_id,)).fetchone()
+        if event is None:
+            return feedback is None
+        if automatic:
+            return False
+        if db.execute("SELECT 1 FROM skill_events WHERE skill_id=? AND event_type IN ('negative_feedback','skill_archived','skill_restored') AND id>? LIMIT 1", (skill_id, event["id"])).fetchone():
+            return False
+        detail = json.loads(event["detail"])
+        requested = detail.get("requested_ns")
+        if (type(requested) is not int or requested <= 0 or detail.get("requires_new_independent_dispatch") is not True
+                or detail.get("actor") not in ("portal-admin", "internal-system")):
+            return False
+        draft = db.execute("SELECT origin FROM skill_drafts WHERE draft_id=?", (job["draft_id"],)).fetchone()
+        if draft is None or draft["origin"] != "manual" or job.get("attempt") is None:
+            return False
+        cutoff = requested // 1_000_000
+        return job["created_ms"] > cutoff and job["attempt"]["created_ms"] > cutoff
+
     def save_controlled_draft(self, draft_id, *, actor_id, expected_revision, apply=False):
         """Preview the exact diff; explicit apply saves a new immutable version."""
         self._enabled(); _revision(expected_revision)
@@ -313,7 +339,7 @@ class GeneralLibrary:
             existing = db.execute("SELECT * FROM simulation_skills WHERE fingerprint=?", (job["case_fingerprint"],)).fetchone()
             if existing and (existing["status"] not in ("candidate", "active") or existing["archived"]):
                 raise ValueError("withdrawn_skill_cannot_be_reactivated")
-            if existing and db.execute("SELECT 1 FROM skill_feedback WHERE skill_id=? LIMIT 1", (existing["skill_id"],)).fetchone():
+            if existing and not self._feedback_allows(db, existing["skill_id"], job, automatic=_automatic):
                 raise ValueError("negative_feedback_prevents_readmission")
             evidence = db.execute("SELECT * FROM skill_validation_evidence WHERE job_id=? AND attempt_no=?", (job_id, attempt["attempt_no"])).fetchone()
             # The ordinary candidate API continues to require Q2. Only this verified transaction activates it.
@@ -351,14 +377,14 @@ class GeneralLibrary:
                 or row["validator_version"] != VALIDATOR or row["scenario_type"] != scenario
                 or row["fingerprint"] != query_fingerprint(scenario, envelope)):
             return None
-        if db.execute("SELECT 1 FROM skill_feedback WHERE skill_id=? LIMIT 1", (candidate["skill_id"],)).fetchone():
-            return None
         evidence = json.loads(row["physics_evidence"])
         admission = db.execute("SELECT * FROM skill_validation_admissions WHERE job_id=? AND skill_id=? AND skill_version=?",
                                (evidence.get("job_id"), candidate["skill_id"], candidate["version"])).fetchone()
         if admission is None:
             return None
         job = self._job(db, evidence["job_id"])
+        if not self._feedback_allows(db, candidate["skill_id"], job):
+            return None
         attempt = job["attempt"]
         registered = db.execute("SELECT * FROM skill_validation_evidence WHERE evidence_id=?", (admission["evidence_id"],)).fetchone()
         expected_admission = digest(canonical(dict(job_id=job["job_id"], proof=registered["manifest_sha256"] if registered else None,
