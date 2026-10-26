@@ -127,7 +127,7 @@
       "id": "dify_workflow",
       "type": "cloud",
       "label": "Dify 兼容工作流",
-      "sublabel": "原始声明守卫 / 69 节点候选",
+      "sublabel": "原始声明守卫 / 69 节点",
       "pos": [
         150,
         570
