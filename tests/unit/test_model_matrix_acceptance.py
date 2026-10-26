@@ -17,6 +17,13 @@ def test_frozen_tasks_contract_is_loaded():
     assert len(tasks_sha256) == 64
 
 
+def test_model_availability_evidence_requires_actual_booleans(tmp_path):
+    target = tmp_path / "records.jsonl"
+    target.write_text(json.dumps({"model_review_available": "false"}) + "\n")
+    with pytest.raises(matrix.MatrixError, match="record_model_availability_invalid"):
+        matrix.load_records(target)
+
+
 def test_local_task_keeps_only_compact_evidence(monkeypatch):
     document, tasks_sha256 = _tasks_document()
     task = document["tasks"][0]
@@ -28,6 +35,8 @@ def test_local_task_keeps_only_compact_evidence(monkeypatch):
             "workflow_run_id": "workflow-1",
             "quality_level": "Q4",
             "model": "model-a",
+            "model_review_available": False,
+            "model_explanation_available": True,
             "skill_usage": [{"stage": "reference_delivered", "skill_id": "safe"}],
             "report": "must not persist",
             "code": "must not persist",
@@ -52,6 +61,7 @@ def test_local_task_keeps_only_compact_evidence(monkeypatch):
     assert row["deterministic_gate_pass"] is True
     assert row["reference_delivered"] is True
     assert row["run_id"] == run_id
+    assert row["model_review_available"] is False and row["model_explanation_available"] is True
     encoded = json.dumps(row)
     assert "must not persist" not in encoded
     assert task["prompt"] not in encoded

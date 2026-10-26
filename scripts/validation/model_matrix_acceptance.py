@@ -48,6 +48,8 @@ _RECORD_FIELDS = {
     "lane_id",
     "model",
     "model_identity",
+    "model_review_available",
+    "model_explanation_available",
     "outcome",
     "profile_id",
     "prompt_sha256",
@@ -224,6 +226,8 @@ def run_local_task(
             "backend": "local",
             "profile_id": safe_profile_id,
             "model": result.get("model"),
+            "model_review_available": result.get("model_review_available"),
+            "model_explanation_available": result.get("model_explanation_available"),
             "tasks_sha256": tasks_sha256,
             "task_id": task["task_id"],
             "task_kind": task["kind"],
@@ -408,6 +412,9 @@ def load_records(path: str | Path) -> list[dict[str, Any]]:
                 raise MatrixError("record_contains_unknown_field")
             if any(isinstance(item, (dict, list)) for item in value.values()):
                 raise MatrixError("record_contains_nested_value")
+            for field in ("model_review_available", "model_explanation_available"):
+                if value.get(field) is not None and type(value[field]) is not bool:
+                    raise MatrixError("record_model_availability_invalid")
             rows.append(value)
     keys = [(row.get("lane_id"), row.get("task_id")) for row in rows]
     if len(keys) != len(set(keys)):
@@ -491,6 +498,9 @@ def evaluate_matrix(
             "revisions": sorted(revisions),
             "model_identities": sorted(models),
             "backends": sorted(backends),
+            "model_prose_unavailable_count": sum(
+                row.get("model_review_available") is False or row.get("model_explanation_available") is False
+                for row in rows.values()),
         }
         lane_metrics[lane] = metrics
         lane_pass[lane] = bool(

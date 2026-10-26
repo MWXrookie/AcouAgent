@@ -1,3 +1,9 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
 scripts/validation/** text eol=lf
 executor/executor.py text eol=lf
 docs/diagrams/*.architecture.json text eol=lf

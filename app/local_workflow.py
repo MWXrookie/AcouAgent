@@ -289,6 +289,19 @@ async def _model(profile_id: str | None, task: str, prompt: str, run_id: str) ->
     return await model_client.complete(profile_id, task, [{"role": "user", "content": prompt}], run_id=run_id)
 
 
+async def _commentary_model(profile_id, task, prompt, run_id, extracted_response):
+    """Optional model prose cannot discard a completed deterministic execution."""
+    try:
+        return dict(await _model(profile_id, task, prompt, run_id), available=True)
+    except (model_client.ModelCallError, model_profiles.ModelProfileError) as exc:
+        allowed = {"model_transport_failed", "model_response_empty", "model_response_invalid",
+                   "model_response_too_large", "model_output_truncated"}
+        code = str(exc) if str(exc) in allowed else "model_commentary_unavailable"
+        return dict(content="模型说明暂不可用（" + code + "）。请以实际执行记录和确定性物理门为准。",
+            profile_id=extracted_response["profile_id"], model=extracted_response.get("model", "configured-model"),
+            available=False)
+
+
 def _passed(result: dict | None, analyzed: dict) -> bool:
     return bool(result and result.get("exit_code") == 0 and result.get("timed_out") is False
                 and analyzed.get("verdict") == "normal"
@@ -520,12 +533,12 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         safe = json.dumps(_safe_analysis(analyzed), ensure_ascii=False, sort_keys=True)
         facts = json.dumps({"attempts": attempt + 1, "observed_errors": observed_errors,
                             "cache_queries": cache_queries, "cache_hits": cache_hits}, ensure_ascii=False)
-        review = await _model(profile_id, "result_review",
+        review = await _commentary_model(profile_id, "result_review",
             f"确定性物理门不能被覆盖。用户需求：{query}\n门控结果：{safe}\n"
-            f"服务端执行事实：{facts}。不得将需求中的计划、故障注入或重试描述为已经发生；只按执行事实陈述。\n简短说明通过或失败原因。", workflow_run_id)
-        explanation = await _model(profile_id, "result_explanation",
+            f"服务端执行事实：{facts}。不得将需求中的计划、故障注入或重试描述为已经发生；只按执行事实陈述。\n简短说明通过或失败原因。", workflow_run_id, extracted_response)
+        explanation = await _commentary_model(profile_id, "result_explanation",
             f"用3至6句中文解读，只引用给定数值；不得把normal/Q1/Q2写成完整物理正确证明。\n用户需求：{query}\n分析：{safe}\n"
-            f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id)
+            f"服务端执行事实：{facts}。不得将需求中的计划当作已发生的故障、修复或缓存命中。", workflow_run_id, extracted_response)
         report_result = dict(result or {})
         report_result["total_attempts"] = attempt + 1
         if used_auto_source or (used_direct_reference and generation.get("skill_usage", {}).get("reason") == "general_validated_reference_delivery"):
@@ -563,6 +576,8 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                "model": review["model"], "orchestration_backend": "local",
                "quality_level": analyzed.get("quality_level", "Q0"),
                "execution_reuse_verified": used_direct_reference and (direct_outcome or {}).get("execution_reuse_verified") is True,
+               "model_review_available": review["available"],
+               "model_explanation_available": explanation["available"],
                **({"learning": learning_status} if learning_status is not None else {}),
                "cache_usage": {"queries": cache_queries, "hits": cache_hits},
                "run_id": (result or {}).get("run_id") or (direct_outcome or {}).get("run_id")}
