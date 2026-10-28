@@ -9,11 +9,13 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const require=createRequire(path.join(root,'desktop/package.json'));
 const {_electron}=require('playwright');
 const {spawnSync}=require('node:child_process');
+const {once}=require('node:events');
+const {createHash}=require('node:crypto');
 if(process.platform!=='win32'||!process.env.ACOUAGENT_ELECTRON_EXE)throw Error('packaged_windows_executable_required');
 const output=path.resolve(process.env.ACOUAGENT_DESKTOP_UAT_OUTPUT||path.join(root,'outputs/desktop-windows-runtime'));
 await mkdir(output,{recursive:true});
 const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
-const electron=await _electron.launch({executablePath:process.env.ACOUAGENT_ELECTRON_EXE,args:[],env,timeout:45000});
+let electron=await _electron.launch({executablePath:process.env.ACOUAGENT_ELECTRON_EXE,args:[],env,timeout:45000});
 const checks=[],errors=[];let state,manager,lastPhase;
 const check=(value,name)=>{if(!value)throw Error(name);checks.push(name);};
 async function capture(page,name){
@@ -114,12 +116,54 @@ try{
    // Remove only the exact markers created by this run; preserve both data volumes.
    docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').unlink(missing_ok=True)"]);
    docker(['run','--rm','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','128m','--cpus','0.5','--pids-limit','32','--mount','type=volume,src='+previousVolume+',dst=/qa','--entrypoint','python',images.gateway,'-c',"from pathlib import Path;Path('/qa/desktop-restore-uat-marker').unlink(missing_ok=True)"]);
+   if(process.env.ACOUAGENT_DESKTOP_UAT_INTERRUPT==='true'){
+    const profile=path.join(process.env.LOCALAPPDATA,'AcouAgent','Desktop');
+    const journalPath=path.join(profile,'restore-journal.json');
+    const vaultPath=path.join(profile,'credentials.bin');
+    const vaultBefore=createHash('sha256').update(await readFile(vaultPath)).digest('hex');
+    const mainProcess=await electron.evaluate(()=>({pid:process.pid,executable:process.execPath}));
+    check(mainProcess.pid!==process.pid&&mainProcess.executable.toLowerCase()===env.ACOUAGENT_ELECTRON_EXE.toLowerCase(),'actual_desktop_main_process_identified');
+    docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').write_text('state before interrupted restore')"]);
+    await manager.locator('#restore').click();
+    let interruptedJournal;const interruptDeadline=Date.now()+120000;
+    while(Date.now()<interruptDeadline){
+     try{
+      const journal=JSON.parse(await readFile(journalPath,'utf8'));
+      const settings=JSON.parse(await readFile(path.join(profile,'settings.json'),'utf8'));
+      if(settings.dataVolume===journal.next.dataVolume&&journal.previous.dataVolume===currentVolume){interruptedJournal=journal;break;}
+     }catch(error){if(error.code!=='ENOENT')throw error;}
+     await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    check(!!interruptedJournal,'actual_restore_interrupted_after_pointer_write');
+    clearInterval(progress);
+    // On Windows Playwright's process handle is cmd.exe (shell:true), not the
+    // Electron main process. Kill only the exact main PID identified above.
+    const exited=once(electron.process(),'exit');
+    check(process.kill(mainProcess.pid,'SIGKILL'),'own_desktop_main_process_terminated_for_test');await exited;
+    check(JSON.parse(await readFile(journalPath,'utf8')).previous.dataVolume===currentVolume,'uncommitted_journal_survives_actual_process_exit');
+    await electron.close().catch(()=>{});
+    electron=await _electron.launch({executablePath:env.ACOUAGENT_ELECTRON_EXE,args:[],env,timeout:45000});
+    manager=await electron.firstWindow();manager.on('pageerror',error=>errors.push(error.message));
+    await manager.locator('#start').waitFor();
+    await manager.waitForFunction(()=>document.getElementById('state-title').textContent.includes('上次恢复未完成'),null,{timeout:10000});
+    check((await manager.locator('#state-title').innerText()).includes('上次恢复未完成'),'fresh_process_reports_interrupted_recovery');
+    check(JSON.parse(await readFile(path.join(profile,'settings.json'),'utf8')).dataVolume===currentVolume,'fresh_process_selects_original_data_pointer');
+    await manager.locator('#start').click();
+    await manager.waitForFunction(()=>document.body.dataset.busy==='false'&&['ready','error'].includes(document.body.dataset.phase),null,{timeout:900000});
+    state=await manager.evaluate(()=>window.acouagent.status());
+    check(state.ready,'actual_process_crash_recovery_reaches_17_skills_ready');
+    check(docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;print(Path('/app/data/desktop-restore-uat-marker').read_text())"])==='state before interrupted restore','original_newer_data_survives_actual_crash');
+    const vaultAfter=createHash('sha256').update(await readFile(vaultPath)).digest('hex');
+    check(vaultBefore===vaultAfter,'system_encrypted_credentials_unchanged_after_crash');
+    await capture(manager,'06-crash-recovered.png');
+    docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').unlink(missing_ok=True)"]);
+   }
   }
  }
  console.log(JSON.stringify({passed:checks.length}));
 }catch(error){errors.push(error.message);if(manager){state=await manager.evaluate(()=>window.acouagent.status()).catch(()=>null);}throw error;}
 finally{
  clearInterval(progress);
- await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_windows_packaged_runtime',checks,errors,state,model_simulation_tested:false,native_backup_file_selection_automated:process.env.ACOUAGENT_DESKTOP_UAT_BACKUP==='true',resources_preserved:true},null,2));
+ await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_windows_packaged_runtime',checks,errors,state,model_simulation_tested:false,process_crash_tested:checks.includes('original_newer_data_survives_actual_crash'),native_backup_file_selection_automated:process.env.ACOUAGENT_DESKTOP_UAT_BACKUP==='true',resources_preserved:true},null,2));
  await electron.evaluate(({app})=>app.exit(0)).catch(()=>{});await electron.close().catch(()=>{});
 }

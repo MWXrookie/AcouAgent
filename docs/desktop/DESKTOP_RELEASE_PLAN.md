@@ -30,6 +30,8 @@
 
 后续已在Windows实际打包窗口完成Docker启动、17项技能准备、备份到恢复的完整18项检查：新卷回到备份状态，原卷仍保留较新状态，工作台重新打开使用当前服务。28项Node与13项Python回归通过，包含损坏/越界/重复/链接备份拒绝、切换失败回原指针及未提交日志恢复。当前恢复只接受本安装、相同网关和执行器digest的备份；跨版本验证尚未完成。
 
-以上不代表自然语言真实仿真已验收。仍需完成：模型新求解与标准答案核对、扩展准备向导、跨版本升级回退、真实中断恢复演练、新操作者冷启动、独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
+随后完成Windows真实主进程中断与重新启动恢复，最终27项、0错误；原卷较新数据保留、17技能就绪、加密凭据哈希不变。52998c9远端桌面与发行CI均成功，已保存该版本NSIS内部安装基线供升级对照。
+
+以上不代表自然语言真实仿真已验收。仍需完成：模型新求解与标准答案核对、扩展准备向导、跨版本升级回退、新操作者冷启动、独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
 
 官方依据：[Electron安全](https://www.electronjs.org/docs/latest/tutorial/security)、[Electron进程隔离](https://www.electronjs.org/docs/latest/tutorial/context-isolation)、[Windows运行时前提](https://docs.docker.com/desktop/setup/install/windows-install/)、[NSIS安装器](https://www.electron.build/docs/nsis/)。
