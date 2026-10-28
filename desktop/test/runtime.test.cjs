@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const {Runtime, redact, parseRecords, dockerCandidates, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
+const {Runtime, redact, parseRecords, dockerCandidates, waitForGatewayHealth, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
 const {Vault} = require('../src/vault.cjs');
 const resourceDir = path.resolve(__dirname, '../runtime');
 const secrets = Object.fromEntries(['MCP_AUTH_TOKEN','EXECUTOR_SHARED_TOKEN','PORTAL_ADMIN_TOKEN','ACOUAGENT_INSTALL_ID'].map((key, i) => [key, String(i+1).repeat(64)]));
@@ -83,6 +83,21 @@ test('stop is limited to own compose project and never removes a volume', async 
   assert.equal(calls.some(c=>c.args.includes('down')||c.args.includes('prune')||c.args.includes('rm')),false);
   assert.ok(stop.args.includes('--env-file'));assert.equal(stop.options.env.MCP_AUTH_TOKEN,secrets.MCP_AUTH_TOKEN);
 });
+
+test('backup refuses foreign data before pausing any service',async t=>{
+ const {runtime,calls}=await fixture(t,(_file,args)=>args.includes('volume')&&args.includes('inspect')?JSON.stringify({[OWNER_LABEL]:'foreign'}):undefined);
+ runtime.state.phase='ready';runtime.state.ready=true;
+ await runtime.backup('unused.zip');
+ assert.equal(runtime.state.phase,'error');assert.equal(calls.some(c=>c.args.includes('stop')),false);
+});
+
+test('backup refuses to export if a writer is still running after stop',async t=>{
+ const {runtime,calls}=await fixture(t,(_file,args)=>args.includes('compose')&&args.includes('ps')?JSON.stringify([{Service:'gateway',State:'running'}]):undefined);
+ runtime.state.phase='ready';runtime.state.ready=true;
+ await runtime.backup('unused.zip');
+ assert.equal(runtime.state.phase,'error');assert.match(runtime.state.logs.join(' '),/backup_writers_still_running/);
+ assert.equal(calls.some(c=>c.args.includes('stop')),true);
+});
 test('inherited remote Docker and Compose override variables are removed', async t => {
   const oldHost=process.env.DOCKER_HOST,oldFile=process.env.COMPOSE_FILE;
   process.env.DOCKER_HOST='tcp://remote:2375';process.env.COMPOSE_FILE='foreign.yaml';
@@ -143,4 +158,17 @@ test('failed physical bootstrap cannot produce a ready workspace',async t=>{
   });
   await runtime.start();assert.equal(runtime.state.ready,false);assert.match(runtime.state.detail,/技能准备未通过/);
   assert.equal(calls.some(c=>c.args.includes('status-all')),false);
+});
+
+test('recreated gateway is awaited across connection failures and non-ready HTTP responses',async t=>{
+ const previous=global.fetch;t.after(()=>{global.fetch=previous;});let attempts=0;
+ global.fetch=async()=>{attempts++;if(attempts===1)throw Error('connection refused');return{ok:attempts>2,text:async()=>'ok'};};
+ await waitForGatewayHealth('http://127.0.0.1:18081',{timeoutMs:1000,intervalMs:1});
+ assert.equal(attempts,3);
+});
+
+test('gateway readiness never accepts HTTP 200 with a wrong health body',async t=>{
+ const previous=global.fetch;t.after(()=>{global.fetch=previous;});
+ global.fetch=async()=>({ok:true,text:async()=>'still starting'});
+ await assert.rejects(waitForGatewayHealth('http://127.0.0.1:18081',{timeoutMs:15,intervalMs:1}),/gateway_not_healthy/);
 });

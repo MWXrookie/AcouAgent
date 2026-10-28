@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
+const {streamBackup} = require('./backup.cjs');
 
 const PROJECT = 'acouagent-desktop';
 const OWNER_LABEL = 'io.acouagent.desktop.install_id';
@@ -60,6 +61,18 @@ function dockerCandidates(platform, env = process.env) {
     env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe'),
     env.ProgramFiles && path.win32.join(env.ProgramFiles, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe')
   ].filter(Boolean))];
+}
+
+async function waitForGatewayHealth(url, {timeoutMs = 90000, intervalMs = 1000} = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url + '/health', {signal: AbortSignal.timeout(Math.max(1, Math.min(4000, deadline - Date.now())))});
+      if (response.ok && (await response.text()).trim() === 'ok') return;
+    } catch { /* A starting/recreated gateway may not be listening yet. */ }
+    await pause(Math.max(0, Math.min(intervalMs, deadline - Date.now())));
+  }
+  throw Error('gateway_not_healthy');
 }
 
 class Runtime extends EventEmitter {
@@ -193,13 +206,40 @@ class Runtime extends EventEmitter {
       await pause(1500);
     }
     if (!bootstrapDone) throw Error('bootstrap_failed');
-    const response = await fetch(this.baseURL() + '/health', {signal: AbortSignal.timeout(4000)});
-    if (!response.ok || (await response.text()).trim() !== 'ok') throw Error('gateway_not_healthy');
+    await waitForGatewayHealth(this.baseURL());
     const skills = JSON.parse(await this.compose(['exec', '-T', 'gateway', 'python', '-m', 'scripts.skill_library.local_basic', 'status-all']));
     if (!skills.ready || skills.ready_count !== 17) throw Error('bootstrap_failed');
     this.change('ready', '本地工作台已就绪', '17项基础技能已准备。进入工作台后连接你的模型，即可开始仿真。', true);
   });}
   baseURL() {return 'http://127.0.0.1:' + this.settings.port;}
+  async backup(destination) {return this.exclusive(async () => {
+    if (!['ready', 'stopped'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
+    await this.inspectEnvironment(); await this.assertOwnership();
+    this.change('backing-up', '备份本地数据', '暂停本应用写入服务后导出一致快照；完成后可重新启动工作台。');
+    await this.compose(['stop', 'gateway', 'skill-bootstrap'], {timeout: 90000});
+    const writers = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
+    if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && item.State === 'running')) throw Error('backup_writers_still_running');
+    const source = await fs.readFile(path.join(this.resourceDir, 'data_backup.py'), 'utf8');
+    const metadata = {createdAt: new Date().toISOString(), images: this.images, settings: this.settings,
+      installation: crypto.createHash('sha256').update(this.secrets.ACOUAGENT_INSTALL_ID).digest('hex')};
+    const container = PROJECT + '-backup-' + crypto.randomUUID();
+    const args = ['--context', this.context, 'compose', '--project-name', PROJECT, '--project-directory', this.resourceDir,
+      '--env-file', path.join(this.resourceDir, 'defaults.env'), '--file', path.join(this.resourceDir, 'compose.desktop.yaml'),
+      'run', '--rm', '--no-deps', '-T', '--name', container, '--entrypoint', 'python', 'data-maintenance', '-c', source, '--metadata', JSON.stringify(metadata)];
+    try {
+      await streamBackup(this.dockerExecutable, args, {env: this.environment(), destination});
+    } finally {
+      // A killed CLI can leave its temporary reader running in the engine.
+      let labels;
+      try {labels = JSON.parse(await this.docker(['inspect', container, '--format', '{{json .Config.Labels}}']));}
+      catch (error) {if (!/no such|not found/i.test(error.message)) throw error;}
+      if (labels) {
+        if (labels[OWNER_LABEL] !== this.secrets.ACOUAGENT_INSTALL_ID) throw Error('foreign_desktop_resources_refused');
+        await this.docker(['rm', '-f', container]);
+      }
+    }
+    this.change('stopped', '数据备份已保存', '备份包含技能、执行历史、缓存及结果文件。服务已暂停，点击检查并启动可继续使用。');
+  });}
   async stop() {return this.exclusive(async () => {
     this.change('stopping', '停止本应用服务', '停止本应用容器，保留数据卷和其他项目。');
     await this.inspectEnvironment(); await this.assertOwnership();
@@ -207,4 +247,4 @@ class Runtime extends EventEmitter {
     this.change('stopped', '本地服务已停止', '数据已保留，下次启动可继续使用。');
   });}
 }
-module.exports = {Runtime, command, redact, atomicWrite, parseRecords, dockerCandidates, portAvailable, PROJECT, OWNER_LABEL};
+module.exports = {Runtime, command, redact, atomicWrite, parseRecords, dockerCandidates, waitForGatewayHealth, portAvailable, PROJECT, OWNER_LABEL};

@@ -50,7 +50,8 @@ async function initialize() {
     open: () => openWorkbench(),
     'docker-guide': () => shell.openExternal('https://docs.docker.com/desktop/setup/install/windows-install/'),
     'copy-admin': async () => {clipboard.writeText(runtime.secrets.PORTAL_ADMIN_TOKEN); return {copied: true};},
-    diagnostics: () => exportDiagnostics()
+    diagnostics: () => exportDiagnostics(),
+    backup: () => exportBackup()
   })) ipcMain.handle('desktop:' + channel, (event) => {
     if (event.sender !== manager.webContents || event.senderFrame !== manager.webContents.mainFrame || event.senderFrame.url !== 'acouagent://desktop/index.html') throw Error('untrusted_ipc_sender');
     return fn();
@@ -83,6 +84,16 @@ async function exportDiagnostics() {
     state: runtime.snapshot(), images: runtime.images, notice: '不包含API Key、内部令牌、仿真输入或数据库。'};
   await fs.writeFile(chosen.filePath, JSON.stringify(report, null, 2), {mode: 0o600});
   return {saved: true};
+}
+
+async function exportBackup() {
+  if (runtime.state.busy) return runtime.snapshot();
+  const confirmation = await dialog.showMessageBox(manager, {type: 'question', buttons: ['取消', '选择备份位置'], defaultId: 0, cancelId: 0,
+    message: '备份会暂停本应用的仿真服务。', detail: '请先等待任务完成。备份包含技能、执行历史、缓存和结果，可能含私人仿真内容，请妥善保存；不包含内部令牌和模型密钥。完成后可重新启动。'});
+  if (confirmation.response !== 1) return runtime.snapshot();
+  const chosen = await dialog.showSaveDialog(manager, {title: '保存数据备份', defaultPath: 'AcouAgent-data-' + new Date().toISOString().slice(0,10) + '.zip', filters: [{name: 'AcouAgent数据备份', extensions: ['zip']}]});
+  if (chosen.canceled) return runtime.snapshot();
+  return runtime.backup(chosen.filePath);
 }
 
 async function closeApplication() {

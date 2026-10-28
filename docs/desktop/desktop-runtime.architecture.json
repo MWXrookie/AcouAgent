@@ -24,7 +24,7 @@
           "docker",
           "vault"
         ],
-        "note": "桌面候选已实现环境检测、固定Compose和系统加密。仅允许本机运行时，操作前核对容器/数据卷归属；不影响旧Web部署。"
+        "note": "桌面主进程核对自有资源，暂停网关写入后调用固定镜像的无网络备份容器；SQLite一致快照与结果流式导出ZIP并逐文件哈希。备份不含系统加密令牌，失败不覆盖原文件。恢复与跨版本验收尚未完成。"
       },
       {
         "id": "simulation",
@@ -88,7 +88,7 @@
       "id": "docker",
       "type": "backend",
       "label": "本机Docker",
-      "sublabel": "仅Linux x64 / 固定镜像",
+      "sublabel": "本机编排 / 无网络备份容器",
       "pos": [
         740,
         105
@@ -172,7 +172,7 @@
       "id": "data",
       "type": "database",
       "label": "独立持久数据",
-      "sublabel": "技能 / 历史 / 缓存",
+      "sublabel": "技能 / 历史 / 一致快照",
       "pos": [
         1000,
         540

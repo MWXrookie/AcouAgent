@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('acouagent', Object.freeze({
   dockerGuide: () => ipcRenderer.invoke('desktop:docker-guide'),
   copyAdminToken: () => ipcRenderer.invoke('desktop:copy-admin'),
   diagnostics: () => ipcRenderer.invoke('desktop:diagnostics'),
+  backup: () => ipcRenderer.invoke('desktop:backup'),
   onState: callback => {const listener = (_event, value) => callback(value); ipcRenderer.on('desktop:state', listener); return () => ipcRenderer.removeListener('desktop:state', listener);}
 }));

@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const require=createRequire(path.join(root,'desktop/package.json'));
 const {_electron}=require('playwright');
+const {spawnSync}=require('node:child_process');
 if(process.platform!=='win32'||!process.env.ACOUAGENT_ELECTRON_EXE)throw Error('packaged_windows_executable_required');
 const output=path.resolve(process.env.ACOUAGENT_DESKTOP_UAT_OUTPUT||path.join(root,'outputs/desktop-windows-runtime'));
 await mkdir(output,{recursive:true});
@@ -15,16 +16,32 @@ const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
 const electron=await _electron.launch({executablePath:process.env.ACOUAGENT_ELECTRON_EXE,args:[],env,timeout:45000});
 const checks=[],errors=[];let state,manager,lastPhase;
 const check=(value,name)=>{if(!value)throw Error(name);checks.push(name);};
+async function capture(page,name){
+ await electron.evaluate(({BrowserWindow},url)=>{
+  const window=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL()===url);
+  if(window.isMinimized())window.restore();window.show();window.focus();
+ },page.url());
+ await page.waitForFunction(()=>document.readyState==='complete');
+ await page.evaluate(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});
+ const png=await electron.evaluate(async({BrowserWindow},url)=>{
+  const window=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL()===url);
+  if(!window)throw Error('capture_window_missing');
+  if(window.isMinimized())window.restore();window.show();window.focus();
+  return (await window.capturePage(undefined,{stayAwake:true})).toPNG().toString('base64');
+ },page.url());
+ await writeFile(path.join(output,name),Buffer.from(png,'base64'));
+}
 let progress;
 try{
  manager=await electron.firstWindow();manager.on('pageerror',error=>errors.push(error.message));
  await manager.locator('#start').waitFor();
- await manager.screenshot({path:path.join(output,'01-start.png'),animations:'disabled'});
+ await capture(manager,'01-start.png');
  await manager.locator('#start').click();
  progress=setInterval(async()=>{try{const phase=await manager.locator('body').getAttribute('data-phase');if(phase!==lastPhase){lastPhase=phase;console.log(phase);}}catch{}},10000);
  await manager.waitForFunction(()=>document.body.dataset.busy==='false'&&document.body.dataset.phase!=='idle',null,{timeout:36*60*1000});
  state=await manager.evaluate(()=>window.acouagent.status());
- await manager.screenshot({path:path.join(output,'02-runtime-result.png'),animations:'disabled'});
+ await manager.bringToFront();
+ await capture(manager,'02-runtime-result.png');
  check(state.ready&&state.phase==='ready','actual_windows_packaged_runtime_and_17_skills_ready');
  check(!state.extensions,'extensions_remain_explicit_opt_in');
  await manager.locator('#open').click();
@@ -34,14 +51,36 @@ try{
  await workbench.locator('body').waitFor();
  check((await workbench.locator('body').innerText()).includes('AcouAgent'),'actual_portal_rendered');
  check(await workbench.evaluate(()=>typeof require==='undefined'&&typeof process==='undefined'&&typeof window.acouagent==='undefined'),'workbench_has_no_native_bridge');
- await workbench.screenshot({path:path.join(output,'03-workbench.png'),animations:'disabled'});
+ await capture(workbench,'03-workbench.png');
  const isolation=await electron.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().map(w=>{const p=w.webContents.getLastWebPreferences();return{nodeIntegration:p.nodeIntegration,contextIsolation:p.contextIsolation,sandbox:p.sandbox,webSecurity:p.webSecurity};}));
  check(isolation.length===2&&isolation.every(p=>!p.nodeIntegration&&p.contextIsolation&&p.sandbox&&p.webSecurity),'both_actual_windows_isolated');
  check(errors.length===0,'manager_has_no_javascript_errors');
+ if(process.env.ACOUAGENT_DESKTOP_UAT_BACKUP==='true'){
+  const destination=path.join(output,'actual-data-backup.zip');
+  // Only the native file-picker response is automated. UI, IPC, Docker export,
+  // SQLite snapshot and archive bytes all use the actual packaged application.
+  await electron.evaluate(({dialog},destination)=>{
+    dialog.showMessageBox=async()=>({response:1,checkboxChecked:false});
+    dialog.showSaveDialog=async()=>({canceled:false,filePath:destination});
+  },destination);
+  await manager.bringToFront();await manager.locator('#backup').click();
+  await manager.waitForFunction(()=>['stopped','error'].includes(document.body.dataset.phase)&&document.body.dataset.busy==='false',null,{timeout:600000});
+  state=await manager.evaluate(()=>window.acouagent.status());
+  check(state.phase==='stopped','actual_windows_data_backup_export');
+  await capture(manager,'04-backup-complete.png');
+  const verified=spawnSync('py.exe',['-3.12','-X','utf8','-c',
+    "import hashlib,json,sys,zipfile,sqlite3,tempfile;from pathlib import Path;z=zipfile.ZipFile(sys.argv[1]);m=json.loads(z.read('manifest.json'));assert m['kind']=='acouagent-desktop-data';assert {'data/skill_store.db','data/execution_history.db'}<={f['path'] for f in m['files']};assert all(hashlib.sha256(z.read(f['path'])).hexdigest()==f['sha256'] and len(z.read(f['path']))==f['size'] for f in m['files']);assert not any('credentials.bin' in f['path'] for f in m['files']);print(json.dumps({'verifiedFiles':len(m['files']),'totalBytes':m['totalBytes']}))",destination],{encoding:'utf8',windowsHide:true,timeout:60000});
+  check(verified.status===0,'actual_backup_file_hashes_and_expected_databases');
+  await writeFile(path.join(output,'backup-verification.json'),verified.stdout);
+  await manager.locator('#start').click();
+  await manager.waitForFunction(()=>document.body.dataset.busy==='false'&&['ready','error'].includes(document.body.dataset.phase),null,{timeout:600000});
+  state=await manager.evaluate(()=>window.acouagent.status());
+  check(state.ready,'actual_windows_restart_after_backup');
+ }
  console.log(JSON.stringify({passed:checks.length}));
-}catch(error){errors.push(error.message);if(manager){state=await manager.evaluate(()=>window.acouagent.status()).catch(()=>null);await manager.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}throw error;}
+}catch(error){errors.push(error.message);if(manager){state=await manager.evaluate(()=>window.acouagent.status()).catch(()=>null);}throw error;}
 finally{
  clearInterval(progress);
- await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_windows_packaged_runtime',checks,errors,state,model_simulation_tested:false,resources_preserved:true},null,2));
+ await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_windows_packaged_runtime',checks,errors,state,model_simulation_tested:false,native_backup_file_selection_automated:process.env.ACOUAGENT_DESKTOP_UAT_BACKUP==='true',resources_preserved:true},null,2));
  await electron.evaluate(({app})=>app.exit(0)).catch(()=>{});await electron.close().catch(()=>{});
 }

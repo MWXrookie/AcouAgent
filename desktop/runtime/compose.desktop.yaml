@@ -84,6 +84,23 @@ services:
     labels:
       io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
 
+  data-maintenance:
+    profiles: [maintenance]
+    image: ${ACOUAGENT_GATEWAY_IMAGE:?required}
+    platform: linux/amd64
+    restart: "no"
+    network_mode: none
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=64m"]
+    volumes: [desktop_data:/app/data]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
+
 networks:
   gateway_frontend: {}
   executor_internal: {internal: true}

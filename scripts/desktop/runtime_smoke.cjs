@@ -29,6 +29,11 @@ async function main(){
   await runtime.start();check(runtime.state.ready,'restart_revalidates_existing_skills');
   const marker=await runtime.compose(['exec','-T','gateway','python','-c',"from pathlib import Path;print(Path('/app/data/desktop-retention-marker').read_text())"]);check(marker==='kept','data_preserved_after_restart');
   check(await (await fetch(runtime.baseURL()+'/portal')).text().then(x=>x.includes('AcouAgent')),'actual_portal_available');
+  const archive=path.join(output,'data-backup.zip');
+  await runtime.backup(archive);check(runtime.state.phase==='stopped','real_offline_backup_export');
+  await command('python3',['-c',"import hashlib,json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); m=json.loads(z.read('manifest.json')); assert m['kind']=='acouagent-desktop-data'; assert z.read('data/desktop-retention-marker')==b'kept'; assert all(hashlib.sha256(z.read(f['path'])).hexdigest()==f['sha256'] and len(z.read(f['path']))==f['size'] for f in m['files'])",archive]);
+  check(true,'real_backup_manifest_files_and_hashes_verified');
+  await runtime.start();check(runtime.state.ready,'resume_after_backup');
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_disposable_linux_desktop_runtime',checks,images:runtime.images,windows_full_solver_acceptance:false},null,2));
   console.log(JSON.stringify({passed:checks.length}));
  }finally{
