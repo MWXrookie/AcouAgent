@@ -25,4 +25,21 @@ async function streamBackup(executable,args,{env,destination,timeout=600000,maxB
   return {bytes};
  }finally{clearTimeout(timer);await fsp.unlink(temporary).catch(error=>{if(error.code!=='ENOENT')throw error;});}
 }
-module.exports={streamBackup};
+/** Feed a chosen archive to the fixed offline importer without buffering it. */
+async function streamRestore(executable,args,{env,source,timeout=600000,maxBytes=9*1024**3}={}){
+ const stats=await fsp.stat(source);
+ if(!stats.isFile()||stats.size===0||stats.size>maxBytes)throw Error('invalid_backup_input');
+ const child=spawn(executable,args,{env,shell:false,windowsHide:true,stdio:['pipe','pipe','pipe']});
+ let output='',errors='',bytes=0;
+ const timer=setTimeout(()=>child.kill(),timeout);
+ const exit=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',code=>code===0?resolve():reject(Error(errors||'backup_import_failed')));});
+ child.stdout.on('data',chunk=>{output=(output+chunk.toString('utf8')).slice(-2000000);});
+ child.stderr.on('data',chunk=>{errors=(errors+chunk.toString('utf8')).slice(-16000);});
+ const limit=new Transform({transform(chunk,_encoding,done){bytes+=chunk.length;done(bytes>maxBytes?Error('backup_size_limit'):null,chunk);}});
+ try{
+  const outcomes=await Promise.allSettled([pipeline(fs.createReadStream(source),limit,child.stdin).catch(error=>{child.kill();throw error;}),exit]);
+  for(const outcome of outcomes)if(outcome.status==='rejected')throw outcome.reason;
+  return JSON.parse(output);
+ }finally{clearTimeout(timer);}
+}
+module.exports={streamBackup,streamRestore};

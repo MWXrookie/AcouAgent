@@ -106,5 +106,6 @@ networks:
   executor_internal: {internal: true}
 volumes:
   desktop_data:
+    name: ${ACOUAGENT_DATA_VOLUME:-acouagent-desktop_desktop_data}
     labels:
       io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}

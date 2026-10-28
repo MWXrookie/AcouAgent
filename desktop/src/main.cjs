@@ -9,7 +9,7 @@ const {Vault} = require('./vault.cjs');
 protocol.registerSchemesAsPrivileged([{scheme: 'acouagent', privileges: {standard: true, secure: true, supportFetchAPI: true}}]);
 const localData = process.env.LOCALAPPDATA || app.getPath('appData');
 app.setPath('userData', app.commandLine.getSwitchValue('acouagent-data-dir') ? path.resolve(app.commandLine.getSwitchValue('acouagent-data-dir')) : path.join(localData, 'AcouAgent', 'Desktop'));
-let manager, workbench, runtime, quitting = false;
+let manager, workbench, runtime, workbenchVolume, quitting = false;
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 else {
@@ -51,7 +51,8 @@ async function initialize() {
     'docker-guide': () => shell.openExternal('https://docs.docker.com/desktop/setup/install/windows-install/'),
     'copy-admin': async () => {clipboard.writeText(runtime.secrets.PORTAL_ADMIN_TOKEN); return {copied: true};},
     diagnostics: () => exportDiagnostics(),
-    backup: () => exportBackup()
+    backup: () => exportBackup(),
+    restore: () => restoreBackup()
   })) ipcMain.handle('desktop:' + channel, (event) => {
     if (event.sender !== manager.webContents || event.senderFrame !== manager.webContents.mainFrame || event.senderFrame.url !== 'acouagent://desktop/index.html') throw Error('untrusted_ipc_sender');
     return fn();
@@ -68,8 +69,15 @@ async function initialize() {
 
 async function openWorkbench() {
   if (!runtime.state.ready) {manager.show(); return {opened: false};}
-  if (workbench && !workbench.isDestroyed()) {workbench.show(); workbench.focus(); return {opened: true};}
   const origin = runtime.baseURL();
+  if (workbench && !workbench.isDestroyed()) {
+    const current = workbench.webContents.getURL();
+    if ((!current || current === 'about:blank' || current.startsWith(origin + '/')) && workbenchVolume === runtime.settings.dataVolume) {
+      workbench.show(); workbench.focus(); return {opened: true};
+    }
+    workbench.destroy();
+  }
+  workbenchVolume = runtime.settings.dataVolume;
   workbench = new BrowserWindow({width: 1440, height: 960, minWidth: 780, minHeight: 620, title: 'AcouAgent · 声学仿真', backgroundColor: '#f5f7fb',
     webPreferences: {nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false, partition: 'persist:acouagent-workbench'}});
   hardened(workbench, url => {try {return new URL(url).origin === origin;} catch {return false;}});
@@ -89,11 +97,21 @@ async function exportDiagnostics() {
 async function exportBackup() {
   if (runtime.state.busy) return runtime.snapshot();
   const confirmation = await dialog.showMessageBox(manager, {type: 'question', buttons: ['取消', '选择备份位置'], defaultId: 0, cancelId: 0,
-    message: '备份会暂停本应用的仿真服务。', detail: '请先等待任务完成。备份包含技能、执行历史、缓存和结果，可能含私人仿真内容，请妥善保存；不包含内部令牌和模型密钥。完成后可重新启动。'});
+    message: '备份会暂停本应用的仿真服务。', detail: '请先等待任务完成并保存尚未提交的输入。备份可能含私人仿真内容，请妥善保存；不导出系统凭据。完成后重新启动并连接模型。'});
   if (confirmation.response !== 1) return runtime.snapshot();
   const chosen = await dialog.showSaveDialog(manager, {title: '保存数据备份', defaultPath: 'AcouAgent-data-' + new Date().toISOString().slice(0,10) + '.zip', filters: [{name: 'AcouAgent数据备份', extensions: ['zip']}]});
   if (chosen.canceled) return runtime.snapshot();
   return runtime.backup(chosen.filePath);
+}
+
+async function restoreBackup() {
+  if (runtime.state.busy) return runtime.snapshot();
+  const chosen = await dialog.showOpenDialog(manager, {title: '选择本应用的数据备份', filters: [{name: 'AcouAgent数据备份', extensions: ['zip']}], properties: ['openFile']});
+  if (chosen.canceled || chosen.filePaths.length !== 1) return runtime.snapshot();
+  const confirmation = await dialog.showMessageBox(manager, {type: 'warning', buttons: ['取消', '验证并恢复'], defaultId: 0, cancelId: 0,
+    message: '恢复备份会切换当前工作台使用的数据。', detail: '请先等待任务完成并保存尚未提交的输入。仅接受本安装、相同计算版本的备份；先在新卷验证，原卷会保留。完成后重新进入工作台并连接模型。'});
+  if (confirmation.response !== 1) return runtime.snapshot();
+  return runtime.restore(chosen.filePaths[0]);
 }
 
 async function closeApplication() {

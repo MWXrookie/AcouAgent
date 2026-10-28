@@ -2,7 +2,7 @@
  * Does not call a model, alter history, or delete resources. Close the app after checking.
  */
 import {createRequire} from 'node:module';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
@@ -32,6 +32,12 @@ async function capture(page,name){
  await writeFile(path.join(output,name),Buffer.from(png,'base64'));
 }
 let progress;
+const testRestore=process.env.ACOUAGENT_DESKTOP_UAT_RESTORE==='true';
+const dockerPath=path.join(process.env.LOCALAPPDATA||'','Programs','DockerDesktop','resources','bin','docker.exe');
+function docker(args){
+ const result=spawnSync(dockerPath,['--context','desktop-linux',...args],{encoding:'utf8',windowsHide:true,timeout:60000,env:{...process.env,Path:path.dirname(dockerPath)+';'+(process.env.Path||process.env.PATH||'')}});
+ if(result.status!==0)throw Error('desktop_uat_docker_operation_failed');return result.stdout.trim();
+}
 try{
  manager=await electron.firstWindow();manager.on('pageerror',error=>errors.push(error.message));
  await manager.locator('#start').waitFor();
@@ -57,6 +63,12 @@ try{
  check(errors.length===0,'manager_has_no_javascript_errors');
  if(process.env.ACOUAGENT_DESKTOP_UAT_BACKUP==='true'){
   const destination=path.join(output,'actual-data-backup.zip');
+  let previousVolume;
+  if(testRestore){
+   previousVolume=JSON.parse(docker(['inspect','acouagent-desktop-gateway-1','--format','{{json .Mounts}}'])).find(m=>m.Destination==='/app/data').Name;
+   check(/^(?:acouagent-desktop_desktop_data|acouagent-desktop-data-[a-f0-9]{32})$/.test(previousVolume),'original_desktop_volume_identified');
+   docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').write_text('before backup')"]);
+  }
   // Only the native file-picker response is automated. UI, IPC, Docker export,
   // SQLite snapshot and archive bytes all use the actual packaged application.
   await electron.evaluate(({dialog},destination)=>{
@@ -76,6 +88,33 @@ try{
   await manager.waitForFunction(()=>document.body.dataset.busy==='false'&&['ready','error'].includes(document.body.dataset.phase),null,{timeout:600000});
   state=await manager.evaluate(()=>window.acouagent.status());
   check(state.ready,'actual_windows_restart_after_backup');
+  if(testRestore){
+   docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').write_text('after backup')"]);
+   await electron.evaluate(({dialog},destination)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[destination]});},destination);
+   await manager.locator('#restore').click();
+   await manager.waitForFunction(()=>document.body.dataset.busy==='false'&&(document.body.dataset.phase==='error'||(document.body.dataset.phase==='ready'&&document.getElementById('state-title').textContent.includes('恢复'))),null,{timeout:900000});
+   state=await manager.evaluate(()=>window.acouagent.status());
+   check(state.ready&&state.title.includes('恢复'),'actual_windows_restore_completed');
+   const currentVolume=JSON.parse(docker(['inspect','acouagent-desktop-gateway-1','--format','{{json .Mounts}}'])).find(m=>m.Destination==='/app/data').Name;
+   check(currentVolume!==previousVolume,'restored_into_new_volume');
+   check(docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;print(Path('/app/data/desktop-restore-uat-marker').read_text())"])==='before backup','restored_backup_state_not_latest_state');
+   const oldOwner=docker(['volume','inspect',previousVolume,'--format','{{index .Labels "io.acouagent.desktop.install_id"}}']);
+   const newOwner=docker(['volume','inspect',currentVolume,'--format','{{index .Labels "io.acouagent.desktop.install_id"}}']);
+   check(oldOwner===newOwner&&/^[a-f0-9]{64}$/.test(oldOwner),'both_volumes_remain_owned_by_this_installation');
+   const images=JSON.parse(await readFile(path.join(root,'desktop/runtime/images.json'),'utf8'));
+   const retained=docker(['run','--rm','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','128m','--cpus','0.5','--pids-limit','32','--mount','type=volume,src='+previousVolume+',dst=/qa,readonly','--entrypoint','python',images.gateway,'-c',"from pathlib import Path;print(Path('/qa/desktop-restore-uat-marker').read_text())"]);
+   check(retained==='after backup','original_volume_preserves_newer_state');
+   await capture(manager,'05-restore-complete.png');
+   await manager.locator('#open').click();
+   const reopenDeadline=Date.now()+30000;let restoredWorkbench;
+   while(Date.now()<reopenDeadline){restoredWorkbench=electron.windows().find(w=>w!==manager&&w.url().startsWith('http://127.0.0.1:'+state.port+'/'));if(restoredWorkbench)break;await new Promise(r=>setTimeout(r,100));}
+   check(!!restoredWorkbench,'reopened_workbench_uses_current_service_port');
+   await restoredWorkbench.locator('body').waitFor();
+   check(await restoredWorkbench.evaluate(()=>typeof window.acouagent==='undefined'),'restored_workbench_keeps_no_native_bridge');
+   // Remove only the exact markers created by this run; preserve both data volumes.
+   docker(['exec','acouagent-desktop-gateway-1','python','-c',"from pathlib import Path;Path('/app/data/desktop-restore-uat-marker').unlink(missing_ok=True)"]);
+   docker(['run','--rm','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','128m','--cpus','0.5','--pids-limit','32','--mount','type=volume,src='+previousVolume+',dst=/qa','--entrypoint','python',images.gateway,'-c',"from pathlib import Path;Path('/qa/desktop-restore-uat-marker').unlink(missing_ok=True)"]);
+  }
  }
  console.log(JSON.stringify({passed:checks.length}));
 }catch(error){errors.push(error.message);if(manager){state=await manager.evaluate(()=>window.acouagent.status()).catch(()=>null);}throw error;}

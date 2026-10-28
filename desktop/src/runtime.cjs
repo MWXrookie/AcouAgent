@@ -5,10 +5,12 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
-const {streamBackup} = require('./backup.cjs');
+const {streamBackup, streamRestore} = require('./backup.cjs');
 
 const PROJECT = 'acouagent-desktop';
 const OWNER_LABEL = 'io.acouagent.desktop.install_id';
+const DEFAULT_VOLUME = PROJECT + '_desktop_data';
+const DATA_VOLUME = /^(?:acouagent-desktop_desktop_data|acouagent-desktop-data-[a-f0-9]{32})$/;
 const IMAGE = /^ghcr\.io\/mwxrookie\/acouagent-(?:gateway|executor)@sha256:[a-f0-9]{64}$/;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -75,11 +77,19 @@ async function waitForGatewayHealth(url, {timeoutMs = 90000, intervalMs = 1000} 
   throw Error('gateway_not_healthy');
 }
 
+function parseSettings(value) {
+  if (!value || !Number.isInteger(value.port) || value.port < 1024 || value.port > 65535 || typeof value.extensions !== 'boolean'
+    || (value.runtimeSha256 !== undefined && typeof value.runtimeSha256 !== 'string')
+    || (value.dataVolume !== undefined && typeof value.dataVolume !== 'string')
+    || !/^(?:[a-f0-9]{64})?$/.test(value.runtimeSha256 || '') || !DATA_VOLUME.test(value.dataVolume || DEFAULT_VOLUME)) throw Error('invalid_desktop_settings');
+  return {port: value.port, extensions: value.extensions, runtimeSha256: value.runtimeSha256 || '', dataVolume: value.dataVolume || DEFAULT_VOLUME};
+}
+
 class Runtime extends EventEmitter {
-  constructor({resourceDir, dataDir, vault, runner = command, platform = process.platform}) {
-    super(); Object.assign(this, {resourceDir, dataDir, vault, runner, platform});
+  constructor({resourceDir, dataDir, vault, runner = command, platform = process.platform, importer = streamRestore, exporter = streamBackup}) {
+    super(); Object.assign(this, {resourceDir, dataDir, vault, runner, platform, importer, exporter});
     this.state = {phase: 'idle', title: '准备本地仿真环境', detail: '首次启动将检查运行环境并准备经过验证的计算镜像。', ready: false, busy: false, logs: []};
-    this.settings = {port: 18081, extensions: false, runtimeSha256: ''};
+    this.settings = {port: 18081, extensions: false, runtimeSha256: '', dataVolume: DEFAULT_VOLUME};
     this.context = null; this.secrets = null;
   }
   snapshot() {return {...this.state, port: this.settings.port, extensions: this.settings.extensions, logs: [...this.state.logs]};}
@@ -95,14 +105,22 @@ class Runtime extends EventEmitter {
     const settingsFile = path.join(this.dataDir, 'settings.json');
     try {
       const value = JSON.parse(await fs.readFile(settingsFile, 'utf8'));
-      if (!Number.isInteger(value.port) || value.port < 1024 || value.port > 65535 || typeof value.extensions !== 'boolean' || !/^(?:[a-f0-9]{64})?$/.test(value.runtimeSha256 || '')) throw Error('invalid_desktop_settings');
-      this.settings = {port: value.port, extensions: value.extensions, runtimeSha256: value.runtimeSha256 || ''};
+      this.settings = parseSettings(value);
     } catch (error) {if (error.code !== 'ENOENT') throw error;}
     this.secrets = await this.vault.load();
     for (const key of ['MCP_AUTH_TOKEN', 'EXECUTOR_SHARED_TOKEN', 'PORTAL_ADMIN_TOKEN', 'ACOUAGENT_INSTALL_ID']) {
       if (typeof this.secrets[key] !== 'string' || !/^[a-f0-9]{64}$/.test(this.secrets[key])) throw Error('invalid_desktop_credentials');
     }
+    try {
+      const journal = JSON.parse(await fs.readFile(path.join(this.dataDir, 'restore-journal.json'), 'utf8'));
+      if (journal.schema !== 1 || journal.installation !== this.installationHash()) throw Error('invalid_restore_journal');
+      this.settings = parseSettings(journal.previous);
+      await atomicWrite(settingsFile, JSON.stringify(this.settings));
+      this.pendingRestoreRecovery = true;
+      this.change('idle', '上次恢复未完成，已选择恢复前的数据', '点击检查并启动，重新核对原服务和基础技能。两份数据均已保留。');
+    } catch (error) {if (error.code !== 'ENOENT') throw error;}
   }
+  installationHash() {return crypto.createHash('sha256').update(this.secrets.ACOUAGENT_INSTALL_ID).digest('hex');}
   environment(extra = {}) {
     const env = {...process.env};
     // Docker invokes its credential helper by name. A newly installed Desktop
@@ -115,7 +133,8 @@ class Runtime extends EventEmitter {
     // Never inherit a caller's remote Docker host or Compose overrides.
     for (const key of Object.keys(env)) if (/^(DOCKER_|COMPOSE_|ACOUAGENT_|MCP_AUTH_TOKEN$|EXECUTOR_SHARED_TOKEN$|PORTAL_ADMIN_TOKEN$)/.test(key)) delete env[key];
     return {...env, ...this.secrets, ACOUAGENT_GATEWAY_IMAGE: this.images.gateway, ACOUAGENT_EXECUTOR_IMAGE: this.images.executor,
-      ACOUAGENT_DESKTOP_PORT: String(this.settings.port), ACOUAGENT_SKILL_EXTENSIONS: String(this.settings.extensions), ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ...extra};
+      ACOUAGENT_DESKTOP_PORT: String(this.settings.port), ACOUAGENT_DATA_VOLUME: this.settings.dataVolume,
+      ACOUAGENT_SKILL_EXTENSIONS: String(this.settings.extensions), ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ...extra};
   }
   async docker(args, {timeout = 30000, progress = false, context = true, extraEnv = {}} = {}) {
     const candidates = [...new Set([this.dockerExecutable, ...dockerCandidates(this.platform)].filter(Boolean))];
@@ -150,7 +169,7 @@ class Runtime extends EventEmitter {
     if (!['x86_64', 'amd64'].includes(arch)) throw Error('x64_runtime_required');
     await this.docker(['compose', 'version']);
   }
-  async assertOwnership() {
+  async assertOwnership(volumeName = this.settings.dataVolume, required = false) {
     const ids = (await this.docker(['ps', '-a', '--filter', 'label=com.docker.compose.project=' + PROJECT, '--format', '{{.ID}}'])).split(/\r?\n/).filter(Boolean);
     for (const id of ids) {
       if (!/^[a-f0-9]{12,64}$/.test(id)) throw Error('invalid_container_identity');
@@ -158,9 +177,10 @@ class Runtime extends EventEmitter {
       if (labels?.[OWNER_LABEL] !== this.secrets.ACOUAGENT_INSTALL_ID) throw Error('foreign_desktop_resources_refused');
     }
     let volume;
-    try {volume = JSON.parse(await this.docker(['volume', 'inspect', PROJECT + '_desktop_data', '--format', '{{json .Labels}}']));}
+    try {volume = JSON.parse(await this.docker(['volume', 'inspect', volumeName, '--format', '{{json .Labels}}']));}
     catch (error) {if (!/no such volume|not found/i.test(error.message)) throw error;}
     if (volume && volume[OWNER_LABEL] !== this.secrets.ACOUAGENT_INSTALL_ID) throw Error('foreign_desktop_volume_refused');
+    if (!volume && required) throw Error('restore_volume_missing');
   }
   async exclusive(fn) {
     if (this.state.busy) return this.snapshot();
@@ -171,12 +191,18 @@ class Runtime extends EventEmitter {
     return this.snapshot();
   }
   friendlyError(error) {
+    if (/backup_installation_mismatch/.test(error.message)) return '备份不属于本安装，已拒绝恢复。原数据仍保留。';
+    if (/backup_runtime_mismatch/.test(error.message)) return '备份的计算版本与当前程序不一致，已拒绝恢复。请使用与备份匹配的版本。';
+    if (error.message === 'restore_failed_original_preserved') return '恢复未完成，已保留并选择恢复前的数据。请重新检查并启动，或导出诊断。';
     const known = {docker_not_installed: '请先安装并启动 Docker Desktop，使用 Linux 容器模式；完成后回到这里重试。', linux_containers_required: '请将 Docker Desktop 切换到 Linux 容器模式。', remote_docker_context_refused: '当前Docker连接不是允许的本机运行时，已停止操作。', x64_runtime_required: '首版计算运行时需要 Linux x64，请使用对应平台。', foreign_desktop_resources_refused: '发现不属于本安装的同名服务，已停止操作并保留原数据。', foreign_desktop_volume_refused: '发现不属于本安装的同名数据卷，已停止操作并保留原数据。', no_free_port: '本机端口暂不可用，请关闭占用或稍后重试。', bootstrap_failed: '基础技能准备未通过；数据已保留，可重试并查看诊断。', invalid_desktop_settings: '本地配置格式异常；请保留数据并导出诊断。'};
-    return known[error.message] || '请确认 Docker Desktop 已启动、网络可下载镜像，再重试。原有数据不会被删除。';
+    if (known[error.message]) return known[error.message];
+    if (/backup_|restore_|snapshot|BadZipFile/.test(error.message)) return '数据操作未完成，备份或数据库校验未通过。原数据仍保留，请重新检查并启动或导出诊断。';
+    return '请确认 Docker Desktop 已启动、网络可下载镜像，再重试。原有数据不会被删除。';
   }
-  async start() {return this.exclusive(async () => {
+  async start() {return this.exclusive(() => this.startCore());}
+  async startCore() {
     this.change('checking', '检查计算运行时', '检测本机Docker、Linux容器和数据所有权。');
-    await this.inspectEnvironment(); await this.assertOwnership();
+    await this.inspectEnvironment(); await this.assertOwnership(this.settings.dataVolume, !!this.pendingRestoreRecovery);
     const existing = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
     if (!existing.some(item => item.Service === 'gateway' && item.State === 'running')) {
       let available = false;
@@ -209,9 +235,68 @@ class Runtime extends EventEmitter {
     await waitForGatewayHealth(this.baseURL());
     const skills = JSON.parse(await this.compose(['exec', '-T', 'gateway', 'python', '-m', 'scripts.skill_library.local_basic', 'status-all']));
     if (!skills.ready || skills.ready_count !== 17) throw Error('bootstrap_failed');
+    if (this.pendingRestoreRecovery) {
+      await fs.unlink(path.join(this.dataDir, 'restore-journal.json'));
+      this.pendingRestoreRecovery = false;
+    }
     this.change('ready', '本地工作台已就绪', '17项基础技能已准备。进入工作台后连接你的模型，即可开始仿真。', true);
-  });}
+  }
   baseURL() {return 'http://127.0.0.1:' + this.settings.port;}
+  maintenanceArgs(container, source, metadata, restore = false) {
+    return ['--context', this.context, 'compose', '--project-name', PROJECT, '--project-directory', this.resourceDir,
+      '--env-file', path.join(this.resourceDir, 'defaults.env'), '--file', path.join(this.resourceDir, 'compose.desktop.yaml'),
+      'run', '--rm', '--no-deps', '-T', ...(restore ? ['--interactive'] : []), '--name', container, '--entrypoint', 'python', 'data-maintenance', '-c', source,
+      '--metadata', JSON.stringify(metadata), ...(restore ? ['--restore'] : [])];
+  }
+  async cleanMaintenance(container) {
+    let labels;
+    try {labels = JSON.parse(await this.docker(['inspect', container, '--format', '{{json .Config.Labels}}']));}
+    catch (error) {if (!/no such|not found/i.test(error.message)) throw error;}
+    if (labels) {
+      if (labels[OWNER_LABEL] !== this.secrets.ACOUAGENT_INSTALL_ID) throw Error('foreign_desktop_resources_refused');
+      await this.docker(['rm', '-f', container]);
+    }
+  }
+  async restore(archive) {return this.exclusive(async () => {
+    if (!['ready', 'stopped'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
+    await this.inspectEnvironment(); await this.assertOwnership();
+    this.change('restoring', '验证备份并准备新的数据卷', '核对来源、文件哈希、数据库完整性和版本；通过后才切换，原数据卷始终保留。');
+    const candidate = PROJECT + '-data-' + crypto.randomUUID().replaceAll('-', '');
+    const container = PROJECT + '-restore-' + crypto.randomUUID();
+    const source = await fs.readFile(path.join(this.resourceDir, 'data_backup.py'), 'utf8');
+    let imported;
+    try {
+      imported = await this.importer(this.dockerExecutable, this.maintenanceArgs(container, source,
+        {installation: this.installationHash(), images: this.images}, true),
+        {env: this.environment({ACOUAGENT_DATA_VOLUME: candidate}), source: archive});
+    } finally {await this.cleanMaintenance(container);}
+    if (!imported.restored) throw Error('backup_import_failed');
+    await this.assertOwnership(candidate, true);
+    const previous = {...this.settings};
+    const next = parseSettings({port: previous.port, extensions: imported.settings.extensions,
+      runtimeSha256: imported.settings.runtimeSha256, dataVolume: candidate});
+    await this.compose(['stop', 'gateway', 'skill-bootstrap'], {timeout: 90000});
+    const writers = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
+    if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && item.State === 'running')) throw Error('backup_writers_still_running');
+    const journalPath = path.join(this.dataDir, 'restore-journal.json');
+    const journal = {schema: 1, installation: this.installationHash(), previous, next};
+    await atomicWrite(journalPath, JSON.stringify(journal));
+    try {
+      this.settings = next;
+      await atomicWrite(path.join(this.dataDir, 'settings.json'), JSON.stringify(next));
+      await this.startCore();
+      await atomicWrite(path.join(this.dataDir, 'last-restore.json'), JSON.stringify({...journal, completedAt: new Date().toISOString()}));
+      await fs.unlink(journalPath);
+      this.change('ready', '数据已恢复并重新就绪', '备份已导入独立数据卷，17项基础技能重新核对通过。恢复前的数据卷仍保留。', true);
+    } catch (error) {
+      this.log(error.message);
+      this.settings = previous;
+      await atomicWrite(path.join(this.dataDir, 'settings.json'), JSON.stringify(previous));
+      this.pendingRestoreRecovery = true;
+      try {await this.startCore();} catch (rollbackError) {this.log(rollbackError.message);}
+      throw Error('restore_failed_original_preserved');
+    }
+  });}
   async backup(destination) {return this.exclusive(async () => {
     if (!['ready', 'stopped'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
     await this.inspectEnvironment(); await this.assertOwnership();
@@ -221,22 +306,14 @@ class Runtime extends EventEmitter {
     if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && item.State === 'running')) throw Error('backup_writers_still_running');
     const source = await fs.readFile(path.join(this.resourceDir, 'data_backup.py'), 'utf8');
     const metadata = {createdAt: new Date().toISOString(), images: this.images, settings: this.settings,
-      installation: crypto.createHash('sha256').update(this.secrets.ACOUAGENT_INSTALL_ID).digest('hex')};
+      installation: this.installationHash()};
     const container = PROJECT + '-backup-' + crypto.randomUUID();
-    const args = ['--context', this.context, 'compose', '--project-name', PROJECT, '--project-directory', this.resourceDir,
-      '--env-file', path.join(this.resourceDir, 'defaults.env'), '--file', path.join(this.resourceDir, 'compose.desktop.yaml'),
-      'run', '--rm', '--no-deps', '-T', '--name', container, '--entrypoint', 'python', 'data-maintenance', '-c', source, '--metadata', JSON.stringify(metadata)];
+    const args = this.maintenanceArgs(container, source, metadata);
     try {
-      await streamBackup(this.dockerExecutable, args, {env: this.environment(), destination});
+      await this.exporter(this.dockerExecutable, args, {env: this.environment(), destination});
     } finally {
       // A killed CLI can leave its temporary reader running in the engine.
-      let labels;
-      try {labels = JSON.parse(await this.docker(['inspect', container, '--format', '{{json .Config.Labels}}']));}
-      catch (error) {if (!/no such|not found/i.test(error.message)) throw error;}
-      if (labels) {
-        if (labels[OWNER_LABEL] !== this.secrets.ACOUAGENT_INSTALL_ID) throw Error('foreign_desktop_resources_refused');
-        await this.docker(['rm', '-f', container]);
-      }
+      await this.cleanMaintenance(container);
     }
     this.change('stopped', '数据备份已保存', '备份包含技能、执行历史、缓存及结果文件。服务已暂停，点击检查并启动可继续使用。');
   });}
@@ -247,4 +324,4 @@ class Runtime extends EventEmitter {
     this.change('stopped', '本地服务已停止', '数据已保留，下次启动可继续使用。');
   });}
 }
-module.exports = {Runtime, command, redact, atomicWrite, parseRecords, dockerCandidates, waitForGatewayHealth, portAvailable, PROJECT, OWNER_LABEL};
+module.exports = {Runtime, command, redact, atomicWrite, parseRecords, parseSettings, dockerCandidates, waitForGatewayHealth, portAvailable, PROJECT, OWNER_LABEL};

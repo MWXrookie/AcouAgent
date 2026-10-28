@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const {Runtime, redact, parseRecords, dockerCandidates, waitForGatewayHealth, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
+const {Runtime, redact, parseRecords, parseSettings, dockerCandidates, waitForGatewayHealth, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
 const {Vault} = require('../src/vault.cjs');
 const resourceDir = path.resolve(__dirname, '../runtime');
 const secrets = Object.fromEntries(['MCP_AUTH_TOKEN','EXECUTOR_SHARED_TOKEN','PORTAL_ADMIN_TOKEN','ACOUAGENT_INSTALL_ID'].map((key, i) => [key, String(i+1).repeat(64)]));
@@ -171,4 +171,37 @@ test('gateway readiness never accepts HTTP 200 with a wrong health body',async t
  const previous=global.fetch;t.after(()=>{global.fetch=previous;});
  global.fetch=async()=>({ok:true,text:async()=>'still starting'});
  await assert.rejects(waitForGatewayHealth('http://127.0.0.1:18081',{timeoutMs:15,intervalMs:1}),/gateway_not_healthy/);
+});
+
+test('data pointers accept only the default or a generated desktop volume name',()=>{
+ const base={port:18081,extensions:false,runtimeSha256:''};
+ assert.equal(parseSettings(base).dataVolume,'acouagent-desktop_desktop_data');
+ for(const dataVolume of ['foreign_volume','/app/data','acouagent-desktop-data-../foreign',true])assert.throws(()=>parseSettings({...base,dataVolume}),/invalid_desktop_settings/);
+});
+
+test('interrupted restore selects the original pointer and preserves the recovery journal',async t=>{
+ const {runtime,dataDir}=await fixture(t);
+ const previous={...runtime.settings};
+ const next={...previous,dataVolume:'acouagent-desktop-data-'+'a'.repeat(32)};
+ await fs.writeFile(path.join(dataDir,'settings.json'),JSON.stringify(next));
+ await fs.writeFile(path.join(dataDir,'restore-journal.json'),JSON.stringify({schema:1,installation:runtime.installationHash(),previous,next}));
+ await runtime.initialize();
+ assert.deepEqual(runtime.settings,previous);assert.equal(runtime.pendingRestoreRecovery,true);
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(dataDir,'settings.json'),'utf8')),previous);
+ assert.ok((await fs.stat(path.join(dataDir,'restore-journal.json'))).isFile());
+});
+
+test('failed candidate activation rolls the data pointer back without removing either volume',async t=>{
+ const {runtime,calls,dataDir}=await fixture(t,(_file,args)=>{
+  if(args.includes('volume')&&args.includes('inspect'))return JSON.stringify({[OWNER_LABEL]:secrets.ACOUAGENT_INSTALL_ID});
+  if(args.includes('inspect')&&!args.includes('context'))throw Error('No such object');
+ });
+ const previous={...runtime.settings};runtime.state.phase='ready';runtime.state.ready=true;
+ runtime.importer=async()=>({restored:true,settings:previous});
+ let activations=0;runtime.startCore=async()=>{if(++activations===1)throw Error('candidate not healthy');};
+ await runtime.restore('chosen-backup.zip');
+ assert.equal(activations,2);assert.deepEqual(runtime.settings,previous);
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(dataDir,'settings.json'),'utf8')),previous);
+ assert.equal(calls.some(c=>c.args.includes('volume')&&c.args.includes('rm')),false);
+ assert.equal(runtime.pendingRestoreRecovery,true);assert.equal(runtime.state.phase,'error');
 });
