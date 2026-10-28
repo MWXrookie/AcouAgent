@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AcouAgent Windows桌面候选架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1260,
+      680
+    ],
+    "output": "docs/desktop/desktop-runtime.architecture.html",
+    "legend": {
+      "mode": "hidden"
+    },
+    "views": [
+      {
+        "id": "desktop-start",
+        "label": "启动与数据保护",
+        "focus": [
+          "user",
+          "manager",
+          "controller",
+          "docker",
+          "vault"
+        ],
+        "note": "桌面候选已实现环境检测、固定Compose和系统加密。仅允许本机运行时，操作前核对容器/数据卷归属；不影响旧Web部署。"
+      },
+      {
+        "id": "simulation",
+        "label": "仿真与安全边界",
+        "focus": [
+          "user",
+          "workbench",
+          "gateway",
+          "executor",
+          "model",
+          "data"
+        ],
+        "note": "仿真窗口不注入宿主机接口；原生成、沙箱和物理门不变。Windows完整安装与求解实机验收尚待完成，不宣称桌面版已正式发布。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "使用者",
+      "sublabel": "桌面快捷方式",
+      "pos": [
+        30,
+        240
+      ],
+      "size": [
+        140,
+        74
+      ]
+    },
+    {
+      "id": "manager",
+      "type": "frontend",
+      "label": "本地运行管理",
+      "sublabel": "可信管理页 / 有限IPC",
+      "pos": [
+        230,
+        105
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "controller",
+      "type": "backend",
+      "label": "桌面主进程",
+      "sublabel": "固定操作 / 归属核对",
+      "pos": [
+        480,
+        105
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "docker",
+      "type": "backend",
+      "label": "本机Docker",
+      "sublabel": "仅Linux x64 / 固定镜像",
+      "pos": [
+        740,
+        105
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "security",
+      "label": "系统加密凭据",
+      "sublabel": "随机令牌 / 不落明文",
+      "pos": [
+        480,
+        240
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "workbench",
+      "type": "frontend",
+      "label": "仿真工作台",
+      "sublabel": "独立窗口 / 无宿主能力",
+      "pos": [
+        230,
+        370
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "本地编排与物理门",
+      "sublabel": "现有网关 / 127.0.0.1",
+      "pos": [
+        740,
+        370
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "executor",
+      "type": "security",
+      "label": "隔离求解器",
+      "sublabel": "只读 / 无外网 / 限额",
+      "pos": [
+        1000,
+        370
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "用户模型服务",
+      "sublabel": "临时BYOK / 现有协议",
+      "pos": [
+        480,
+        540
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "独立持久数据",
+      "sublabel": "技能 / 历史 / 缓存",
+      "pos": [
+        1000,
+        540
+      ],
+      "size": [
+        190,
+        80
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "user",
+      "to": "manager",
+      "label": "启动与管理"
+    },
+    {
+      "from": "manager",
+      "to": "controller",
+      "label": "白名单IPC"
+    },
+    {
+      "from": "controller",
+      "to": "docker",
+      "label": "受限CLI"
+    },
+    {
+      "from": "controller",
+      "to": "vault",
+      "label": "加解密令牌",
+      "labelDy": 24
+    },
+    {
+      "from": "user",
+      "to": "workbench",
+      "label": "仿真交互"
+    },
+    {
+      "from": "workbench",
+      "to": "gateway",
+      "label": "仅本机HTTP"
+    },
+    {
+      "from": "docker",
+      "to": "gateway",
+      "label": "项目生命周期",
+      "labelDy": 24
+    },
+    {
+      "from": "gateway",
+      "to": "executor",
+      "label": "执行与回执"
+    },
+    {
+      "from": "gateway",
+      "to": "model",
+      "label": "模型请求"
+    },
+    {
+      "from": "gateway",
+      "to": "data",
+      "label": "持久记录"
+    }
+  ]
+}

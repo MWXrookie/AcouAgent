@@ -1,0 +1,93 @@
+name: acouagent-desktop
+
+x-gateway-env: &gateway-env
+  MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?required}
+  EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN:?required}
+  PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:?required}
+  ORCHESTRATION_BACKEND: local
+  CODE_RETRY_MAX: "7"
+  SKILL_LIBRARY_ENABLED: "true"
+  SKILL_RETRIEVAL_ENABLED: "true"
+  SKILL_INJECTION_ENABLED: "true"
+  SKILL_MANUAL_INTAKE_ENABLED: "true"
+  SKILL_BOOTSTRAP_ALL_FIXED: "true"
+  SKILL_LEARNING_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
+  SKILL_AUTHORING_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
+  SKILL_VALIDATION_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
+  SKILL_GENERAL_ADMISSION_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
+  SKILL_GENERAL_RUNTIME_SHA256: ${ACOUAGENT_RUNTIME_SHA256:-}
+  SKILL_GENERAL_ASSET_ROOT: /app/data/skill_assets
+  SKILL_GENERAL_REFERENCE_ROOT: /app/data/skill_references
+
+services:
+  jwave-executor:
+    image: ${ACOUAGENT_EXECUTOR_IMAGE:?required}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN:?required}
+    networks: [executor_internal]
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=1g]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 256
+    mem_limit: 4g
+    cpus: 2.0
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 10s
+  gateway:
+    image: ${ACOUAGENT_GATEWAY_IMAGE:?required}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment: *gateway-env
+    ports: ["127.0.0.1:${ACOUAGENT_DESKTOP_PORT:?required}:8001"]
+    networks: [gateway_frontend, executor_internal]
+    depends_on:
+      jwave-executor: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=64m]
+    volumes: [desktop_data:/app/data]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 512m
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+  skill-bootstrap:
+    image: ${ACOUAGENT_GATEWAY_IMAGE:?required}
+    platform: linux/amd64
+    restart: "no"
+    environment: *gateway-env
+    command: [python, -m, scripts.skill_library.local_basic, bootstrap]
+    networks: [executor_internal]
+    depends_on:
+      jwave-executor: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=64m]
+    volumes: [desktop_data:/app/data]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 64
+    mem_limit: 256m
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
+
+networks:
+  gateway_frontend: {}
+  executor_internal: {internal: true}
+volumes:
+  desktop_data:
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}

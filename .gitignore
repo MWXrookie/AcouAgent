@@ -28,3 +28,13 @@ htmlcov/
 *.sqlite-*
 *.db
 *.db-*
+
+# Desktop build dependencies and local installers.
+/desktop/node_modules/
+/desktop/dist/
+/desktop/.cache/
+/outputs/desktop-*/
+
+/docs/diagrams/*.visual-check.*
+/docs/desktop/*.visual-check.*
+/docs/desktop/*.delivery.json

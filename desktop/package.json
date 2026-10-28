@@ -1,0 +1,60 @@
+{
+  "name": "acouagent-desktop",
+  "productName": "AcouAgent",
+  "version": "0.2.0-alpha.1",
+  "private": true,
+  "description": "AcouAgent Windows desktop simulation workbench",
+  "author": "AcouAgent contributors",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "pack": "electron-builder --win dir --x64",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0",
+    "playwright": "1.62.1"
+  },
+  "build": {
+    "appId": "io.github.mwxrookie.acouagent",
+    "asar": true,
+    "files": [
+      "src/**",
+      "ui/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "artifactName": "AcouAgent-Setup-${version}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": false
+    },
+    "electronDist": "node_modules/electron/dist"
+  }
+}

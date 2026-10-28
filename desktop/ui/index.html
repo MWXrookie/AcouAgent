@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'">
+  <title>AcouAgent · 本地运行管理</title>
+  <link rel="stylesheet" href="manager.css">
+  <script src="manager.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">AcouAgent<span>声学仿真工作台</span></div>
+    <div class="nav-item">本地运行管理</div>
+    <div class="sidebar-note">自然语言描述问题<br>让仿真结果有据可查</div>
+    <div class="version" id="version">桌面预览版</div>
+  </aside>
+  <main>
+    <header><div><p class="eyebrow">你的本地仿真环境</p><h1>准备好，就开始探索。</h1></div><span class="badge" id="status-badge">尚未启动</span></header>
+    <p class="intro">计算在本机隔离环境中进行。首次启动准备基础技能，进入工作台后连接你自己的模型。</p>
+    <ol class="steps" aria-label="启动进度"><li data-phase="checking">运行环境</li><li data-phase="downloading">计算镜像</li><li data-phase="bootstrap">基础技能</li><li data-phase="ready">工作台</li></ol>
+    <section class="status-card" aria-labelledby="state-title" role="status" aria-live="polite">
+      <div class="state-mark" aria-hidden="true"></div>
+      <div><h2 id="state-title">准备本地仿真环境</h2><p id="state-detail">点击下方按钮，检查并启动本地计算服务。</p></div>
+    </section>
+    <div class="actions"><button id="start" class="primary">检查并启动</button><button id="open" class="primary" hidden>进入仿真工作台</button><button id="stop" hidden>停止服务</button></div>
+    <section class="preparation" id="docker-help"><h2>首次使用</h2><p>本版需要已启动的 Docker Desktop，并使用 Linux 容器模式。首次准备需联网下载计算镜像，之后已有镜像可继续复用。</p><button id="docker-guide" class="text-button">查看官方安装说明</button></section>
+    <div class="utilities"><button id="diagnostics">导出脱敏诊断</button><button id="admin" disabled>复制技能管理员令牌</button><p id="action-feedback" role="status" aria-live="polite"></p></div>
+    <details><summary>查看准备进度与诊断信息</summary><pre id="logs">尚无操作记录。</pre></details>
+    <footer>关闭桌面窗口时可选择停止本应用服务或保留后台运行。更新与卸载保留数据。</footer>
+  </main>
+</body>
+</html>

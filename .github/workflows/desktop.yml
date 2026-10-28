@@ -1,0 +1,78 @@
+name: Desktop release checks
+
+on:
+  push:
+    branches: [main, 'feat/windows-desktop*']
+  pull_request:
+    paths: ['desktop/**', 'scripts/desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install reviewed desktop dependencies
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+      - name: Test lifecycle and ownership safeguards
+        working-directory: desktop
+        run: npm test
+      - name: Build Windows installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist
+      - name: Check actual install, window, reinstall and uninstall
+        run: |
+          $installer = @(Get-ChildItem desktop/dist/AcouAgent-Setup-*-x64.exe)
+          if ($installer.Count -ne 1) { throw 'expected one installer' }
+          ./scripts/desktop/installer_smoke.ps1 -Installer $installer[0].FullName -OutputDirectory outputs/desktop-installer-ci
+      - name: Record installer checksums
+        run: |
+          Get-ChildItem desktop/dist/AcouAgent-Setup-*-x64.exe | ForEach-Object {
+            $hash = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256
+            ($hash.Hash.ToLower() + '  ' + $_.Name) | Set-Content -Encoding utf8 desktop/dist/SHA256SUMS.txt
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-windows-candidate-${{ github.sha }}
+          path: |
+            desktop/dist/AcouAgent-Setup-*-x64.exe
+            desktop/dist/SHA256SUMS.txt
+            outputs/desktop-installer-ci/report.json
+            outputs/desktop-installer-ci/installed-window/*.png
+            outputs/desktop-installer-ci/installed-window/report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  linux-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Exercise the actual isolated desktop runtime
+        run: node scripts/desktop/runtime_smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-runtime-candidate-${{ github.sha }}
+          path: outputs/desktop-runtime-smoke/report.json
+          if-no-files-found: warn
+          retention-days: 14
