@@ -7,6 +7,7 @@
   "author": "AcouAgent contributors",
   "main": "src/main.cjs",
   "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
     "pack": "electron-builder --win dir --x64",

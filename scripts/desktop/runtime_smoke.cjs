@@ -15,7 +15,7 @@ async function main(){
  const old=await runtime.docker(['ps','-aq','--filter','label=com.docker.compose.project=acouagent-desktop'],{context:false});
  if(old.trim())throw Error('existing_desktop_project_refused');
  try{await runtime.docker(['volume','inspect','acouagent-desktop_desktop_data'],{context:false});throw Error('existing_desktop_volume_refused');}catch(e){if(!/no such volume|not found/i.test(e.message))throw e;}
- runtime.on('state',s=>{if(s.phase!==main.phase){main.phase=s.phase;console.log(s.phase);}});
+ runtime.on('state',s=>{if(s.phase!==main.phase){main.phase=s.phase;console.log(s.phase);}if(s.phase==='error'&&s.logs.length)console.error(s.logs.at(-1));});
  try{
   await runtime.start();check(runtime.state.ready,'real_start_and_17_physical_skills_ready');
   const executorId=(await runtime.compose(['ps','-q','jwave-executor'])).trim();
@@ -32,6 +32,10 @@ async function main(){
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_disposable_linux_desktop_runtime',checks,images:runtime.images,windows_full_solver_acceptance:false},null,2));
   console.log(JSON.stringify({passed:checks.length}));
  }finally{
+  // Preserve redacted failure evidence before the disposable containers disappear.
+  const report={kind:'actual_disposable_linux_desktop_runtime',checks,images:runtime.images,state:runtime.snapshot(),windows_full_solver_acceptance:false};
+  await fs.writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2));
+  if(!runtime.state.ready)console.error(JSON.stringify(runtime.snapshot()));
   // Resource ownership was established before startup; cleanup only this disposable project.
   await runtime.assertOwnership();await runtime.compose(['down','--volumes','--remove-orphans'],{timeout:90000}).catch(e=>console.error(e.message));
   await fs.rm(temp,{recursive:true,force:true});
