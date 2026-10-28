@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sqlite3
 import statistics
 import threading
@@ -486,8 +487,13 @@ def get_stats() -> dict:
     success = db.execute("SELECT COUNT(*) FROM executions WHERE exit_code = 0 AND timed_out = 0").fetchone()[0]
     failed = db.execute("SELECT COUNT(*) FROM executions WHERE exit_code != 0 AND timed_out = 0").fetchone()[0]
     timeout = db.execute("SELECT COUNT(*) FROM executions WHERE timed_out = 1").fetchone()[0]
+    zero = 0
+    for (stdout,) in db.execute("SELECT stdout FROM executions WHERE exit_code = 0 AND timed_out = 0"):
+        m = re.search(r"最大压力[：:]?\s*\**\s*([\d.eE+-]+)", stdout or "")
+        if m and float(m.group(1)) == 0:
+            zero += 1
     db.close()
-    return {"total": total, "success": success, "failed": failed, "timeout": timeout}
+    return {"total": total, "success": success, "failed": failed, "timeout": timeout, "zero": zero}
 
 
 def record_llm_usage(model: str, usage: dict | None, cost_rmb: float,

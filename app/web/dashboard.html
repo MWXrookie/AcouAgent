@@ -10,16 +10,16 @@
   .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 1px 2px rgba(17,24,39,.08); flex-wrap: wrap; gap: 12px; }
   .top-bar h1 { font-size: 20px; font-weight: 650; letter-spacing: 0; }
   .top-bar h1 span { color: var(--muted); font-weight: 450; }
-  .top-bar .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
-  .top-bar .nav-links a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); }
-  .top-bar .nav-links a:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .stat { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 12px 16px; min-width: 0; text-align: left; box-shadow: 0 1px 2px rgba(17,24,39,.08); }
+  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 12px 16px; min-width: 0; text-align: left; box-shadow: 0 1px 2px rgba(17,24,39,.08); cursor: pointer; transition: border-color .15s, transform .15s; }
+  .stat:hover { border-color: var(--accent); transform: translateY(-1px); }
   .stat .num { font-size: 24px; font-weight: 700; line-height: 1.2; }
   .stat .label { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .stat .rate { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .stat.success .num { color: var(--green); }
   .stat.fail .num { color: var(--red); }
   .stat.timeout .num { color: var(--yellow); }
+  .stat.zero .num { color: var(--purple); }
   .table-wrap { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(17,24,39,.08); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; padding: 10px 14px; background: var(--surface-2); color: var(--text); font-weight: 650; font-size: 12px; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border-strong); }
@@ -48,10 +48,13 @@
   .analysis-summary dd { margin: 0; }
   .action-btn { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; }
   .action-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .action-btn.danger { color: var(--red); border-color: var(--red); }
+  .action-btn.danger:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
   .result-img { width: 48px; height: 36px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--surface-2); cursor: zoom-in; }
   .metric-cell { white-space: nowrap; font-family: "SF Mono","Fira Code",monospace; font-size: 12px; color: var(--muted); }
   .empty { text-align: center; padding: 56px; color: var(--muted); }
   .empty .icon { font-size: 32px; margin-bottom: 8px; opacity: .65; }
+  .empty-cta { display: inline-block; margin-top: 12px; padding: 8px 16px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-size: 13px; }
   .detail-row { display: none; }
   .detail-row.open { display: table-row; }
   .detail-row td { padding: 0 14px 14px 14px; border-top: 1px solid var(--border); background: var(--surface-2); }
@@ -89,7 +92,7 @@
     body { padding: 12px; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .code-cell { max-width: 180px; }
-    th.compare-select-column, tr.execution-row > td:nth-child(1) { display: none; }
+    thead th:nth-child(1), tr.execution-row > td:nth-child(1) { display: none; }
     .dur, .metric-cell { display: none; }
     .toolbar input { min-width: 100%; }
     .admin-token-wrap { width: 100%; margin-left: 0; flex-wrap: wrap; }
@@ -101,20 +104,17 @@
 
 <div class="top-bar">
   <h1>AcouAgent <span>执行看板</span></h1>
-  <div class="nav-links">
-    <a href="/">门户</a>
-    <a href="/cache">纠错缓存</a>
-  </div>
 </div>
 
-<div class="refresh"><span class="dot" id="live-dot"></span><span id="refresh-text">自动刷新中</span><button type="button" class="action-btn" style="margin-left:auto;color:var(--red)" onclick="clearHistory()" title="需要管理员令牌，清空所有执行历史">清空历史</button></div>
+<div class="refresh"><span class="dot" id="live-dot"></span><span id="refresh-text">自动刷新中</span><button type="button" class="action-btn" onclick="refresh()" title="立即刷新">立即刷新</button><button type="button" class="action-btn" id="pause-refresh" onclick="toggleAutoRefresh()" title="暂停/恢复自动刷新">暂停</button><button type="button" class="action-btn danger" style="margin-left:auto" onclick="clearHistory()" title="需要管理员令牌，清空所有执行历史">清空历史</button></div>
 
 <p class="subtitle">全库累计 · 以下为执行结果统计；执行成功不等于物理验证通过。</p>
 <div class="stats" id="stats">
-  <div class="stat"><div class="num" id="stat-total">-</div><div class="label">累计执行</div></div>
-  <div class="stat success"><div class="num" id="stat-ok">-</div><div class="label">执行成功</div></div>
-  <div class="stat fail"><div class="num" id="stat-fail">-</div><div class="label">执行失败</div></div>
-  <div class="stat timeout"><div class="num" id="stat-to">-</div><div class="label">超时</div></div>
+  <div class="stat" data-filter="all" onclick="filterByStat('all')" title="点击查看全部"><div class="num" id="stat-total">-</div><div class="label">累计执行</div></div>
+  <div class="stat success" data-filter="success" onclick="filterByStat('success')" title="点击筛选成功记录"><div class="num" id="stat-ok">-</div><div class="label">执行成功</div><div class="rate" id="stat-rate"></div></div>
+  <div class="stat fail" data-filter="failed" onclick="filterByStat('failed')" title="点击筛选失败记录"><div class="num" id="stat-fail">-</div><div class="label">执行失败</div></div>
+  <div class="stat timeout" data-filter="timeout" onclick="filterByStat('timeout')" title="点击筛选超时记录"><div class="num" id="stat-to">-</div><div class="label">超时</div></div>
+  <div class="stat zero" data-filter="zero" onclick="filterByStat('zero')" title="点击筛选全零记录"><div class="num" id="stat-zero">-</div><div class="label">全零</div></div>
 </div>
 
 <h2>最新执行记录</h2>
@@ -129,19 +129,18 @@
     <option value="zero">全零</option>
   </select>
   <span style="color:var(--muted);font-size:12px" id="filter-count">0 条</span>
-  <label class="admin-token-wrap" for="admin-token">
+  <label class="admin-token-wrap" for="admin-token" title="重跑、清空历史等操作需要管理员令牌，令牌在部署时配置">
     管理员令牌
     <input id="admin-token" type="password" autocomplete="off" placeholder="仅本页内存，不保存">
   </label>
 </div>
 
 <div class="table-wrap" style="margin-top:16px">
-  <div id="compare-panel" style="display:none;margin-bottom:14px"></div>
-  <table>
+  <table aria-label="执行记录列表">
     <thead><tr>
-      <th class="compare-select-column" title="勾选两条记录对比">对比</th><th>#</th><th>时间</th><th>执行 / 物理验证</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
+      <th>#</th><th>时间</th><th>执行 / 物理验证</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
     </tr></thead>
-    <tbody id="rows"><tr><td colspan="7" class="empty"><div class="icon">暂无记录</div>从声学仿真页面提交问题后，可在这里查看执行记录。</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="6" class="empty"><div class="icon">暂无记录</div>从声学仿真页面提交问题后，可在这里查看执行记录。<br><a href="/" class="empty-cta">去门户做第一次仿真 →</a></td></tr></tbody>
   </table>
 </div>
 <details class="fail-analysis" id="fail-analysis" style="display:none">
@@ -170,14 +169,11 @@ var firstLoad = true;
 var detailState = Object.create(null);
 
 function timeAgo(ts) {
-  var d = new Date(ts), now = new Date();
-  var s = Math.floor((now - d) / 1000);
-  var relative;
-  if (s < 60) relative = s + "秒前";
-  else if (s < 3600) relative = Math.floor(s/60) + "分钟前";
-  else relative = Math.floor(s/3600) + "小时前";
-  var dateStr = d.toLocaleString("zh-CN", { month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit" });
-  return relative + " (" + dateStr + ")";
+  var d = new Date(ts);
+  var abs = d.toLocaleString("zh-CN", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  var s = Math.floor((Date.now() - d.getTime()) / 1000);
+  var rel = s < 60 ? "刚刚" : s < 3600 ? Math.floor(s/60) + "分钟前" : s < 86400 ? Math.floor(s/3600) + "小时前" : Math.floor(s/86400) + "天前";
+  return '<span title="' + ts + '（' + rel + '）">' + abs + '</span>';
 }
 
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -187,22 +183,11 @@ function smartSummary(code) {
   var meaningful = '';
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
-    if (!line) continue;
-    // 跳过 import/from/shebang 与纯注释行（# 开头），取第一条实质代码
-    if (/^(import |from |#!|\/\/)/.test(line)) continue;
-    if (/^#/.test(line)) continue;
+    if (!line || /^(import |from |#!|\/\/|#)/.test(line)) continue;
     meaningful = line;
     break;
   }
-  // If nothing left (all imports/comments), use the first non-empty non-shebang line
-  if (!meaningful && lines.length > 0) {
-    for (var j = 0; j < lines.length; j++) {
-      var l = lines[j].trim();
-      if (l && !/^#!/.test(l)) { meaningful = l; break; }
-    }
-  }
-  if (!meaningful) meaningful = lines[0] || '';
-  // Truncate to 100 chars
+  if (!meaningful && lines.length > 0) meaningful = lines[0].trim() || '代码';
   if (meaningful.length > 100) meaningful = meaningful.slice(0, 100) + '…';
   return meaningful;
 }
@@ -330,15 +315,14 @@ function renderRow(r) {
     : '';
 
   return '<tr class="execution-row" onclick="toggleDetail(' + r.id + ')" style="cursor:pointer">'
-    + '<td><input type="checkbox" class="cmp-cb" data-id="' + r.id + '" title="选择对比" onclick="event.stopPropagation();onCompareToggle(this)"></td>'
     + '<td style="color:var(--muted);font-size:12px">' + r.id + '</td>'
-    + '<td class="time" title="' + r.timestamp + '">' + timeAgo(r.timestamp) + '</td>'
+    + '<td class="time">' + timeAgo(r.timestamp) + '</td>'
     + '<td>' + badge(r) + '<small class="physical-status">' + (r.analysis ? '物理判定：' + esc(r.analysis.verdict || '未知') + ' · ' + esc(r.analysis.quality_level || '未分级') : '物理验证：无关联摘要') + '</small></td>'
     + '<td class="metric-cell">' + metric + '</td>'
     + '<td class="dur">' + dur + '</td>'
     + '<td>' + imgHtml + ' ' + actions + '</td>'
     + '</tr>'
-    + '<tr class="detail-row' + (state.open ? ' open' : '') + '" id="detail-' + r.id + '"><td colspan="7">'
+    + '<tr class="detail-row' + (state.open ? ' open' : '') + '" id="detail-' + r.id + '"><td colspan="6">'
     + '<div class="detail-tabs">'
     + '<span class="detail-tab' + (state.tab === 'report' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'report\')">结论</span>'
     + '<span class="detail-tab' + (state.tab === 'code' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'code\')">代码</span>'
@@ -384,68 +368,7 @@ function toggleCodeExpand(id) {
   detailState[id] = state;
 }
 
-// ===== P0-3 结果对比：勾选两条执行记录，对比工具/状态/耗时/尝试/最大压力/图像 =====
-var compareSel = [];
 window.__execs = window.__execs || {};
-
-function onCompareToggle(cb) {
-  var id = parseInt(cb.dataset.id, 10);
-  if (cb.checked) {
-    if (compareSel.length >= 2) {
-      cb.checked = false;
-      alert('最多勾选 2 条记录进行对比');
-      return;
-    }
-    compareSel.push(id);
-  } else {
-    compareSel = compareSel.filter(function(x) { return x !== id; });
-  }
-  renderCompare();
-}
-
-function _cmpStatus(r) {
-  if (r.timed_out) return '超时';
-  if (r.exit_code !== 0) return '失败(' + r.exit_code + ')';
-  var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
-  if (m && parseFloat(m[1]) === 0) return '全零';
-  return '成功';
-}
-function _cmpMaxP(r) {
-  if (r.analysis && r.analysis.max_pressure != null) return Number(r.analysis.max_pressure).toPrecision(6) + ' ' + analysisUnit(r.analysis);
-  var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
-  return m ? m[1] + ' 单位未知' : '-';
-}
-function _cmpDur(r) {
-  if (r.duration_ms == null) return '-';
-  return r.duration_ms < 1000 ? r.duration_ms + 'ms' : (r.duration_ms / 1000).toFixed(1) + 's';
-}
-
-function renderCompare() {
-  var box = document.getElementById('compare-panel');
-  if (compareSel.length < 2) { if (box) box.style.display = 'none'; return; }
-  var a = window.__execs[compareSel[0]];
-  var b = window.__execs[compareSel[1]];
-  if (!a || !b) return;
-  var row = function(k, va, vb) {
-    return '<tr><td>' + k + '</td><td>' + (va == null || va === '' ? '-' : va) + '</td><td>' + (vb == null || vb === '' ? '-' : vb) + '</td></tr>';
-  };
-  var hasImg = function(r) { return r.image_base64 && r.image_base64.length > 100 ? '有' : '无'; };
-  box.innerHTML =
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">'
-    + '<div style="font-weight:600;margin-bottom:10px;color:var(--blue)">结果对比 <span style="font-weight:400;color:var(--muted);font-size:12px">（勾选两条记录）</span></div>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
-    + '<tr style="background:var(--surface-2)"><th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">指标</th>'
-    + '<th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">#' + a.id + ' · ' + (a.tool_name || '执行') + '</th>'
-    + '<th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">#' + b.id + ' · ' + (b.tool_name || '执行') + '</th></tr>'
-    + row('执行状态', _cmpStatus(a), _cmpStatus(b))
-    + row('物理判定', esc(a.analysis ? a.analysis.verdict || '未知' : '无关联摘要'), esc(b.analysis ? b.analysis.verdict || '未知' : '无关联摘要'))
-    + row('耗时', _cmpDur(a), _cmpDur(b))
-    + row('尝试次数', a.attempt_count != null ? a.attempt_count : 1, b.attempt_count != null ? b.attempt_count : 1)
-    + row('最大场量（各自单位）', _cmpMaxP(a), _cmpMaxP(b))
-    + row('图像', hasImg(a), hasImg(b))
-    + '</table></div>';
-  box.style.display = 'block';
-}
 
 function switchTab(id, tab) {
   ["report","code","stdout","stderr"].forEach(function(t) { document.getElementById("sec-"+id+"-"+t).classList.toggle("active", t===tab); });
@@ -507,6 +430,7 @@ function renderFailAnalysis() {
     }
   });
   document.getElementById('fail-analysis').style.display = any ? 'block' : 'none';
+  document.getElementById('fail-analysis').open = any;
 }
 
 function _statusKey(r) {
@@ -537,7 +461,7 @@ function applyFilters() {
   });
   document.getElementById('filter-count').textContent = '当前匹配 ' + filtered.length + ' / 已加载 ' + ids.length + ' 条';
   if (!filtered.length) {
-    rowsBox.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">无匹配记录</div>没有符合当前筛选条件的记录。<br><button type="button" onclick="resetFilters()">清除筛选</button></td></tr>';
+    rowsBox.innerHTML = '<tr><td colspan="6" class="empty"><div class="icon">无匹配记录</div>没有符合当前筛选条件的记录。<br><button type="button" onclick="resetFilters()">清除筛选</button></td></tr>';
     return;
   }
   rowsBox.innerHTML = filtered.map(function(id) { return renderRow(window.__execs[id]); }).join('');
@@ -548,7 +472,7 @@ async function refresh() {
     var resp = await fetch("/dashboard/api/executions?since=" + lastId + "&analysis_since=" + lastAnalysisId + "&limit=100");
     var data = await resp.json();
     if (data.executions && data.executions.length > 0) {
-      data.executions.forEach(function(r) { window.__execs[r.id] = r; });  // 缓存供对比
+      data.executions.forEach(function(r) { window.__execs[r.id] = r; });  // 缓存全部记录供渲染
       lastId = Math.max(lastId, Math.max.apply(null, data.executions.map(function(r) { return r.id; })));
     }
     if (data.analysis_updates && data.analysis_updates.length > 0) {
@@ -568,10 +492,14 @@ async function refresh() {
       });
     }
     if (data.stats) {
-      document.getElementById("stat-total").textContent = data.stats.total;
+      var total = data.stats.total || 0;
+      var zero = data.stats.zero != null ? data.stats.zero : 0;
+      document.getElementById("stat-total").textContent = total;
       document.getElementById("stat-ok").textContent = data.stats.success;
       document.getElementById("stat-fail").textContent = data.stats.failed;
       document.getElementById("stat-to").textContent = data.stats.timeout;
+      document.getElementById("stat-zero").textContent = zero;
+      document.getElementById("stat-rate").textContent = total > 0 ? "成功率 " + Math.round((data.stats.success - zero) / total * 100) + "%" : "成功率 —";
     }
     renderFailAnalysis();
     applyFilters();
@@ -606,7 +534,34 @@ function showLightbox(src) {
 }
 
 refresh();
-setInterval(refresh, 3000);
+var autoRefreshTimer = setInterval(refresh, 3000);
+var autoRefreshOn = true;
+
+function toggleAutoRefresh() {
+  var btn = document.getElementById('pause-refresh');
+  var dot = document.getElementById('live-dot');
+  var txt = document.getElementById('refresh-text');
+  if (autoRefreshOn) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshOn = false;
+    btn.textContent = '恢复';
+    txt.textContent = '已暂停';
+    dot.style.background = 'var(--yellow)';
+  } else {
+    autoRefreshTimer = setInterval(refresh, 3000);
+    autoRefreshOn = true;
+    refresh();
+    btn.textContent = '暂停';
+    txt.textContent = '自动刷新中';
+    dot.style.background = 'var(--green)';
+  }
+}
+
+function filterByStat(status) {
+  var sel = document.getElementById('status-filter');
+  if (sel) sel.value = status;
+  applyFilters();
+}
 
 async function clearHistory() {
   var headers = adminHeaders(false);
@@ -616,11 +571,13 @@ async function clearHistory() {
     var resp = await fetch('/dashboard/api/executions', { method: 'DELETE', headers: headers });
     var data = await resp.json();
     if (data.ok) {
-      document.getElementById('rows').innerHTML = '<tr><td colspan="5" class="empty">已清空 ' + data.deleted + ' 条记录</td></tr>';
+      document.getElementById('rows').innerHTML = '<tr><td colspan="6" class="empty">已清空 ' + data.deleted + ' 条记录</td></tr>';
       document.getElementById('stat-total').textContent = '0';
       document.getElementById('stat-ok').textContent = '0';
       document.getElementById('stat-fail').textContent = '0';
       document.getElementById('stat-to').textContent = '0';
+      document.getElementById('stat-zero').textContent = '0';
+      document.getElementById('stat-rate').textContent = '成功率 —';
       lastId = 0;
       firstLoad = true;
     }
