@@ -1630,7 +1630,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>多轮对话 · Dify MCP</title>
+<title>AcouAgent · 声学仿真</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -1760,9 +1760,10 @@ CHAT_HTML = r"""<!DOCTYPE html>
   <button class="model-btn" onclick="openModelSettings()">模型设置</button>
 </div>
 
-<div class="modal" id="model-modal">
+<div class="modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
   <div class="modal-box">
-    <h2>连接你的模型</h2>
+    <h2 id="model-modal-title">连接你的模型</h2>
+    <p class="modal-intro">选择模型 → 保存配置 → 按需测试连接。测试会发起一次小型模型调用。</p>
     <label for="model-profile">模型来源</label>
     <select id="model-profile" onchange="toggleByokFields()"></select>
     <div id="byok-fields" hidden>
@@ -1800,6 +1801,7 @@ CHAT_HTML = r"""<!DOCTYPE html>
 <div class="chat-log" id="chat-log"></div>
 
 <div class="input-bar">
+  <div class="model-readiness" id="model-readiness" data-state="loading" role="status" aria-live="polite"><div><strong id="model-readiness-title">正在读取模型配置</strong><span id="model-readiness-detail">配置就绪后即可提交仿真需求。</span></div><button type="button" onclick="openModelSettings()">配置模型</button></div>
   <div class="input-wrap">
     <textarea id="query-input" rows="3" placeholder="描述声学仿真问题，或继续修改参数…" aria-label="声学仿真需求" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();ask()}"></textarea>
     <button id="ask-btn" onclick="ask()">发送</button>
@@ -1843,6 +1845,8 @@ var conversation = [];
 var currentRequirement = '';
 var byokConfigDirty = false;
 var byokRegistrationConfirmed = false;
+var portalModelState = null;
+var modelDialogOpener = null;
 
 var BYOK_PRESETS = {
   deepseek: {
@@ -1866,14 +1870,56 @@ function getModelProfile() {
   return sessionStorage.getItem('acouagent_byok_profile') || localStorage.getItem('acouagent_model_profile') || null;
 }
 
+function updateModelReadiness(data) {
+  if (data) portalModelState = data;
+  var box = document.getElementById('model-readiness');
+  if (!box) return;
+  var title = document.getElementById('model-readiness-title');
+  var detail = document.getElementById('model-readiness-detail');
+  var state = portalModelState;
+  var handle = getModelProfile();
+  if (!state) {
+    box.dataset.state = 'error';
+    title.textContent = '模型配置暂不可读取';
+    detail.textContent = '打开模型设置重试；你的输入会保留。';
+  } else if (state.orchestration_backend !== 'local') {
+    box.dataset.state = 'configured';
+    title.textContent = '使用平台工作流中的模型';
+    detail.textContent = '模型由 Dify 配置；此处的自带模型配置不接管平台模型。';
+  } else if (handle && handle.startsWith('byok-')) {
+    box.dataset.state = 'configured';
+    title.textContent = byokRegistrationConfirmed ? '本次会话模型已配置' : '已选择本次会话模型';
+    detail.textContent = '配置到期或网关重启后需重新填写；已配置不代表连接测试通过。';
+  } else {
+    var id = handle || state.default_profile;
+    var profile = state.profiles.find(function(p) { return p.id === id && p.configured; });
+    box.dataset.state = profile ? 'configured' : 'missing';
+    title.textContent = profile ? '已配置：' + profile.model : '开始前，先连接一个模型';
+    detail.textContent = profile ? '凭据已配置；连接与兼容性可在模型设置中测试。' : '支持 DeepSeek、Qwen 和 OpenAI 兼容服务。输入内容会保留。';
+  }
+  box.querySelector('button').textContent = box.dataset.state === 'missing' ? '连接模型' : '模型设置';
+  var submit = document.getElementById('ask-btn');
+  if (submit && !submit.disabled) submit.textContent = box.dataset.state === 'missing' ? '连接模型并继续' : '开始仿真';
+}
+
+async function refreshModelReadiness() {
+  try {
+    var resp = await fetch('/api/model-profiles', {cache:'no-store',signal:AbortSignal.timeout(12000)});
+    var data = await resp.json();
+    if (!resp.ok || !Array.isArray(data.profiles)) throw new Error('model_profiles_unavailable');
+    updateModelReadiness(data);
+  } catch (_) { portalModelState = null; updateModelReadiness(); }
+}
+
 async function loadModelProfiles() {
   var select = document.getElementById('model-profile');
   var detail = document.getElementById('model-profile-detail');
   select.innerHTML = '';
   try {
-    var resp = await fetch('/api/model-profiles', {headers:{'Accept':'application/json'}});
+    var resp = await fetch('/api/model-profiles', {headers:{'Accept':'application/json'},signal:AbortSignal.timeout(12000)});
     var data = await resp.json();
     if (!resp.ok || !Array.isArray(data.profiles)) throw new Error(data.error || '无法读取模型配置');
+    updateModelReadiness(data);
     var saved = getModelProfile() || data.default_profile;
     data.profiles.forEach(function(profile) {
       var option = document.createElement('option');
@@ -1896,6 +1942,7 @@ async function loadModelProfiles() {
     toggleByokFields();
   } catch(e) {
     detail.textContent = '无法读取模型配置：' + String(e);
+    portalModelState = null; updateModelReadiness();
   }
 }
 
@@ -1997,12 +2044,17 @@ function markByokConfigDirty() {
 }
 
 function openModelSettings() {
-  document.getElementById('model-modal').classList.add('open');
-  loadModelProfiles();
+  modelDialogOpener = document.activeElement;
+  var modal = document.getElementById('model-modal');
+  modal.classList.add('open');
+  modal.tabIndex = -1; modal.focus();
+  loadModelProfiles().then(function() { if (modal.classList.contains('open')) document.getElementById('model-profile').focus(); });
 }
 
 function closeModelSettings() {
   document.getElementById('model-modal').classList.remove('open');
+  updateModelReadiness();
+  if (modelDialogOpener && modelDialogOpener.isConnected) modelDialogOpener.focus();
 }
 
 async function revokeByokProfile() {
@@ -2149,23 +2201,25 @@ function sessionGroupLabel(ts) {
 function renderSessionList() {
   var box = document.getElementById('session-list');
   if (!box) return;
-  var list = loadSessions();
-  list.sort(function(a, b) { return b.updatedAt - a.updatedAt; });
-  var html = '';
+  var list = loadSessions().slice().sort(function(a,b) { return b.updatedAt - a.updatedAt; });
+  box.replaceChildren();
   var lastGroup = '';
   list.forEach(function(s) {
-    var g = sessionGroupLabel(s.updatedAt);
-    if (g !== lastGroup) {
-      html += '<div class="session-group">' + g + '</div>';
-      lastGroup = g;
+    var group = sessionGroupLabel(s.updatedAt);
+    if (group !== lastGroup) {
+      var label = document.createElement('div');label.className = 'session-group';label.textContent = group;
+      box.appendChild(label);lastGroup = group;
     }
-    var active = s.id === currentSessionId ? ' active' : '';
-    html += '<div class="session-item' + active + '" onclick="switchSession(\'' + s.id + '\')" title="' + esc(s.title) + '">'
-      + '<span class="session-title">' + esc(s.title || '新对话') + '</span>'
-      + '<span class="session-del" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')" title="删除">×</span>'
-      + '</div>';
+    var row = document.createElement('div');row.className = 'session-item' + (s.id === currentSessionId ? ' active' : '');
+    var open = document.createElement('button');open.type = 'button';open.className = 'session-open';
+    open.textContent = s.title || '新对话';open.title = open.textContent;
+    if (s.id === currentSessionId) open.setAttribute('aria-current','true');
+    open.addEventListener('click',function() { switchSession(s.id); });
+    var remove = document.createElement('button');remove.type = 'button';remove.className = 'session-del';
+    remove.textContent = '×';remove.setAttribute('aria-label','删除对话：' + (s.title || '新对话'));
+    remove.addEventListener('click',function() { deleteSession(s.id); });
+    row.append(open,remove);box.appendChild(row);
   });
-  box.innerHTML = html;
 }
 
 function switchSession(id) {
@@ -2243,7 +2297,16 @@ async function ask() {
   var btn = document.getElementById('ask-btn');
   var hint = document.getElementById('merge-hint');
   var message = input.value.trim();
-  if (!message) return;
+  if (!message || btn.disabled) return;
+  await refreshModelReadiness();
+  if (btn.disabled) return;
+  if (input.value.trim() !== message) { hint.textContent = '输入已更新，请确认后再次提交。'; return; }
+  var modelState = document.getElementById('model-readiness').dataset.state;
+  if (modelState === 'missing' || modelState === 'error') {
+    hint.textContent = '请先配置模型；本次输入已保留。';
+    openModelSettings();
+    return;
+  }
   input.value = '';
   hint.textContent = '';
   var skillFeedback = document.getElementById('skill-usage-feedback');
@@ -2354,6 +2417,15 @@ function initChat() {
   renderSessionList();
 }
 
+document.getElementById('model-modal').addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') { event.preventDefault(); closeModelSettings(); return; }
+  if (event.key !== 'Tab') return;
+  var focusable = Array.from(this.querySelectorAll('button,input,select,a[href]')).filter(function(el) { return !el.disabled && el.getClientRects().length; });
+  var first = focusable[0], last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+refreshModelReadiness();
 window.initChat = initChat;
 </script>
 </body>

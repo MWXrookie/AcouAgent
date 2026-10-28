@@ -107,14 +107,24 @@
   </div>
 </div>
 
-<div class="refresh"><span class="dot" id="live-dot"></span><span id="refresh-text">自动刷新中</span><span style="margin-left:16px;color:var(--red);cursor:pointer;font-size:12px" onclick="clearHistory()" title="清空所有执行历史">清空历史</span></div>
+<div class="refresh"><span class="dot" id="live-dot"></span><span id="refresh-text">自动刷新中</span><button type="button" class="action-btn" style="margin-left:auto;color:var(--red)" onclick="clearHistory()" title="需要管理员令牌，清空所有执行历史">清空历史</button></div>
 
+<p class="subtitle">全库累计 · 以下为执行结果统计；执行成功不等于物理验证通过。</p>
+<div class="stats" id="stats">
+  <div class="stat"><div class="num" id="stat-total">-</div><div class="label">累计执行</div></div>
+  <div class="stat success"><div class="num" id="stat-ok">-</div><div class="label">执行成功</div></div>
+  <div class="stat fail"><div class="num" id="stat-fail">-</div><div class="label">执行失败</div></div>
+  <div class="stat timeout"><div class="num" id="stat-to">-</div><div class="label">超时</div></div>
+</div>
+
+<h2>最新执行记录</h2>
+<p class="subtitle" id="list-scope">首次加载最近100条，后续追加本页打开后产生的记录；搜索与失败分析仅覆盖已加载记录。</p>
 <div class="toolbar">
-  <input id="search-input" type="search" placeholder="搜索代码、错误或结果..." oninput="applyFilters()">
-  <select id="status-filter" onchange="applyFilters()">
+  <input id="search-input" type="search" aria-label="搜索当前已加载记录" placeholder="搜索代码、错误或结果..." oninput="applyFilters()">
+  <select id="status-filter" aria-label="按执行状态筛选" onchange="applyFilters()">
     <option value="all">全部状态</option>
-    <option value="success">成功</option>
-    <option value="failed">失败</option>
+    <option value="success">执行成功</option>
+    <option value="failed">执行失败</option>
     <option value="timeout">超时</option>
     <option value="zero">全零</option>
   </select>
@@ -125,15 +135,17 @@
   </label>
 </div>
 
-<div class="stats" id="stats">
-  <div class="stat"><div class="num" id="stat-total">-</div><div class="label">总执行</div></div>
-  <div class="stat success"><div class="num" id="stat-ok">-</div><div class="label">成功</div></div>
-  <div class="stat fail"><div class="num" id="stat-fail">-</div><div class="label">失败</div></div>
-  <div class="stat timeout"><div class="num" id="stat-to">-</div><div class="label">超时</div></div>
+<div class="table-wrap" style="margin-top:16px">
+  <div id="compare-panel" style="display:none;margin-bottom:14px"></div>
+  <table>
+    <thead><tr>
+      <th class="compare-select-column" title="勾选两条记录对比">对比</th><th>#</th><th>时间</th><th>执行 / 物理验证</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
+    </tr></thead>
+    <tbody id="rows"><tr><td colspan="7" class="empty"><div class="icon">暂无记录</div>从声学仿真页面提交问题后，可在这里查看执行记录。</td></tr></tbody>
+  </table>
 </div>
-
-<div class="fail-analysis" id="fail-analysis" style="display:none">
-  <div class="fa-header">失败分析 <span>最近失败记录按类型归类，点击展开详情</span></div>
+<details class="fail-analysis" id="fail-analysis" style="display:none">
+  <summary class="fa-header">查看失败分析 <span>仅当前已加载记录，按类型归类</span></summary>
   <div class="fa-groups">
     <div class="fa-group timeout">
       <div class="fa-group-head">超时 <span class="fa-count" id="fa-count-timeout">0</span></div>
@@ -148,17 +160,8 @@
       <div class="fa-items" id="fa-items-zero"><div class="fa-empty">暂无</div></div>
     </div>
   </div>
-</div>
+</details>
 
-<div class="table-wrap" style="margin-top:16px">
-  <div id="compare-panel" style="display:none;margin-bottom:14px"></div>
-  <table>
-    <thead><tr>
-      <th class="compare-select-column" title="勾选两条记录对比">对比</th><th>#</th><th>时间</th><th>状态</th><th class="metric-cell">关键结果</th><th class="dur">耗时</th><th>操作</th>
-    </tr></thead>
-    <tbody id="rows"><tr><td colspan="7" class="empty"><div class="icon">暂无记录</div>等待 Dify 发送第一条代码...</td></tr></tbody>
-  </table>
-</div>
 
 <script>
 var lastId = 0;
@@ -330,7 +333,7 @@ function renderRow(r) {
     + '<td><input type="checkbox" class="cmp-cb" data-id="' + r.id + '" title="选择对比" onclick="event.stopPropagation();onCompareToggle(this)"></td>'
     + '<td style="color:var(--muted);font-size:12px">' + r.id + '</td>'
     + '<td class="time" title="' + r.timestamp + '">' + timeAgo(r.timestamp) + '</td>'
-    + '<td>' + badge(r) + '</td>'
+    + '<td>' + badge(r) + '<small class="physical-status">' + (r.analysis ? '物理判定：' + esc(r.analysis.verdict || '未知') + ' · ' + esc(r.analysis.quality_level || '未分级') : '物理验证：无关联摘要') + '</small></td>'
     + '<td class="metric-cell">' + metric + '</td>'
     + '<td class="dur">' + dur + '</td>'
     + '<td>' + imgHtml + ' ' + actions + '</td>'
@@ -434,7 +437,8 @@ function renderCompare() {
     + '<tr style="background:var(--surface-2)"><th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">指标</th>'
     + '<th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">#' + a.id + ' · ' + (a.tool_name || '执行') + '</th>'
     + '<th style="padding:6px 12px;text-align:left;border:1px solid var(--border)">#' + b.id + ' · ' + (b.tool_name || '执行') + '</th></tr>'
-    + row('状态', _cmpStatus(a), _cmpStatus(b))
+    + row('执行状态', _cmpStatus(a), _cmpStatus(b))
+    + row('物理判定', esc(a.analysis ? a.analysis.verdict || '未知' : '无关联摘要'), esc(b.analysis ? b.analysis.verdict || '未知' : '无关联摘要'))
     + row('耗时', _cmpDur(a), _cmpDur(b))
     + row('尝试次数', a.attempt_count != null ? a.attempt_count : 1, b.attempt_count != null ? b.attempt_count : 1)
     + row('最大场量（各自单位）', _cmpMaxP(a), _cmpMaxP(b))
@@ -513,6 +517,12 @@ function _statusKey(r) {
   return 'success';
 }
 
+function resetFilters() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('status-filter').value = 'all';
+  applyFilters();
+}
+
 function applyFilters() {
   var q = (document.getElementById('search-input').value || '').toLowerCase();
   var status = document.getElementById('status-filter').value;
@@ -525,9 +535,9 @@ function applyFilters() {
     var hay = [r.code, r.stdout, r.stderr, r.tool_name, String(r.id)].join(' ').toLowerCase();
     return hay.indexOf(q) !== -1;
   });
-  document.getElementById('filter-count').textContent = filtered.length + ' 条';
+  document.getElementById('filter-count').textContent = '当前匹配 ' + filtered.length + ' / 已加载 ' + ids.length + ' 条';
   if (!filtered.length) {
-    rowsBox.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">无匹配记录</div>没有符合当前筛选条件的记录。</td></tr>';
+    rowsBox.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">无匹配记录</div>没有符合当前筛选条件的记录。<br><button type="button" onclick="resetFilters()">清除筛选</button></td></tr>';
     return;
   }
   rowsBox.innerHTML = filtered.map(function(id) { return renderRow(window.__execs[id]); }).join('');
