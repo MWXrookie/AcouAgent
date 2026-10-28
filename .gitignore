@@ -28,3 +28,4 @@ htmlcov/
 *.sqlite-*
 *.db
 *.db-*
+.vscode/

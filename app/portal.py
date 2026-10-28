@@ -11,31 +11,19 @@ from pathlib import Path as _Path
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
-from app import (
-    analysis,
-    cache_store,
-    config,
-    execution,
-    local_workflow,
-    model_client,
-    model_preflight,
-    model_profiles,
-    skill_library_service,
-)
-from app.dashboard import (
-    CHAT_HTML,
-    clear_executions,
-    get_analysis_updates,
-    get_execution,
-    get_execution_by_run_id,
-    get_executions,
-    get_latest_analysis_by_run_ids,
-    get_stats,
-    record_admin_event,
-    record_execution,
-)
+from app import config, model_client, model_preflight, model_profiles
+from app.runtime_bus import RUNTIME_BUS
 from app.ui_chrome import render_page
-from app.workflow_client import workflow_events
+
+
+def get_execution_by_run_id(run_id: str):
+    """Compatibility seam for the dashboard route and its focused tests."""
+    return RUNTIME_BUS.get_execution_row_by_run_id(run_id)
+
+
+get_executions = RUNTIME_BUS.dashboard_executions
+get_analysis_updates = RUNTIME_BUS.dashboard_analysis_updates
+get_latest_analysis_by_run_ids = RUNTIME_BUS.get_latest_analysis_by_run_ids
 
 
 def _serve_html(filename: str) -> HTMLResponse:
@@ -44,37 +32,14 @@ def _serve_html(filename: str) -> HTMLResponse:
 
 
 def _extract_report(output) -> str:
-    """从 Dify 工作流 outputs.text 中提取 Markdown 报告字符串。"""
-    if isinstance(output, str):
-        return output
-    if isinstance(output, list) and output:
-        first = output[0]
-        if isinstance(first, str):
-            return first
-        if isinstance(first, dict):
-            return first.get("result", "") or first.get("report", "") or json.dumps(first, ensure_ascii=False)
-    if isinstance(output, dict):
-        return output.get("result", "") or output.get("report", "") or json.dumps(output, ensure_ascii=False)
-    return ""
+    """从工作流输出中提取 Markdown 报告字符串。"""
+    return RUNTIME_BUS.parse_report(output)
 
 
 async def _merge_requirement(requirement: str, message: str,
                              model_profile: str | None = None) -> str:
     """Merge turns through the selected BYOK profile; fail closed to concatenation."""
-    prompt = (
-        "你是声学仿真需求整理助手。根据当前完整需求和用户新修改，输出更新后的完整需求。"
-        "新修改覆盖旧值；只输出需求，不要解释。\n\n"
-        f"当前完整需求：\n{requirement}\n\n用户新修改：\n{message}"
-    )
-    try:
-        result = await model_client.complete(
-            model_profile,
-            "requirement_merge",
-            [{"role": "user", "content": prompt}],
-        )
-        return result["content"]
-    except (model_profiles.ModelProfileError, model_client.ModelCallError):
-        return f"{requirement}；{message}"
+    return await RUNTIME_BUS.merge_requirement(requirement, message, model_profile)
 
 
 def register(mcp) -> None:
@@ -91,10 +56,10 @@ def register(mcp) -> None:
     @mcp.custom_route("/api/model-profiles", methods=["GET"])
     async def model_profiles_api(_: Request) -> PlainTextResponse:
         try:
-            payload = model_profiles.public_profiles()
+            payload = RUNTIME_BUS.public_profiles()
             payload["orchestration_backend"] = config.ORCHESTRATION_BACKEND
             status = 200
-        except model_profiles.ModelProfileError as exc:
+        except Exception as exc:  # pragma: no cover - portal contract fallback
             payload = {"profiles": [], "default_profile": None,
                        "orchestration_backend": config.ORCHESTRATION_BACKEND,
                        "error": str(exc)}
@@ -112,11 +77,15 @@ def register(mcp) -> None:
         else:
             try:
                 body = json.loads(raw)
-                created = model_profiles.register_session_profile(body)
+                created = RUNTIME_BUS.register_session_profile(body)
                 payload, status = {"ok": True, **created}, 201
             except (json.JSONDecodeError, UnicodeError):
                 payload, status = {"ok": False, "error": "byok_payload_invalid"}, 400
             except model_profiles.ModelProfileError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+            except ValueError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+            except Exception as exc:
                 payload, status = {"ok": False, "error": str(exc)}, 400
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
                                  media_type="application/json",
@@ -136,15 +105,13 @@ def register(mcp) -> None:
                 profile_id = body.get("profile_id")
                 if not isinstance(profile_id, str) or not 1 <= len(profile_id) <= 64:
                     raise ValueError("model_preflight_profile_invalid")
-                payload = await model_preflight.run(profile_id)
+                payload = await RUNTIME_BUS.model_preflight(profile_id)
                 status = 200
             except (json.JSONDecodeError, UnicodeError):
                 payload, status = {"ok": False, "error": "model_preflight_payload_invalid"}, 400
             except model_preflight.ModelPreflightBusy as exc:
                 payload, status = {"ok": False, "error": str(exc)}, 429
             except model_profiles.ModelProfileError as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-            except ValueError as exc:
                 payload, status = {"ok": False, "error": str(exc)}, 400
             except model_client.ModelCallError as exc:
                 payload = {
@@ -154,6 +121,10 @@ def register(mcp) -> None:
                     "full_simulation_validated": False,
                 }
                 status = 502
+            except ValueError as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
+            except Exception as exc:
+                payload, status = {"ok": False, "error": str(exc)}, 400
         return PlainTextResponse(
             json.dumps(payload, ensure_ascii=False),
             status_code=status,
@@ -169,7 +140,7 @@ def register(mcp) -> None:
             profile_id = body.get("profile_id") if isinstance(body, dict) else None
         except (json.JSONDecodeError, UnicodeError):
             profile_id = None
-        removed = model_profiles.remove_session_profile(profile_id)
+        removed = RUNTIME_BUS.remove_session_profile(profile_id)
         return PlainTextResponse(
             json.dumps({"ok": removed, "error": None if removed else "byok_session_unknown"},
                        ensure_ascii=False),
@@ -186,8 +157,13 @@ def register(mcp) -> None:
         expected = config.PORTAL_ADMIN_TOKEN
         remote_host = request.client.host if request.client else None
         allowed = bool(expected) and secrets.compare_digest(supplied, expected)
-        record_admin_event(action, target_id=target_id, remote_host=remote_host, allowed=allowed,
-                           detail="authorized" if allowed else "missing or invalid admin token")
+        RUNTIME_BUS.require_admin_record(
+            action,
+            target_id,
+            request,
+            allowed=allowed,
+            detail="authorized" if allowed else "missing or invalid admin token",
+        )
         if not allowed:
             return PlainTextResponse(
                 json.dumps({"ok": False, "error": "管理员认证失败"}, ensure_ascii=False),
@@ -249,9 +225,7 @@ def register(mcp) -> None:
         dify_user = f"portal-{session_id}" if session_id else "portal"
 
         async def events():
-            source = (local_workflow.workflow_events(full_requirement, dify_user, model_profile)
-                      if config.ORCHESTRATION_BACKEND == "local"
-                      else workflow_events(full_requirement, dify_user, config.DIFY_API_KEY))
+            source = RUNTIME_BUS.workflow_events(full_requirement, dify_user, model_profile)
             async for item in source:
                 if item["event"] == "result":
                     if "outputs" in item:
@@ -274,15 +248,15 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/", methods=["GET"])
     async def portal(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
+        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/portal", methods=["GET"])
     async def portal_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
+        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/chat", methods=["GET"])
     async def chat_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(CHAT_HTML), headers={"Cache-Control": "no-store"})
+        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:
@@ -311,9 +285,11 @@ def register(mcp) -> None:
         since = int(request.query_params.get("since", "0"))
         analysis_since = int(request.query_params.get("analysis_since", "0"))
         limit = min(int(request.query_params.get("limit", "100")), 500)
-        executions = get_executions(limit=limit, since_id=since)
-        analysis_updates = get_analysis_updates(limit=limit, since_id=analysis_since, include_images=True)
-        analyses = get_latest_analysis_by_run_ids([
+        executions = RUNTIME_BUS.dashboard_executions(limit=limit, since_id=since)
+        analysis_updates = RUNTIME_BUS.dashboard_analysis_updates(
+            limit=limit, since_id=analysis_since, include_images=True
+        )
+        analyses = RUNTIME_BUS.get_latest_analysis_by_run_ids([
             row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
         ], include_images=True)
         for row in executions:
@@ -323,7 +299,7 @@ def register(mcp) -> None:
                 if not row.get("image_base64"):
                     row["image_base64"] = analyses[row["run_id"]].get("heatmap_base64")
         if config.SKILL_LIBRARY_ENABLED is True:
-            links = skill_library_service.STORE.read_execution_links([
+            links = RUNTIME_BUS.read_execution_links([
                 row["run_id"] for row in executions if isinstance(row.get("run_id"), str)
             ])
             for row in executions:
@@ -333,7 +309,7 @@ def register(mcp) -> None:
             json.dumps({
                 "executions": executions,
                 "analysis_updates": analysis_updates,
-                "stats": get_stats(),
+                "stats": RUNTIME_BUS.dashboard_stats(),
             }, ensure_ascii=False, allow_nan=False),
             media_type="application/json",
         )
@@ -343,7 +319,7 @@ def register(mcp) -> None:
         denied = require_admin(request, "clear_executions")
         if denied:
             return denied
-        count = clear_executions()
+        count = RUNTIME_BUS.clear_execution_log()
         return PlainTextResponse(
             json.dumps({"deleted": count, "ok": True}, ensure_ascii=False),
             media_type="application/json",
@@ -357,7 +333,7 @@ def register(mcp) -> None:
         denied = require_admin(request, "rerun_execution", str(execution_id) if execution_id else None)
         if denied:
             return denied
-        row = get_execution(execution_id) if execution_id else None
+        row = RUNTIME_BUS.get_execution_row(execution_id) if execution_id else None
         if not row or not row.get("code"):
             return PlainTextResponse(
                 json.dumps({"ok": False, "error": "记录不存在或没有可执行代码"}, ensure_ascii=False),
@@ -365,14 +341,14 @@ def register(mcp) -> None:
                 media_type="application/json",
             )
         try:
-            code = execution._clean_code(row["code"])
-            result = execution._execute_code(code, 15)
+            code = RUNTIME_BUS.execution_cleaner(row["code"])
+            result = RUNTIME_BUS.execute_remote(code, 15)
             raw_stdout = result.get("stdout", "") or ""
-            result["stdout"] = execution._shrink_field_in_stdout(result.get("stdout", ""))
-            execution._normalize_result_artifacts(result)
+            result["stdout"] = RUNTIME_BUS.shrink_field_in_stdout(result.get("stdout", ""))
+            RUNTIME_BUS.normalize_result_artifacts(result)
             run_id = str(uuid.uuid4())
             result["run_id"] = run_id
-            record_execution(
+            RUNTIME_BUS.execution_record(
                 tool_name="dashboard_rerun",
                 code=code,
                 exit_code=result.get("exit_code"),
@@ -386,7 +362,7 @@ def register(mcp) -> None:
             )
             # A dashboard rerun is a new execution, without inherited skill authority
             # or parameters. Analyze its own raw output and retain its own receipt.
-            analyzed = analysis.analyze_and_record(raw_stdout, result.get("stderr", "") or "",
+            analyzed = RUNTIME_BUS.analyze_and_record(raw_stdout, result.get("stderr", "") or "",
                 int(result["exit_code"] if result.get("exit_code") is not None else 1),
                 "{}", run_id)
             result["analysis"] = {key: analyzed.get(key) for key in
@@ -405,6 +381,6 @@ def register(mcp) -> None:
     @mcp.custom_route("/dashboard/api/cache_stats", methods=["GET"])
     async def cache_stats_api(_: Request) -> PlainTextResponse:
         return PlainTextResponse(
-            json.dumps(cache_store.get_cache_stats(), ensure_ascii=False),
+            json.dumps(RUNTIME_BUS.get_cache_stats(), ensure_ascii=False),
             media_type="application/json",
         )
