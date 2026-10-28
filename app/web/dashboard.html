@@ -281,6 +281,11 @@ function analysisUnit(a) {
   return a && a.units === 'numerical_source_normalization' ? '数值源归一化'
     : a && a.units === 'Pa' ? 'Pa' : '单位未知';
 }
+function formatMetric(r) {
+  if (r.analysis && r.analysis.max_pressure != null) return Number(r.analysis.max_pressure).toPrecision(6) + ' ' + analysisUnit(r.analysis);
+  var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
+  return m ? Number(m[1]).toFixed(4) + ' 单位未知' : '-';
+}
 function renderRow(r) {
   var state = detailState[r.id] || {open:false, tab:r.analysis ? 'report' : 'code', codeExpanded:false};
   detailState[r.id] = state;
@@ -290,13 +295,7 @@ function renderRow(r) {
   var imgDot = hasImg
     ? '<span class="img-dot" title="有图像" onclick="event.stopPropagation();showLightbox(\'data:image/png;base64,' + r.image_base64 + '\')"></span>'
     : '';
-  var maxPressure = '';
-  var mp = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
-  if (mp) maxPressure = Number(mp[1]).toFixed(4);
-  // Prefer the run-bound deterministic analysis over text guessed from stdout.
-  var metric = r.analysis && r.analysis.max_pressure != null
-    ? Number(r.analysis.max_pressure).toPrecision(6) + ' ' + analysisUnit(r.analysis)
-    : (maxPressure ? maxPressure + ' 单位未知' : '-');
+  var metric = formatMetric(r);
   var imgHtml = hasImg ? '<img class="result-img" src="data:image/png;base64,' + r.image_base64 + '" onclick="event.stopPropagation();showLightbox(this.src)" title="查看图像">' : '<span style="color:var(--muted)">无图</span>';
   var actions = '<button class="action-btn" onclick="event.stopPropagation();copyCode(' + r.id + ')" title="复制代码">复制</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();downloadRecord(' + r.id + ')" title="导出 JSON">导出</button>' +
