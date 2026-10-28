@@ -72,41 +72,29 @@
   @media (max-width: 768px) { body { padding: 12px; } .summary-row { grid-template-columns: repeat(2,1fr); } }
 </style>
 </head>
-<style>
-:root{--bg:#eef1f5;--surface:#fff;--surface-2:#edf1f5;--border:#d5dae2;--border-strong:#aab5c2;--text:#111827;--muted:#6b7280;--accent:#2563eb;--accent-soft:#eff6ff;--green:#047857;--green-soft:#ecfdf5;--red:#b91c1c;--red-soft:#fef2f2;--yellow:#b45309;--yellow-soft:#fffbeb}
-body{background:var(--bg)!important;color:var(--text)!important}
-.tile,.section,.entry{background:var(--surface)!important;border-color:var(--border-strong)!important;color:var(--text)!important;box-shadow:0 1px 2px rgba(17,24,39,.08)!important}
-.entry{background:#fff!important;border-left-color:var(--border-strong)!important}
-.entry.good{border-left-color:var(--green)!important}
-.entry.warn{border-left-color:var(--yellow)!important}
-.entry.retiring{border-left-color:var(--red)!important;background:var(--red-soft)!important}
-.filter-btn{color:var(--muted)!important;border-color:var(--border-strong)!important;background:var(--surface)!important}
-.filter-btn.active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
-.bar-row .track{background:var(--surface-2)!important}
-.fix-code{background:#f4f7fa!important;border-color:var(--border-strong)!important;color:#1f2937!important}
-.pill.green{background:var(--green-soft)!important;color:var(--green)!important}
-.pill.yellow{background:var(--yellow-soft)!important;color:var(--yellow)!important}
-.pill.red{background:var(--red-soft)!important;color:var(--red)!important}
-</style>
+
 <body>
 <div class="back"><a href="/">← 返回门户</a></div>
 <h1>纠错经验缓存</h1>
 <p class="subtitle">每次仿真失败后，当前 BYOK 模型自动分析错误并生成修复代码。修复提示保存在这里；同类错误出现时可提供给当前模型辅助修复，仍须重新执行验证。</p>
+<p class="subtitle">统计口径：成功表示修复后通过执行检查，不代表物理准确率。置信度为历史反馈分数；少量样本需谨慎判断。</p>
 <div class="summary-row" id="summary"></div>
 <div class="section" id="bands-section"></div>
 <div class="section">
   <h3>经验条目 <span class="filter-count" id="entry-count"></span></h3>
   <div class="filter-bar">
     <span class="filter-label">筛选：</span>
-    <button class="filter-btn active" onclick="setFilter('all')">全部</button>
-    <button class="filter-btn" onclick="setFilter('high')">高置信 ≥70%</button>
-    <button class="filter-btn" onclick="setFilter('medium')">中等置信 50–70%</button>
+    <button class="filter-btn active" aria-pressed="true" onclick="setFilter('all')">全部</button>
+    <button class="filter-btn" onclick="setFilter('high')">高置信 90–100%</button>
+    <button class="filter-btn" onclick="setFilter('medium')">较高置信 70–&lt;90%</button>
+    <button class="filter-btn" onclick="setFilter('fair')">中等置信 50–&lt;70%</button>
+    <button class="filter-btn" onclick="setFilter('low')">低置信 &lt;50%</button>
     <button class="filter-btn" onclick="setFilter('at-risk')">连续失败 ≥3</button>
     <button class="filter-btn" onclick="setFilter('type-error')">TypeError</button>
     <button class="filter-btn" onclick="setFilter('attr-error')">AttributeError</button>
   </div>
-  <div class="legend"><span><span class="dot high"></span> 高置信</span><span><span class="dot med"></span> 中等置信</span><span><span class="dot retire"></span> 即将退役</span></div>
-  <div id="all-entries"></div>
+  <div class="legend"><span><span class="dot high"></span> 高置信</span><span><span class="dot med"></span> 中低置信</span><span><span class="dot retire"></span> 连续失败待观察</span></div>
+  <div id="all-entries" aria-live="polite"></div>
 </div>
 <script>
 var cachedData = null;
@@ -203,21 +191,22 @@ function render(d) {
     '<div class="tile"><div class="num">' + d.total_entries + '</div><div class="label">经验条目</div><div class="sub">已积累的修复经验</div></div>' +
     '<div class="tile good"><div class="num">' + d.total_hits + '</div><div class="label">修复尝试</div><div class="sub">已记录的修复结果次数，包含首次学习</div></div>' +
     '<div class="tile good"><div class="num">' + d.total_successes + '</div><div class="label">成功修复</div><div class="sub">修复后通过执行检查的次数</div></div>' +
-    '<div class="tile ' + (successRate >= 80 ? 'good' : 'warn') + '"><div class="num">' + fmtPct(successRate) + '</div><div class="label">修复成功率</div><div class="sub">经验靠谱程度</div></div>' +
-    '<div class="tile"><div class="num">' + fmtPct((d.avg_confidence || 0) * 100) + '</div><div class="label">平均置信度</div><div class="sub">经验可信度均值</div></div>' +
+    '<div class="tile ' + (successRate >= 80 ? 'good' : 'warn') + '"><div class="num">' + fmtPct(successRate) + '</div><div class="label">修复成功率</div><div class="sub">成功次数 / 修复结果次数，包含首次学习</div></div>' +
+    '<div class="tile"><div class="num">' + fmtPct((d.avg_confidence || 0) * 100) + '</div><div class="label">平均置信度</div><div class="sub">历史反馈分数均值</div></div>' +
     '<div class="tile ' + (d.questioned_count ? 'warn' : 'good') + '"><div class="num">' + (d.questioned_count || 0) + '</div><div class="label">待观察</div><div class="sub">连续失败≥3次</div></div>';
 
   // Confidence bands
   var bandsHtml = '';
   if (d.confidence_bands) {
-    bandsHtml += '<h3>📊 置信度分布</h3>';
+    bandsHtml += '<h3>置信度分布</h3>';
     ['90-100','70-90','50-70','0-50'].forEach(function(k) {
       var v = d.confidence_bands[k] || 0;
       var max = Math.max.apply(null, Object.values(d.confidence_bands));
       var pct = max > 0 ? Math.round(v / max * 100) : 0;
       var color = k === '90-100' ? 'var(--green)' : (k === '70-90' ? 'var(--blue)' : (k === '50-70' ? 'var(--yellow)' : 'var(--muted)'));
-      var label = k === '90-100' ? '高' : (k === '70-90' ? '中' : (k === '50-70' ? '较低' : '低'));
-      bandsHtml += '<div class="bar-row"><span class="label">' + label + ' (' + k + '%)</span><div class="track"><div class="fill" style="width:' + pct + '%;background:' + color + '"></div></div><span class="count">' + v + ' 条</span></div>';
+      var label = k === '90-100' ? '高置信' : (k === '70-90' ? '较高置信' : (k === '50-70' ? '中等置信' : '低置信'));
+      var range = {'90-100':'90–100%', '70-90':'70–&lt;90%', '50-70':'50–&lt;70%', '0-50':'&lt;50%'}[k];
+      bandsHtml += '<div class="bar-row"><span class="label">' + label + ' (' + range + ')</span><div class="track"><div class="fill" style="width:' + pct + '%;background:' + color + '"></div></div><span class="count">' + v + ' 条</span></div>';
     });
   }
   document.getElementById("bands-section").innerHTML = bandsHtml ? bandsHtml : '';
@@ -226,9 +215,9 @@ function render(d) {
 
 function setFilter(f) {
   currentFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
   var t = document.querySelector('.filter-btn[onclick="setFilter(\'' + f + '\')"]');
-  if (t) t.classList.add('active');
+  if (t) { t.classList.add('active'); t.setAttribute('aria-pressed','true'); }
   applyFilter();
 }
 
@@ -244,8 +233,10 @@ function applyFilter() {
     var conf = Number(e.confidence || 0);
     var sig = (e.signature || '').split('|')[0];
     switch (currentFilter) {
-      case 'high': return conf >= 0.7;
-      case 'medium': return conf >= 0.5 && conf < 0.7;
+      case 'high': return conf >= 0.9;
+      case 'medium': return conf >= 0.7 && conf < 0.9;
+      case 'fair': return conf >= 0.5 && conf < 0.7;
+      case 'low': return conf < 0.5;
       case 'at-risk': return (e.consecutive_fails || 0) >= 3;
       case 'type-error': return sig === 'TypeError';
       case 'attr-error': return sig === 'AttributeError';
@@ -257,7 +248,7 @@ function applyFilter() {
   if (el) el.textContent = '（' + filtered.length + ' / ' + all.length + ' 条，库共 ' + d.total_entries + ' 条）';
 
   if (filtered.length === 0) {
-    document.getElementById("all-entries").innerHTML = '<div class="empty">当前筛选条件下无匹配经验</div>';
+    document.getElementById("all-entries").innerHTML = '<div class="empty" role="status">当前筛选条件下无匹配经验<br><button type="button" onclick="setFilter(\'all\')">清除筛选</button></div>';
     return;
   }
 
@@ -265,7 +256,7 @@ function applyFilter() {
   filtered.forEach(function(e, idx) {
     var conf = Number(e.confidence || 0);
     var sRate = e.hits > 0 ? (e.success_count / e.hits * 100) : 0;
-    var cls = conf >= 0.7 ? 'good' : (conf >= 0.5 ? 'warn' : '');
+    var cls = conf >= 0.9 ? 'good' : (conf >= 0.5 ? 'warn' : '');
     if ((e.consecutive_fails || 0) >= 3) cls += ' retiring';
     var story = tellStory(e);
     var fix = extractFixChange(e.hint_excerpt || e.hint);
@@ -275,19 +266,18 @@ function applyFilter() {
     // Story line
     html += '<div class="story">' + story + '</div>';
     // Fix line
-    html += '<div class="story" style="color:var(--green);font-size:13px">🔧 修复：' + fix + '</div>';
+    html += '<div class="story" style="color:var(--green);font-size:13px">修复：' + fix + '</div>';
     // Stats
     html += '<div class="stats-row">';
-    html += '<span class="stat-item">修复尝试 <span class="stat-val">' + (e.hits || 0) + '</span> 次</span>';
-    html += '<span class="stat-item">成功 <span class="stat-val">' + (e.success_count || 0) + '</span> 次</span>';
-    html += '<span class="stat-item">成功率 <span class="stat-val">' + fmtPct(sRate) + '</span></span>';
-    html += '<span class="pill ' + (conf >= 0.7 ? 'green' : (conf >= 0.5 ? 'yellow' : 'red')) + '">置信度 ' + fmtPct(conf*100) + '</span>';
+    html += '<strong>成功 ' + (e.success_count || 0) + ' / ' + (e.hits || 0) + ' 次</strong>';
+    if ((e.hits || 0) < 5) html += '<span class="pill yellow">样本少于5次，待积累</span>';
+    html += '<span class="stat-item">执行修复成功率 <span class="stat-val">' + fmtPct(sRate) + '</span></span>';
+    html += '<span class="pill ' + (conf >= 0.9 ? 'green' : (conf >= 0.5 ? 'yellow' : 'red')) + '">置信度 ' + fmtPct(conf*100) + '</span>';
     if ((e.consecutive_fails || 0) > 0) {
-      html += '<span class="pill ' + (e.consecutive_fails >= 3 ? 'red' : 'yellow') + '">⚠ 连续失败 ' + e.consecutive_fails + ' 次' + (e.consecutive_fails >= 5 ? '（已退役）' : e.consecutive_fails >= 3 ? '（即将退役）' : '') + '</span>';
+      html += '<span class="pill ' + (e.consecutive_fails >= 3 ? 'red' : 'yellow') + '">⚠ 连续失败 ' + e.consecutive_fails + ' 次' + (e.consecutive_fails >= 5 ? '（已退役）' : e.consecutive_fails >= 3 ? '（连续失败待观察）' : '') + '</span>';
     }
     html += '</div>';
-    html += '<span class="toggle-code" onclick="var c=document.getElementById(\'' + uid + '\');c.classList.toggle(\'open\');this.textContent=c.classList.contains(\'open\')?\'▲ 收起修复提示\':\'▼ 查看修复提示片段\'">▼ 查看修复提示片段</span>';
-    html += '<div class="fix-code" id="' + uid + '">' + esc(e.hint || e.hint_excerpt || '') + '</div>';
+    html += '<details class="cache-code"><summary>查看修复提示片段</summary><pre class="fix-code open">' + esc(e.hint || e.hint_excerpt || '') + '</pre></details>';
     if (e.updated_at) html += '<div style="color:var(--muted);font-size:11px;margin-top:4px">更新于 ' + esc(e.updated_at) + '</div>';
     html += '</div>';
   });
@@ -298,9 +288,10 @@ init();
 async function init() {
   try {
     var resp = await fetch("/dashboard/api/cache_stats");
+    if (!resp.ok) throw new Error('cache_unavailable');
     render(await resp.json());
   } catch(e) {
-    document.body.innerHTML = '<div class="loading">加载失败：' + esc(String(e)) + '</div>';
+    document.getElementById('all-entries').innerHTML = '<div class="empty" role="alert">缓存加载失败，请检查连接。<br><button type="button" onclick="init()">重新加载</button></div>';
   }
 }
 </script>

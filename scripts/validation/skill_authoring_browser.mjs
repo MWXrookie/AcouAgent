@@ -51,6 +51,7 @@ try{
   await page.waitForFunction(()=>{const i=document.querySelector('#heatmap');return i.complete&&i.naturalWidth>0;});
   check((await page.locator('#metrics').innerText()).includes('128 × 128'),'real_result_shape_displayed');
   check((await page.locator('#comparison').innerText()).includes('relative_magnitude_linf'),'independent_numeric_comparison_displayed');
+  check(await page.locator('#download-field').isEnabled(),'validated_field_download_enabled');
   const fieldDownload=page.waitForEvent('download');await click('download-field');const fieldFile=await fieldDownload;
   const fieldPath=path.join(out,'complete-complex-pressure.npy');await fieldFile.saveAs(fieldPath);
   check((await readFile(fieldPath)).subarray(0,6).equals(Buffer.from([147,78,85,77,80,89])),'complete_complex_npy_downloaded');
@@ -85,4 +86,4 @@ try{
   check(issues.length===0,'no_browser_javascript_errors');
   await writeFile(path.join(out,'browser-report.json'),JSON.stringify({kind:'real_browser_manual_authoring',checks,draft_id:draftId,job:items.items[0],result:proof,production_database_writes:0},null,2));
   console.log(JSON.stringify({passed:checks.length,draft_id:draftId,run_id:proof.job.run_id,error:proof.comparison.relative_magnitude_linf}));
-}finally{const video=page.video();try{if(video){await page.close();await video.saveAs(path.join(out,'manual-authoring.webm'));}}finally{await browser.close();}}
+}catch(error){await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});await writeFile(path.join(out,'failure.json'),JSON.stringify({kind:'real_browser_manual_authoring_failure',checks,issues,error:String(error)},null,2));throw error;}finally{const video=page.video();try{if(video){await page.close();await video.saveAs(path.join(out,'manual-authoring.webm'));}}finally{await browser.close();}}
