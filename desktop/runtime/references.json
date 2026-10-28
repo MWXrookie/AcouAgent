@@ -1,0 +1,8 @@
+{
+  "commit": "600e50c8b4ac71f0bc344098320a1e30b80ade00",
+  "cases": {
+    "B01": {"name": "helmholtz_homog", "sha256": "1c7d782d26981ff3f7592edd71470a4670cc4b8d7d733ebca67db56ba2d326ee"},
+    "B02": {"name": "helmholtz_heterog_c0", "sha256": "5d94579003ef6a962c01ecbf5fab29e6c49516da7d578c4bfee89e219d66581a"},
+    "B03": {"name": "helmholtz_inteface_rho0", "sha256": "4242217d375a7f2a59c10da89a25b85233018823df6402ec8a4bd44b794ade07"}
+  }
+}

@@ -11,7 +11,7 @@ x-gateway-env: &gateway-env
   SKILL_INJECTION_ENABLED: "true"
   SKILL_MANUAL_INTAKE_ENABLED: "true"
   SKILL_BOOTSTRAP_ALL_FIXED: "true"
-  SKILL_LEARNING_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
+  SKILL_LEARNING_ENABLED: ${ACOUAGENT_SKILL_LEARNING:-false}
   SKILL_AUTHORING_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
   SKILL_VALIDATION_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
   SKILL_GENERAL_ADMISSION_ENABLED: ${ACOUAGENT_SKILL_EXTENSIONS:-false}
@@ -81,6 +81,28 @@ services:
     cap_drop: [ALL]
     pids_limit: 64
     mem_limit: 256m
+    labels:
+      io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
+
+  skill-preparation:
+    profiles: [maintenance]
+    image: ${ACOUAGENT_GATEWAY_IMAGE:?required}
+    platform: linux/amd64
+    restart: "no"
+    environment: *gateway-env
+    networks: [executor_internal]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=64m"]
+    volumes:
+      - desktop_data:/app/data
+      - type: bind
+        source: ${ACOUAGENT_REFERENCE_DIRECTORY:-.}
+        target: /references
+        read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 64
+    mem_limit: 512m
     labels:
       io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
 

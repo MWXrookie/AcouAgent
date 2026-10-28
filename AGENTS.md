@@ -1,4 +1,4 @@
-> 2026-10-28 桌面真实中断门通过：核对main PID后终止AcouAgent再启动，原卷新数据、17技能与加密凭据保留，完整27项/0错误及实际截图通过。52998c9远端桌面和发行CI成功，已保存alpha.1内部NSIS升级基线。早期两次测试驱动失败保留，不冒充应用中断。跨版本、模型新求解、扩展向导、真人首题与发行仍待完成。见docs/desktop/DESKTOP_CANDIDATE_ACCEPTANCE.md。
+> 2026-10-29 桌面alpha.2：安装器升级/回退五轮窗口各9项及6项数据/凭据保留通过；增加先备份再准备手动技能、独立学习开关，固定公开参考由Windows正常TLS与双重SHA核验。安装版技能准备、schema17→18→17及既有行/资产保留26项通过，41项Node/15项Python通过；错误状态允许重试恢复且仍检查原卷归属。a797645远端两门成功，新候选继续CI；真实模型学习/复用、最新main镜像同步、真人首题和发行仍待完成。见docs/desktop/DESKTOP_CANDIDATE_ACCEPTANCE.md。
 
 > 2026-10-28 桌面恢复候选：新卷核验后切换，原卷保留；同安装/同digest备份限定，切换日志未提交选择原卷，故障回归已验。Windows真实完整18项、28项Node/13项Python通过；恢复后工作台当前地址与隔离核对。前序da3e45f远端两门成功；本候选继续CI。跨版本、实际中断、模型新求解及发行仍待完成。见docs/desktop/DESKTOP_CANDIDATE_ACCEPTANCE.md。
 

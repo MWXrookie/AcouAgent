@@ -5,11 +5,12 @@ const fs = require('node:fs/promises');
 const {pathToFileURL} = require('node:url');
 const {Runtime} = require('./runtime.cjs');
 const {Vault} = require('./vault.cjs');
+const {createReferenceDownloader} = require('./references.cjs');
 
 protocol.registerSchemesAsPrivileged([{scheme: 'acouagent', privileges: {standard: true, secure: true, supportFetchAPI: true}}]);
 const localData = process.env.LOCALAPPDATA || app.getPath('appData');
 app.setPath('userData', app.commandLine.getSwitchValue('acouagent-data-dir') ? path.resolve(app.commandLine.getSwitchValue('acouagent-data-dir')) : path.join(localData, 'AcouAgent', 'Desktop'));
-let manager, workbench, runtime, workbenchVolume, quitting = false;
+let manager, workbench, runtime, workbenchCapabilities, quitting = false;
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 else {
@@ -37,7 +38,8 @@ async function initialize() {
     if (url.host !== 'desktop' || !names.has(url.pathname)) return new Response('Not found', {status: 404});
     return net.fetch(pathToFileURL(path.join(uiRoot, url.pathname.slice(1))).href);
   });
-  runtime = new Runtime({resourceDir: app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.join(app.getAppPath(), 'runtime'), dataDir: app.getPath('userData'), vault: new Vault(app.getPath('userData'), safeStorage)});
+  const resourceDir=app.isPackaged ? path.join(process.resourcesPath,'runtime') : path.join(app.getAppPath(),'runtime');
+  runtime = new Runtime({resourceDir, dataDir: app.getPath('userData'), vault: new Vault(app.getPath('userData'), safeStorage),referenceDownloader:createReferenceDownloader(resourceDir,(url,options)=>net.fetch(url,options))});
   await runtime.initialize();
   manager = new BrowserWindow({width: 1080, height: 790, minWidth: 780, minHeight: 620, title: 'AcouAgent · 本地运行管理', backgroundColor: '#f5f7fb', show: false,
     webPreferences: {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false}});
@@ -52,7 +54,9 @@ async function initialize() {
     'copy-admin': async () => {clipboard.writeText(runtime.secrets.PORTAL_ADMIN_TOKEN); return {copied: true};},
     diagnostics: () => exportDiagnostics(),
     backup: () => exportBackup(),
-    restore: () => restoreBackup()
+    restore: () => restoreBackup(),
+    'prepare-skills': () => prepareSkills(),
+    learning: () => changeLearning()
   })) ipcMain.handle('desktop:' + channel, (event) => {
     if (event.sender !== manager.webContents || event.senderFrame !== manager.webContents.mainFrame || event.senderFrame.url !== 'acouagent://desktop/index.html') throw Error('untrusted_ipc_sender');
     return fn();
@@ -68,16 +72,17 @@ async function initialize() {
 }
 
 async function openWorkbench() {
-  if (!runtime.state.ready) {manager.show(); return {opened: false};}
+  if (!runtime.state.ready || runtime.state.busy) {manager.show(); return {opened: false};}
   const origin = runtime.baseURL();
+  const capabilities = JSON.stringify([runtime.settings.dataVolume, runtime.settings.extensions, runtime.settings.learning]);
   if (workbench && !workbench.isDestroyed()) {
     const current = workbench.webContents.getURL();
-    if ((!current || current === 'about:blank' || current.startsWith(origin + '/')) && workbenchVolume === runtime.settings.dataVolume) {
+    if ((!current || current === 'about:blank' || current.startsWith(origin + '/')) && workbenchCapabilities === capabilities) {
       workbench.show(); workbench.focus(); return {opened: true};
     }
     workbench.destroy();
   }
-  workbenchVolume = runtime.settings.dataVolume;
+  workbenchCapabilities = capabilities;
   workbench = new BrowserWindow({width: 1440, height: 960, minWidth: 780, minHeight: 620, title: 'AcouAgent · 声学仿真', backgroundColor: '#f5f7fb',
     webPreferences: {nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false, partition: 'persist:acouagent-workbench'}});
   hardened(workbench, url => {try {return new URL(url).origin === origin;} catch {return false;}});
@@ -106,12 +111,28 @@ async function exportBackup() {
 
 async function restoreBackup() {
   if (runtime.state.busy) return runtime.snapshot();
-  const chosen = await dialog.showOpenDialog(manager, {title: '选择本应用的数据备份', filters: [{name: 'AcouAgent数据备份', extensions: ['zip']}], properties: ['openFile']});
+  const chosen = await dialog.showOpenDialog(manager, {title: '选择本应用的数据备份', defaultPath: path.join(app.getPath('userData'), 'backups'), filters: [{name: 'AcouAgent数据备份', extensions: ['zip']}], properties: ['openFile']});
   if (chosen.canceled || chosen.filePaths.length !== 1) return runtime.snapshot();
   const confirmation = await dialog.showMessageBox(manager, {type: 'warning', buttons: ['取消', '验证并恢复'], defaultId: 0, cancelId: 0,
     message: '恢复备份会切换当前工作台使用的数据。', detail: '请先等待任务完成并保存尚未提交的输入。仅接受本安装、相同计算版本的备份；先在新卷验证，原卷会保留。完成后重新进入工作台并连接模型。'});
   if (confirmation.response !== 1) return runtime.snapshot();
   return runtime.restore(chosen.filePaths[0]);
+}
+
+async function prepareSkills() {
+  if (runtime.state.busy || !runtime.state.ready) return runtime.snapshot();
+  const choice = await dialog.showMessageBox(manager, {type: 'question', buttons: ['取消', '备份并准备'], defaultId: 0, cancelId: 0,
+    message: '准备手动添加技能。', detail: '请先等待任务完成并保存输入。程序会暂停服务、保存完整备份并联网下载核验资料。准备完成后可手动添加技能，自动学习保持关闭；重新进入工作台后连接模型。'});
+  return choice.response === 1 ? runtime.prepareExtensions() : runtime.snapshot();
+}
+
+async function changeLearning() {
+  if (runtime.state.busy || !runtime.state.ready || !runtime.settings.extensions) return runtime.snapshot();
+  const enabled = !runtime.settings.learning;
+  const choice = await dialog.showMessageBox(manager, {type: 'question', buttons: ['取消', enabled ? '开启自动学习' : '关闭自动学习'], defaultId: 0, cancelId: 0,
+    message: enabled ? '开启受控自动学习？' : '停止新增自动学习？',
+    detail: '请先等待任务完成并保存输入，设置更新会重启本应用服务。仅独立质量验证通过的结果才能进入技能库；关闭学习保留手动技能和已有数据。完成后重新进入工作台并连接模型。'});
+  return choice.response === 1 ? runtime.setLearning(enabled) : runtime.snapshot();
 }
 
 async function closeApplication() {

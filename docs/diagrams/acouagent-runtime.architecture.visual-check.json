@@ -5,9 +5,9 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "docs\\diagrams\\acouagent-runtime.architecture.html",
-    "sha256": "0119aa4dc7b9e9af74575af80dfd323287e8826c0a36a14a3bd26011204c5626",
-    "bytes": 727132
+    "path": "docs/diagrams/acouagent-runtime.architecture.html",
+    "sha256": "252cb1ade4f00d622ce55a12b8b175f08c4e153ead8f82d667946dd7da826427",
+    "bytes": 727140
   },
   "state": {
     "detail": "read",
@@ -15,7 +15,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "chrome.exe"
+    "executable": "chrome"
   },
   "diagnostics": [],
   "containment": {

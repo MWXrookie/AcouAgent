@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld('acouagent', Object.freeze({
   diagnostics: () => ipcRenderer.invoke('desktop:diagnostics'),
   backup: () => ipcRenderer.invoke('desktop:backup'),
   restore: () => ipcRenderer.invoke('desktop:restore'),
+  prepareSkills: () => ipcRenderer.invoke('desktop:prepare-skills'),
+  toggleLearning: () => ipcRenderer.invoke('desktop:learning'),
   onState: callback => {const listener = (_event, value) => callback(value); ipcRenderer.on('desktop:state', listener); return () => ipcRenderer.removeListener('desktop:state', listener);}
 }));

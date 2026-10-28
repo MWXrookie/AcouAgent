@@ -38,6 +38,20 @@
           "data"
         ],
         "note": "仿真窗口不注入宿主机接口；原生成、沙箱和物理门不变。Windows完整安装与求解实机验收尚待完成，不宣称桌面版已正式发布。"
+      },
+      {
+        "id": "skill-extensions",
+        "label": "技能准备与学习",
+        "focus": [
+          "manager",
+          "controller",
+          "reference-source",
+          "docker",
+          "gateway",
+          "executor",
+          "data"
+        ],
+        "note": "桌面使用Windows网络从固定GitHub提交下载资料并核对SHA；只读临时挂载仅给内部准备容器，原解析器再次核验MAT与NPY。先备份再迁移18，手动准备不启用学习；学习单独开关，验证与求解器边界不变。"
       }
     ]
   },
@@ -181,6 +195,20 @@
         190,
         80
       ]
+    },
+    {
+      "id": "reference-source",
+      "type": "external",
+      "label": "固定公开参考源",
+      "sublabel": "GitHub固定提交 / SHA256",
+      "pos": [
+        1000,
+        105
+      ],
+      "size": [
+        190,
+        80
+      ]
     }
   ],
   "connections": [
@@ -235,6 +263,13 @@
       "from": "gateway",
       "to": "data",
       "label": "持久记录"
+    },
+    {
+      "from": "controller",
+      "to": "reference-source",
+      "label": "Windows网络下载",
+      "fromSide": "top",
+      "toSide": "top"
     }
   ]
 }

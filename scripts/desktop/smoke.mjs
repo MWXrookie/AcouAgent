@@ -24,7 +24,7 @@ try{
  await window.locator('#start').waitFor();
  check(await window.title()==='AcouAgent · 本地运行管理','actual_desktop_window');
  check(await window.evaluate(()=>typeof require==='undefined'&&typeof process==='undefined'),'renderer_no_node_access');
- check(await window.evaluate(()=>Object.keys(window.acouagent).sort().join(','))==='backup,copyAdminToken,diagnostics,dockerGuide,onState,open,restore,start,status,stop','limited_preload_api');
+ check(await window.evaluate(()=>Object.keys(window.acouagent).sort().join(','))==='backup,copyAdminToken,diagnostics,dockerGuide,onState,open,prepareSkills,restore,start,status,stop,toggleLearning','limited_preload_api');
  await window.screenshot({path:path.join(output,'01-desktop-start.png'),animations:'disabled'});
  await window.locator('#start').click();
  await window.waitForFunction(()=>document.body.dataset.busy==='false'&&document.body.dataset.phase!=='idle',{timeout:60000});

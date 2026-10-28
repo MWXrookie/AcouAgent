@@ -26,6 +26,7 @@
     <div class="actions"><button id="start" class="primary">检查并启动</button><button id="open" class="primary" hidden>进入仿真工作台</button><button id="stop" hidden>停止服务</button></div>
     <section class="preparation" id="docker-help"><h2>首次使用</h2><p>本版需要已启动的 Docker Desktop，并使用 Linux 容器模式。首次准备需联网下载计算镜像，之后已有镜像可继续复用。</p><button id="docker-guide" class="text-button">查看官方安装说明</button></section>
     <div class="utilities"><button id="backup" disabled>备份本地数据</button><button id="restore" disabled>恢复数据备份</button><button id="diagnostics">导出脱敏诊断</button><button id="admin" disabled>复制技能管理员令牌</button><p id="action-feedback" role="status" aria-live="polite"></p></div>
+    <details id="skill-settings"><summary>手动技能与自动学习</summary><p id="skill-status">默认提供17项基础技能。准备扩展后可以手动添加技能；自动学习需单独开启。</p><div class="utilities"><button id="prepare-skills" disabled>备份并准备手动技能</button><button id="learning" disabled>开启自动学习</button></div></details>
     <details><summary>查看准备进度与诊断信息</summary><pre id="logs">尚无操作记录。</pre></details>
     <footer>关闭桌面窗口时可选择停止本应用服务或保留后台运行。更新与卸载保留数据。</footer>
   </main>

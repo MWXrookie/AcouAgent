@@ -30,7 +30,7 @@ function command(executable, args, {env, timeout = 30000, progress} = {}) {
     child.stdout.on('data', chunk => {output = (output + chunk.toString('utf8')).slice(-2_000_000); progress?.(chunk.toString('utf8'));});
     child.stderr.on('data', chunk => {errorOutput = (errorOutput + chunk.toString('utf8')).slice(-256_000); progress?.(chunk.toString('utf8'));});
     child.on('error', error => finish(error));
-    child.on('close', code => code === 0 ? finish(null, output.trim()) : finish(Object.assign(new Error(errorOutput || 'docker_command_failed'), {code: 'DOCKER_FAILED'})));
+    child.on('close', code => code === 0 ? finish(null, output.trim()) : finish(Object.assign(new Error([errorOutput.slice(-64000), output.slice(-64000)].filter(Boolean).join('\n') || 'docker_command_failed'), {code: 'DOCKER_FAILED'})));
   });
 }
 
@@ -81,18 +81,22 @@ function parseSettings(value) {
   if (!value || !Number.isInteger(value.port) || value.port < 1024 || value.port > 65535 || typeof value.extensions !== 'boolean'
     || (value.runtimeSha256 !== undefined && typeof value.runtimeSha256 !== 'string')
     || (value.dataVolume !== undefined && typeof value.dataVolume !== 'string')
+    || (value.learning !== undefined && typeof value.learning !== 'boolean')
+    || (value.learning === true && !value.extensions)
+    || (value.extensions && !/^[a-f0-9]{64}$/.test(value.runtimeSha256 || ''))
     || !/^(?:[a-f0-9]{64})?$/.test(value.runtimeSha256 || '') || !DATA_VOLUME.test(value.dataVolume || DEFAULT_VOLUME)) throw Error('invalid_desktop_settings');
-  return {port: value.port, extensions: value.extensions, runtimeSha256: value.runtimeSha256 || '', dataVolume: value.dataVolume || DEFAULT_VOLUME};
+  return {port: value.port, extensions: value.extensions, learning: value.learning ?? value.extensions,
+    runtimeSha256: value.runtimeSha256 || '', dataVolume: value.dataVolume || DEFAULT_VOLUME};
 }
 
 class Runtime extends EventEmitter {
-  constructor({resourceDir, dataDir, vault, runner = command, platform = process.platform, importer = streamRestore, exporter = streamBackup}) {
-    super(); Object.assign(this, {resourceDir, dataDir, vault, runner, platform, importer, exporter});
+  constructor({resourceDir, dataDir, vault, runner = command, platform = process.platform, importer = streamRestore, exporter = streamBackup, referenceDownloader}) {
+    super(); Object.assign(this, {resourceDir, dataDir, vault, runner, platform, importer, exporter, referenceDownloader});
     this.state = {phase: 'idle', title: '准备本地仿真环境', detail: '首次启动将检查运行环境并准备经过验证的计算镜像。', ready: false, busy: false, logs: []};
-    this.settings = {port: 18081, extensions: false, runtimeSha256: '', dataVolume: DEFAULT_VOLUME};
+    this.settings = {port: 18081, extensions: false, learning: false, runtimeSha256: '', dataVolume: DEFAULT_VOLUME};
     this.context = null; this.secrets = null;
   }
-  snapshot() {return {...this.state, port: this.settings.port, extensions: this.settings.extensions, logs: [...this.state.logs]};}
+  snapshot() {return {...this.state, port: this.settings.port, extensions: this.settings.extensions, learning: this.settings.learning, logs: [...this.state.logs]};}
   change(phase, title, detail, ready = false) {Object.assign(this.state, {phase, title, detail, ready}); this.emit('state', this.snapshot());}
   log(text) {
     const safe = redact(text, Object.values(this.secrets || {})).trim().slice(-1500);
@@ -134,7 +138,8 @@ class Runtime extends EventEmitter {
     for (const key of Object.keys(env)) if (/^(DOCKER_|COMPOSE_|ACOUAGENT_|MCP_AUTH_TOKEN$|EXECUTOR_SHARED_TOKEN$|PORTAL_ADMIN_TOKEN$)/.test(key)) delete env[key];
     return {...env, ...this.secrets, ACOUAGENT_GATEWAY_IMAGE: this.images.gateway, ACOUAGENT_EXECUTOR_IMAGE: this.images.executor,
       ACOUAGENT_DESKTOP_PORT: String(this.settings.port), ACOUAGENT_DATA_VOLUME: this.settings.dataVolume,
-      ACOUAGENT_SKILL_EXTENSIONS: String(this.settings.extensions), ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ...extra};
+      ACOUAGENT_SKILL_EXTENSIONS: String(this.settings.extensions), ACOUAGENT_SKILL_LEARNING: String(this.settings.extensions && this.settings.learning),
+      ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ...extra};
   }
   async docker(args, {timeout = 30000, progress = false, context = true, extraEnv = {}} = {}) {
     const candidates = [...new Set([this.dockerExecutable, ...dockerCandidates(this.platform)].filter(Boolean))];
@@ -191,6 +196,10 @@ class Runtime extends EventEmitter {
     return this.snapshot();
   }
   friendlyError(error) {
+    if (error.message === 'restore_volume_missing') return '未发现原数据卷。请先检查并启动创建基础环境，再选择备份。';
+    if (/reference_preparation_failed|reference_digest|reference_downloader/.test(error.message)) return '核验资料下载或校验未通过。准备前备份已保留，自动学习未开启；请确认本机网络后重新检查并启动。';
+    if (/general_preparation_failed|skill_preparation_failed/.test(error.message)) return '手动技能准备未通过。准备前备份已保留，自动学习未开启；请重新检查并启动，或导出诊断。';
+    if (error.message === 'skill_feature_update_failed') return '技能设置更新未完成，已保留原设置和数据。请重新检查并启动，确认当前状态。';
     if (/backup_installation_mismatch/.test(error.message)) return '备份不属于本安装，已拒绝恢复。原数据仍保留。';
     if (/backup_runtime_mismatch/.test(error.message)) return '备份的计算版本与当前程序不一致，已拒绝恢复。请使用与备份匹配的版本。';
     if (error.message === 'restore_failed_original_preserved') return '恢复未完成，已保留并选择恢复前的数据。请重新检查并启动，或导出诊断。';
@@ -242,6 +251,65 @@ class Runtime extends EventEmitter {
     this.change('ready', '本地工作台已就绪', '17项基础技能已准备。进入工作台后连接你的模型，即可开始仿真。', true);
   }
   baseURL() {return 'http://127.0.0.1:' + this.settings.port;}
+  async pauseWriters() {
+    await this.compose(['stop', 'gateway', 'skill-bootstrap'], {timeout: 90000});
+    const writers = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
+    if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && !['exited', 'created', 'dead'].includes(item.State))) throw Error('backup_writers_still_running');
+  }
+  async prepareExtensions() {return this.exclusive(async () => {
+    if (!this.state.ready || this.settings.extensions) throw Error('skill_preparation_requires_basic_ready');
+    const previous = {...this.settings};
+    const backups = path.join(this.dataDir, 'backups');
+    await fs.mkdir(backups, {recursive: true});
+    await this.backupCore(path.join(backups, 'before-skill-extensions-' + Date.now() + '-' + crypto.randomUUID() + '.zip'));
+    this.change('preparing-skills', '准备手动技能', '准备前备份已保存，正在核对参考资料和本机计算环境；准备不会开启自动学习。');
+    if(typeof this.referenceDownloader!=='function')throw Error('reference_downloader_unavailable');
+    const directory=await fs.mkdtemp(path.join(this.dataDir,'reference-prep-'));
+    let prepared;
+    try{
+      try{await this.referenceDownloader(directory);}catch(error){this.log(error.message);throw Error('reference_preparation_failed');}
+      const source=await fs.readFile(path.join(this.resourceDir,'prepare_skills.py'),'utf8');
+      prepared=JSON.parse(await this.compose(['run','--rm','--no-deps','-T','--entrypoint','python','skill-preparation','-c',source],{timeout:300000,
+        extraEnv:{ACOUAGENT_SKILL_EXTENSIONS:'true',ACOUAGENT_SKILL_LEARNING:'false',ACOUAGENT_REFERENCE_DIRECTORY:directory}}));
+    }finally{
+      const root=await fs.realpath(this.dataDir),resolved=await fs.realpath(directory);
+      if(path.relative(root,resolved)!==path.basename(resolved)||!path.basename(resolved).startsWith('reference-prep-'))throw Error('reference_cleanup_refused');
+      await fs.rm(resolved,{recursive:true,force:true});
+    }
+    const runtime = prepared.runtime_sha256;
+    const expected = ['b01', 'b02', 'b03'].map(name => 'external-helmholtz-' + name + '.v1.' + runtime).sort();
+    if (prepared.prepared !== true || prepared.schema !== 18 || !/^[a-f0-9]{64}$/.test(runtime || '')
+      || prepared.skills_activated !== 0 || prepared.learning_enabled_changed !== false
+      || JSON.stringify([...(prepared.profiles || [])].sort()) !== JSON.stringify(expected)
+      || !['skill_store.db', 'execution_history.db'].every(name => prepared.backed_up?.includes(name))) throw Error('skill_preparation_failed');
+    this.settings = {...previous, extensions: true, learning: false, runtimeSha256: runtime};
+    await atomicWrite(path.join(this.dataDir, 'settings.json'), JSON.stringify(this.settings));
+    try {
+      await this.startCore();
+      const status = JSON.parse(await this.compose(['exec', '-T', 'gateway', 'python', '-m', 'scripts.skill_library.authoring', 'status', '--database', '/app/data/skill_store.db']));
+      if (status.authoring_schema_ready !== true || status.schema !== 18) throw Error('skill_preparation_failed');
+    } catch (error) {await this.rollbackCapabilities(previous, error);}
+    this.change('ready', '手动技能已准备，自动学习未开启', '重新进入工作台后可添加技能。准备前的完整备份可从恢复数据备份中选择。自动学习需另行开启。', true);
+  });}
+  async setLearning(enabled) {return this.exclusive(async () => {
+    if (typeof enabled !== 'boolean' || !this.state.ready || !this.settings.extensions) throw Error('skill_extensions_required');
+    await this.inspectEnvironment(); await this.assertOwnership();
+    const previous = {...this.settings};
+    this.change('preparing-skills', enabled ? '开启自动学习' : '关闭自动学习', '正在更新本应用服务，已有技能和数据保留；完成后重新进入工作台并连接模型。');
+    await this.pauseWriters();
+    this.settings = {...previous, learning: enabled};
+    await atomicWrite(path.join(this.dataDir, 'settings.json'), JSON.stringify(this.settings));
+    try {await this.startCore();}
+    catch (error) {await this.rollbackCapabilities(previous, error);}
+    this.change('ready', enabled ? '自动学习已开启' : '自动学习已关闭', enabled ? '仅通过独立质量验证的结果可以学习。手动技能仍可使用。' : '停止新增自动学习，手动技能和已有数据仍保留。', true);
+  });}
+  async rollbackCapabilities(previous, error) {
+    this.log(error.message);
+    this.settings = previous;
+    await atomicWrite(path.join(this.dataDir, 'settings.json'), JSON.stringify(previous));
+    try {await this.pauseWriters();await this.startCore();} catch (rollbackError) {this.log(rollbackError.message);}
+    throw Error('skill_feature_update_failed');
+  }
   maintenanceArgs(container, source, metadata, restore = false) {
     return ['--context', this.context, 'compose', '--project-name', PROJECT, '--project-directory', this.resourceDir,
       '--env-file', path.join(this.resourceDir, 'defaults.env'), '--file', path.join(this.resourceDir, 'compose.desktop.yaml'),
@@ -258,8 +326,8 @@ class Runtime extends EventEmitter {
     }
   }
   async restore(archive) {return this.exclusive(async () => {
-    if (!['ready', 'stopped'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
-    await this.inspectEnvironment(); await this.assertOwnership();
+    if (!['ready', 'stopped', 'error'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
+    await this.inspectEnvironment(); await this.assertOwnership(this.settings.dataVolume, true);
     this.change('restoring', '验证备份并准备新的数据卷', '核对来源、文件哈希、数据库完整性和版本；通过后才切换，原数据卷始终保留。');
     const candidate = PROJECT + '-data-' + crypto.randomUUID().replaceAll('-', '');
     const container = PROJECT + '-restore-' + crypto.randomUUID();
@@ -273,11 +341,9 @@ class Runtime extends EventEmitter {
     if (!imported.restored) throw Error('backup_import_failed');
     await this.assertOwnership(candidate, true);
     const previous = {...this.settings};
-    const next = parseSettings({port: previous.port, extensions: imported.settings.extensions,
+    const next = parseSettings({port: previous.port, extensions: imported.settings.extensions, learning: imported.settings.learning,
       runtimeSha256: imported.settings.runtimeSha256, dataVolume: candidate});
-    await this.compose(['stop', 'gateway', 'skill-bootstrap'], {timeout: 90000});
-    const writers = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
-    if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && item.State === 'running')) throw Error('backup_writers_still_running');
+    await this.pauseWriters();
     const journalPath = path.join(this.dataDir, 'restore-journal.json');
     const journal = {schema: 1, installation: this.installationHash(), previous, next};
     await atomicWrite(journalPath, JSON.stringify(journal));
@@ -297,13 +363,12 @@ class Runtime extends EventEmitter {
       throw Error('restore_failed_original_preserved');
     }
   });}
-  async backup(destination) {return this.exclusive(async () => {
+  async backup(destination) {return this.exclusive(() => this.backupCore(destination));}
+  async backupCore(destination) {
     if (!['ready', 'stopped'].includes(this.state.phase)) throw Error('backup_requires_initialized_data');
     await this.inspectEnvironment(); await this.assertOwnership();
     this.change('backing-up', '备份本地数据', '暂停本应用写入服务后导出一致快照；完成后可重新启动工作台。');
-    await this.compose(['stop', 'gateway', 'skill-bootstrap'], {timeout: 90000});
-    const writers = parseRecords(await this.compose(['ps', '--all', '--format', 'json']));
-    if (writers.some(item => ['gateway', 'skill-bootstrap'].includes(item.Service) && item.State === 'running')) throw Error('backup_writers_still_running');
+    await this.pauseWriters();
     const source = await fs.readFile(path.join(this.resourceDir, 'data_backup.py'), 'utf8');
     const metadata = {createdAt: new Date().toISOString(), images: this.images, settings: this.settings,
       installation: this.installationHash()};
@@ -316,7 +381,7 @@ class Runtime extends EventEmitter {
       await this.cleanMaintenance(container);
     }
     this.change('stopped', '数据备份已保存', '备份包含技能、执行历史、缓存及结果文件。服务已暂停，点击检查并启动可继续使用。');
-  });}
+  }
   async stop() {return this.exclusive(async () => {
     this.change('stopping', '停止本应用服务', '停止本应用容器，保留数据卷和其他项目。');
     await this.inspectEnvironment(); await this.assertOwnership();

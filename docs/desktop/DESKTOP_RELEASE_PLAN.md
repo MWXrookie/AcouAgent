@@ -32,6 +32,12 @@
 
 随后完成Windows真实主进程中断与重新启动恢复，最终27项、0错误；原卷较新数据保留、17技能就绪、加密凭据哈希不变。52998c9远端桌面与发行CI均成功，已保存该版本NSIS内部安装基线供升级对照。
 
-以上不代表自然语言真实仿真已验收。仍需完成：模型新求解与标准答案核对、扩展准备向导、跨版本升级回退、新操作者冷启动、独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
+## 2026-10-29 alpha.2进度
+
+已完成实际安装器的alpha.1→alpha.2→alpha.1→alpha.2升级和回退：五次实际窗口检查各9项，另有6项数据与凭据保留检查通过。安装前后比较全部既有数据库行、表结构与资产；运行后允许新增记录，既有行不得消失或变化。这验证的是同一固定计算镜像下的桌面版本切换。
+
+新增界面入口：先完整备份，再准备手动技能，自动学习默认关闭且可独立开启或关闭。参考文件由Windows主进程通过正常TLS获取，限定公开仓库固定提交与SHA256；只读交给隔离准备器，由原解析器再次核验，不交给求解执行器。实际安装版已验证schema17→18、三个标准模板可用、学习开关生效及备份恢复至17；既有行和资产保留。41项Node和15项Python回归通过。
+
+以上不代表自然语言真实仿真已验收。仍需完成：模型新求解与标准答案核对、真正学习和复用的完整事务、同步最新main及固定镜像、新操作者冷启动、最终独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
 
 官方依据：[Electron安全](https://www.electronjs.org/docs/latest/tutorial/security)、[Electron进程隔离](https://www.electronjs.org/docs/latest/tutorial/context-isolation)、[Windows运行时前提](https://docs.docker.com/desktop/setup/install/windows-install/)、[NSIS安装器](https://www.electron.build/docs/nsis/)。

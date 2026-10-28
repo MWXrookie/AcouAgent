@@ -164,3 +164,32 @@ def test_restore_rejects_zip_symlink_entries(tmp_path):
     output.seek(0)
     with pytest.raises(ValueError, match="unsupported_backup_file_type"):
         backup.restore_snapshot(candidate, output, metadata)
+
+
+def test_upgrade_fingerprint_includes_committed_wal_without_changing_the_original(tmp_path):
+    probe_spec = importlib.util.spec_from_file_location("desktop_fingerprint", Path(__file__).resolve().parents[2] / "scripts/desktop/data_fingerprint.py")
+    probe = importlib.util.module_from_spec(probe_spec)
+    probe_spec.loader.exec_module(probe)
+    source = tmp_path / "execution_history.db"
+    with sqlite3.connect(source) as database:
+        database.execute("PRAGMA journal_mode=WAL")
+        database.execute("CREATE TABLE executions(value TEXT)")
+        database.execute("INSERT INTO executions VALUES('committed WAL row')")
+        database.commit()
+        original = source.read_bytes()
+        result = probe.fingerprint(tmp_path)
+        expected = hashlib.sha256(json.dumps(["committed WAL row"], ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+        assert result["databases"]["execution_history.db"]["executions"]["rows"] == {expected: 1}
+        assert source.read_bytes() == original
+        assert "committed WAL row" not in json.dumps(result)
+
+
+def test_desktop_reference_manifest_matches_the_original_reviewed_parser():
+    import ast
+    root = Path(__file__).resolve().parents[2]
+    source = ast.parse((root / "scripts/skill_library/prepare_general.py").read_text(encoding="utf-8"))
+    constants = {node.targets[0].id: ast.literal_eval(node.value) for node in source.body
+                 if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name) and node.targets[0].id in ("COMMIT", "MAT")}
+    manifest = json.loads((root / "desktop/runtime/references.json").read_text())
+    assert manifest["commit"] == constants["COMMIT"]
+    assert {key: (value["name"], value["sha256"]) for key, value in manifest["cases"].items()} == constants["MAT"]

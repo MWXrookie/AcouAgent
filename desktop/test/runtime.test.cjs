@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const {Runtime, redact, parseRecords, parseSettings, dockerCandidates, waitForGatewayHealth, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
+const {Runtime, command, redact, parseRecords, parseSettings, dockerCandidates, waitForGatewayHealth, atomicWrite, OWNER_LABEL} = require('../src/runtime.cjs');
 const {Vault} = require('../src/vault.cjs');
 const resourceDir = path.resolve(__dirname, '../runtime');
 const secrets = Object.fromEntries(['MCP_AUTH_TOKEN','EXECUTOR_SHARED_TOKEN','PORTAL_ADMIN_TOKEN','ACOUAGENT_INSTALL_ID'].map((key, i) => [key, String(i+1).repeat(64)]));
@@ -204,4 +204,89 @@ test('failed candidate activation rolls the data pointer back without removing e
  assert.deepEqual(JSON.parse(await fs.readFile(path.join(dataDir,'settings.json'),'utf8')),previous);
  assert.equal(calls.some(c=>c.args.includes('volume')&&c.args.includes('rm')),false);
  assert.equal(runtime.pendingRestoreRecovery,true);assert.equal(runtime.state.phase,'error');
+});
+
+function preparationReceipt(){const runtime='c'.repeat(64);return{prepared:true,schema:18,runtime_sha256:runtime,
+ profiles:['b01','b02','b03'].map(name=>'external-helmholtz-'+name+'.v1.'+runtime),backed_up:['skill_store.db','execution_history.db'],skills_activated:0,learning_enabled_changed:false};}
+
+test('skill preparation backs up first and verifies all profiles before enabling manual skills only',async t=>{
+ const order=[];
+ const {runtime,calls,dataDir}=await fixture(t,(_file,args)=>{
+  if(args.includes('skill-preparation')){order.push('prepare');assert.equal(runtime.settings.extensions,false);return JSON.stringify(preparationReceipt());}
+  if(args.includes('scripts.skill_library.authoring'))return JSON.stringify({schema:18,authoring_schema_ready:true});
+ });
+ runtime.state.ready=true;runtime.state.phase='ready';
+ runtime.backupCore=async destination=>{order.push('backup');assert.ok(destination.startsWith(path.join(dataDir,'backups')));};
+ runtime.referenceDownloader=async()=>{order.push('download');};
+ runtime.startCore=async()=>{order.push('start');runtime.state.ready=true;};
+ await runtime.prepareExtensions();
+ assert.deepEqual(order,['backup','download','prepare','start']);assert.equal(runtime.settings.extensions,true);assert.equal(runtime.settings.learning,false);
+ assert.equal(runtime.state.phase,'ready');
+ const preparation=calls.find(c=>c.args.includes('skill-preparation'));
+ assert.equal(preparation.options.env.ACOUAGENT_SKILL_EXTENSIONS,'true');assert.equal(preparation.options.env.ACOUAGENT_SKILL_LEARNING,'false');
+});
+
+test('incomplete preparation cannot enable flags or restart into authoring mode',async t=>{
+ const receipt=preparationReceipt();receipt.profiles.pop();let restarted=false;
+ const {runtime}=await fixture(t,(_file,args)=>args.includes('skill-preparation')?JSON.stringify(receipt):undefined);
+ runtime.state.ready=true;runtime.state.phase='ready';runtime.backupCore=async()=>{};runtime.startCore=async()=>{restarted=true;};
+ runtime.referenceDownloader=async()=>{};
+ await runtime.prepareExtensions();
+ assert.equal(runtime.settings.extensions,false);assert.equal(runtime.settings.learning,false);assert.equal(restarted,false);assert.equal(runtime.state.phase,'error');
+});
+
+test('automatic learning cannot be enabled before manual extension preparation',async t=>{
+ const {runtime,calls}=await fixture(t);runtime.state.ready=true;await runtime.setLearning(true);
+ assert.equal(runtime.settings.learning,false);assert.equal(calls.length,0);assert.equal(runtime.state.phase,'error');
+});
+
+test('disabling learning keeps prepared manual skills and updates the child environment',async t=>{
+ const {runtime}=await fixture(t);runtime.settings={...runtime.settings,extensions:true,learning:true,runtimeSha256:'c'.repeat(64)};
+ runtime.state.ready=true;runtime.startCore=async()=>{runtime.state.ready=true;};
+ await runtime.setLearning(false);
+ assert.equal(runtime.settings.extensions,true);assert.equal(runtime.settings.learning,false);assert.equal(runtime.environment().ACOUAGENT_SKILL_LEARNING,'false');
+});
+
+test('failed learning restart restores the previous setting and rechecks the original services',async t=>{
+ const {runtime,dataDir}=await fixture(t);runtime.settings={...runtime.settings,extensions:true,learning:false,runtimeSha256:'c'.repeat(64)};
+ runtime.state.ready=true;let calls=0;runtime.startCore=async()=>{if(++calls===1)throw Error('failed new service');runtime.state.ready=true;};
+ await runtime.setLearning(true);
+ assert.equal(calls,2);assert.equal(runtime.settings.learning,false);assert.equal(runtime.state.phase,'error');
+ assert.equal(JSON.parse(await fs.readFile(path.join(dataDir,'settings.json'),'utf8')).learning,false);
+});
+
+test('old extension settings preserve old learning semantics while new manual-only choices stay off',()=>{
+ const old={port:18081,extensions:true,runtimeSha256:'c'.repeat(64)};
+ assert.equal(parseSettings(old).learning,true);assert.equal(parseSettings({...old,learning:false}).learning,false);
+ assert.throws(()=>parseSettings({...old,runtimeSha256:''}),/invalid_desktop_settings/);
+ assert.throws(()=>parseSettings({...old,extensions:false,learning:true}),/invalid_desktop_settings/);
+});
+
+test('data export refuses paused or restarting writers after the stop request',async t=>{
+ for(const state of ['paused','restarting','removing']){
+  const {runtime}=await fixture(t,(_file,args)=>args.includes('compose')&&args.includes('ps')?JSON.stringify([{Service:'gateway',State:state}]):undefined);
+  runtime.state.ready=true;runtime.state.phase='ready';await runtime.backup('unused.zip');
+  assert.equal(runtime.state.phase,'error');assert.match(runtime.state.logs.join(' '),/backup_writers_still_running/);
+ }
+});
+
+test('nonzero CLI output retains the structured failure alongside Docker warnings',async()=>{
+ await assert.rejects(command(process.execPath,['-e',"process.stderr.write('docker warning');process.stdout.write('general_preparation_failed');process.exitCode=1"]),error=>error.message.includes('docker warning')&&error.message.includes('general_preparation_failed'));
+});
+
+test('restore remains available after startup failure without requiring the damaged database to start',async t=>{
+ const {runtime}=await fixture(t,(_file,args)=>{
+  if(args.includes('volume')&&args.includes('inspect'))return JSON.stringify({[OWNER_LABEL]:secrets.ACOUAGENT_INSTALL_ID});
+  if(args.includes('inspect')&&!args.includes('context'))throw Error('No such object');
+ });
+ const before={...runtime.settings};runtime.state.phase='error';
+ runtime.importer=async()=>({restored:true,settings:before});runtime.startCore=async()=>{};
+ await runtime.restore('valid-backup.zip');
+ assert.equal(runtime.state.ready,true);assert.notEqual(runtime.settings.dataVolume,before.dataVolume);
+});
+
+test('error-state recovery still refuses foreign volume ownership before import',async t=>{
+ const {runtime,calls}=await fixture(t,(_file,args)=>args.includes('volume')&&args.includes('inspect')?JSON.stringify({[OWNER_LABEL]:'foreign'}):undefined);
+ runtime.state.phase='error';let imported=false;runtime.importer=async()=>{imported=true;};
+ await runtime.restore('valid-backup.zip');assert.equal(imported,false);assert.equal(calls.some(c=>c.args.includes('stop')),false);
 });
