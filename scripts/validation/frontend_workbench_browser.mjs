@@ -115,6 +115,3 @@ try{
  await writeFile(path.join(out,'report.json'),JSON.stringify({kind:'live_read_only_frontend_acceptance',checks,errors,mutations,authoring_enabled:!disabled},null,2));
  console.log(JSON.stringify({passed:checks.length,authoring_enabled:!disabled}));
 }finally{await browser.close();}
-
-
-
