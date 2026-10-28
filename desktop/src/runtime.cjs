@@ -92,6 +92,13 @@ class Runtime extends EventEmitter {
   }
   environment(extra = {}) {
     const env = {...process.env};
+    // Docker invokes its credential helper by name. A newly installed Desktop
+    // must work even when this app inherited PATH before installation.
+    if (this.platform === 'win32' && this.dockerExecutable && path.win32.isAbsolute(this.dockerExecutable)) {
+      const pathKey = Object.keys(env).find(key => key.toUpperCase() === 'PATH') || 'Path';
+      const directory = path.win32.dirname(this.dockerExecutable);
+      env[pathKey] = directory + (env[pathKey] ? ';' + env[pathKey] : '');
+    }
     // Never inherit a caller's remote Docker host or Compose overrides.
     for (const key of Object.keys(env)) if (/^(DOCKER_|COMPOSE_|ACOUAGENT_|MCP_AUTH_TOKEN$|EXECUTOR_SHARED_TOKEN$|PORTAL_ADMIN_TOKEN$)/.test(key)) delete env[key];
     return {...env, ...this.secrets, ACOUAGENT_GATEWAY_IMAGE: this.images.gateway, ACOUAGENT_EXECUTOR_IMAGE: this.images.executor,

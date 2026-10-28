@@ -45,6 +45,10 @@ test('new Docker installation is discoverable without restarting the desktop app
   assert.ok(runtime.dockerExecutable.endsWith('resources\\bin\\docker.exe'));
   assert.equal(calls.filter(c=>c.file==='docker.exe').length,1);
   assert.ok(calls.some(c=>c.args.includes('info')));
+  const invocation=calls.find(c=>c.args.includes('info'));
+  const pathKey=Object.keys(invocation.options.env).find(key=>key.toUpperCase()==='PATH');
+  assert.ok(invocation.options.env[pathKey].startsWith(path.win32.dirname(runtime.dockerExecutable)+';'));
+  assert.notEqual(process.env[pathKey],invocation.options.env[pathKey]);
 });
 
 test('Docker command errors never retry a different executable or repeat a mutation', async t => {
