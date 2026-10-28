@@ -28,7 +28,7 @@ services:
       EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN:?required}
     networks: [executor_internal]
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=1g]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=1g"]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     pids_limit: 256
@@ -52,7 +52,7 @@ services:
     depends_on:
       jwave-executor: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=64m]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=64m"]
     volumes: [desktop_data:/app/data]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
@@ -75,7 +75,7 @@ services:
     depends_on:
       jwave-executor: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=64m]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=64m"]
     volumes: [desktop_data:/app/data]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
