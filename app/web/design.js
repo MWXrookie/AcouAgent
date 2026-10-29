@@ -12,6 +12,7 @@ for(const [href,label]of nav){const a=document.createElement('a');a.href=href;a.
 const foot=document.createElement('div');foot.className='design-sidebar-footer';foot.textContent='受控执行 · 证据重核';side.append(foot);
 const toggle=document.createElement('button');toggle.type='button';toggle.className='design-theme';toggle.addEventListener('click',()=>{const t=root.dataset.theme==='light'?'dark':'light';apply(t);try{localStorage.setItem('acouagent-theme',t)}catch(e){}});(document.querySelector('.header')||document.body).append(toggle);apply(root.dataset.theme);
 function referenceName(item){
+ if(item.presentation?.title)return item.presentation.title;
  const text=typeof item.state_text==='string'?item.state_text:'',parts=text.split('；');
  const names={initial_pressure_2d:'二维初始压力',plane_wave_2d:'二维平面波',point_source_2d:'二维点声源',point_source_3d:'三维点声源',interface_2d:'介质界面',heterogeneous_2d:'二维异质介质',attenuation_helmholtz_2d:'频域衰减'};
  if(parts.length>1&&parts[0].includes('受控执行器')&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();

@@ -27,12 +27,12 @@ try{
  check(metadata.items.length<=stats.case_count,'current_list_is_separate_from_whole_library');
  const modal=metadata.items.filter(i=>i.state_text.includes('周期')||i.state_text.includes('模态'));
  const titles=[];
- for(const item of modal){const text=await page.locator(`button[data-skill-id="${item.skill_id}"] strong`).innerText();titles.push(text);check(text.includes(item.state_text.split('；')[0])||item.state_text.startsWith('受控执行器'),'scientific_case_prefix_preserved_'+item.skill_id)}
+ for(const item of modal){const text=await page.locator(`button[data-skill-id="${item.skill_id}"] strong`).innerText();titles.push(text);check(item.presentation?text===item.presentation.title:text.includes(item.state_text.split('；')[0])||item.state_text.startsWith('受控执行器'),'scientific_case_prefix_preserved_'+item.skill_id)}
  check(new Set(titles).size===new Set(modal.map(i=>i.state_text)).size,'distinct_periodic_cases_do_not_appear_as_duplicate_titles');
  await page.locator('button.skill').first().click();await page.waitForFunction(()=>!document.getElementById('detail').hidden&&document.getElementById('message').textContent==='详情已读取。');
- check((await page.locator('#friendly-summary').innerText()).includes('解决什么问题'),'purpose_visible_before_technical_evidence');
+ check((await page.locator('#friendly-summary').innerText()).includes('模拟什么'),'purpose_visible_before_technical_evidence');
  check(await page.locator('#detail details').first().getAttribute('open')===null,'technical_evidence_collapsed_by_default');
- check((await page.locator('#detail').innerText()).includes('不是原始自然语言提问'),'copy_described_as_structured_request_not_original_prompt');
+ check((await page.locator('#detail').innerText()).includes('复制内容包含本例参数和结果设置'),'copy_described_as_structured_request_not_original_prompt');
  await page.screenshot({path:path.join(output,'desktop.png')});
  await page.locator('#skill-search').fill('不存在的案例xyz');await page.waitForFunction(()=>![...document.querySelectorAll('#list button.skill')].some(b=>!b.hidden));
  check((await page.locator('#list-state').innerText()).includes('暂无匹配技能'),'empty_search_has_meaningful_feedback');
@@ -44,8 +44,8 @@ try{
  for(const link of await page.locator('.design-reference-row').all()){
   const id=await link.getAttribute('title'),item=metadata.items.find(i=>i.skill_id===id);
   const text=await link.innerText();
-  check(!!item&&(text.includes(item.state_text.split('；')[0])||item.state_text.split('；')[0].includes('受控执行器')||item.state_text.includes('未认证候选')&&text.includes('待验证案例')),'chat_reference_preserves_scientific_title_or_clear_candidate_label');
-  if(item?.state_text.includes('未认证候选')&&item.display_parameters?.length)check(text.includes(String(item.display_parameters[0].value)),'candidate_reference_includes_actual_physical_parameters');
+  check(!!item&&(item.presentation?text.includes(item.presentation.title):text.includes(item.state_text.split('；')[0])||item.state_text.split('；')[0].includes('受控执行器')||item.state_text.includes('未认证候选')&&text.includes('待验证案例')),'chat_reference_preserves_scientific_title_or_clear_candidate_label');
+  if(!item?.presentation&&item?.state_text.includes('未认证候选')&&item.display_parameters?.length)check(text.includes(String(item.display_parameters[0].value)),'candidate_reference_includes_actual_physical_parameters');
  }
  const candidateLinks=await page.locator('.design-reference-row').allTextContents();
  const candidateLabels=candidateLinks.filter(text=>text.includes('待验证案例'));

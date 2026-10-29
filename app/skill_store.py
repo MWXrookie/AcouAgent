@@ -941,6 +941,8 @@ class SkillStore:
                     return unavailable
                 validate_candidate_content(code, {"skill": item, "version": selected})
                 item["selected_version"] = selected
+                from app.skill_presentation import present
+                item['presentation'] = present(item['scenario_type'], selected['normalized_params'], item['state_text'], detail=True)
                 item["audit_revision"] = db.execute(
                     "SELECT COALESCE(MAX(id),0) FROM skill_events WHERE skill_id=?", (skill_id,)).fetchone()[0]
                 item["trust_explanation"] = "此页展示保存的记录，不是复用许可；服务端在检索和生成时重核本机来源或独立宿主证据、参数、物理检查与撤回。跨主机认证及实际用户使用须另行验证。"
@@ -1012,7 +1014,10 @@ class SkillStore:
                 for row in rows:
                     item = dict(row)
                     from app.skill_organization import display_parameters
-                    item['display_parameters'] = display_parameters(item.pop('display_params'))
+                    raw_display = item.pop('display_params')
+                    item['display_parameters'] = display_parameters(raw_display)
+                    from app.skill_presentation import present
+                    item['presentation'] = present(item['scenario_type'], raw_display, item['state_text'])
                     item["preconditions"] = validate_preconditions(json.loads(item["preconditions"]))
                     item["archived"] = bool(item["archived"])
                     # Legacy records may predate content checks. Refuse known
