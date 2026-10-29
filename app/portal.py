@@ -9,10 +9,9 @@ import uuid
 from pathlib import Path as _Path
 
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
+from starlette.responses import HTMLResponse, PlainTextResponse
 
-from app import config, model_client, model_preflight, model_profiles
-from app.contracts import ChatRequest
+from app import config
 from app.runtime_bus import RUNTIME_BUS
 from app.ui_chrome import render_page
 
@@ -32,17 +31,6 @@ def _serve_html(filename: str) -> HTMLResponse:
     return HTMLResponse(render_page(html), headers={"Cache-Control": "no-store"})
 
 
-def _extract_report(output) -> str:
-    """从工作流输出中提取 Markdown 报告字符串。"""
-    return RUNTIME_BUS.parse_report(output)
-
-
-async def _merge_requirement(requirement: str, message: str,
-                             model_profile: str | None = None) -> str:
-    """Merge turns through the selected BYOK profile; fail closed to concatenation."""
-    return await RUNTIME_BUS.merge_requirement(requirement, message, model_profile)
-
-
 def register(mcp) -> None:
     """向 FastMCP 实例注册本模块的全部 Web 路由。"""
     from app.skill_authoring_api import register as register_authoring_api
@@ -54,101 +42,21 @@ def register(mcp) -> None:
     async def health(_: Request) -> PlainTextResponse:
         return PlainTextResponse("ok")
 
-    @mcp.custom_route("/api/model-profiles", methods=["GET"])
-    async def model_profiles_api(_: Request) -> PlainTextResponse:
-        try:
-            payload = RUNTIME_BUS.public_profiles()
-            payload["orchestration_backend"] = config.ORCHESTRATION_BACKEND
-            status = 200
-        except Exception as exc:  # pragma: no cover - portal contract fallback
-            payload = {"profiles": [], "default_profile": None,
-                       "orchestration_backend": config.ORCHESTRATION_BACKEND,
-                       "error": str(exc)}
-            status = 503
-        return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
-                                 media_type="application/json",
+    @mcp.custom_route("/assets/{filename}", methods=["GET"])
+    async def asset(request: Request) -> PlainTextResponse:
+        """Serve only the fixed static assets used by the replaceable chat UI."""
+        filename = request.path_params["filename"]
+        media_types = {
+            "chat.css": "text/css; charset=utf-8",
+            "chat.js": "text/javascript; charset=utf-8",
+            "agent-client.js": "text/javascript; charset=utf-8",
+        }
+        media_type = media_types.get(filename)
+        if media_type is None:
+            return PlainTextResponse("not found", status_code=404)
+        path = _Path(__file__).resolve().parent / "web" / filename
+        return PlainTextResponse(path.read_text(encoding="utf-8"), media_type=media_type,
                                  headers={"Cache-Control": "no-store"})
-
-    @mcp.custom_route("/api/byok/session", methods=["POST"])
-    async def create_byok_session(request: Request) -> PlainTextResponse:
-        """Create an expiring in-memory model profile for this self-hosted portal."""
-        raw = await request.body()
-        if len(raw) > 8192:
-            payload, status = {"ok": False, "error": "byok_payload_too_large"}, 413
-        else:
-            try:
-                body = json.loads(raw)
-                created = RUNTIME_BUS.register_session_profile(body)
-                payload, status = {"ok": True, **created}, 201
-            except (json.JSONDecodeError, UnicodeError):
-                payload, status = {"ok": False, "error": "byok_payload_invalid"}, 400
-            except model_profiles.ModelProfileError as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-            except ValueError as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-            except Exception as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-        return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
-                                 media_type="application/json",
-                                 headers={"Cache-Control": "no-store"})
-
-    @mcp.custom_route("/api/model-profiles/test", methods=["POST"])
-    async def test_model_profile(request: Request) -> PlainTextResponse:
-        """Run one bounded model call without executing returned code."""
-        raw = await request.body()
-        if len(raw) > 1024:
-            payload, status = {"ok": False, "error": "model_preflight_payload_too_large"}, 413
-        else:
-            try:
-                body = json.loads(raw)
-                if not isinstance(body, dict) or set(body) != {"profile_id"}:
-                    raise ValueError("model_preflight_payload_invalid")
-                profile_id = body.get("profile_id")
-                if not isinstance(profile_id, str) or not 1 <= len(profile_id) <= 64:
-                    raise ValueError("model_preflight_profile_invalid")
-                payload = await RUNTIME_BUS.model_preflight(profile_id)
-                status = 200
-            except (json.JSONDecodeError, UnicodeError):
-                payload, status = {"ok": False, "error": "model_preflight_payload_invalid"}, 400
-            except model_preflight.ModelPreflightBusy as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 429
-            except model_profiles.ModelProfileError as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-            except model_client.ModelCallError as exc:
-                payload = {
-                    "ok": False,
-                    "connected": False,
-                    "error": str(exc),
-                    "full_simulation_validated": False,
-                }
-                status = 502
-            except ValueError as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-            except Exception as exc:
-                payload, status = {"ok": False, "error": str(exc)}, 400
-        return PlainTextResponse(
-            json.dumps(payload, ensure_ascii=False),
-            status_code=status,
-            media_type="application/json",
-            headers={"Cache-Control": "no-store"},
-        )
-
-    @mcp.custom_route("/api/byok/session", methods=["DELETE"])
-    async def delete_byok_session(request: Request) -> PlainTextResponse:
-        raw = await request.body()
-        try:
-            body = json.loads(raw)
-            profile_id = body.get("profile_id") if isinstance(body, dict) else None
-        except (json.JSONDecodeError, UnicodeError):
-            profile_id = None
-        removed = RUNTIME_BUS.remove_session_profile(profile_id)
-        return PlainTextResponse(
-            json.dumps({"ok": removed, "error": None if removed else "byok_session_unknown"},
-                       ensure_ascii=False),
-            status_code=200 if removed else 404,
-            media_type="application/json",
-            headers={"Cache-Control": "no-store"},
-        )
 
     def require_admin(
         request: Request, action: str, target_id: str | None = None
@@ -177,82 +85,17 @@ def register(mcp) -> None:
     async def cache_page(_: Request) -> PlainTextResponse:
         return _serve_html("cache.html")
 
-    @mcp.custom_route("/api/v1/chat", methods=["POST"])
-    @mcp.custom_route("/chat", methods=["POST"])
-    async def chat_api(request: Request) -> PlainTextResponse:
-        """多轮对话：合并历史需求 → 调用本地或 Dify 兼容工作流。
-
-        会话隔离：前端每次请求携带 session_id（浏览器 localStorage 持久化），
-        Dify 侧 user 按会话区分（portal-<session>），避免多用户共享 Dify 会话上下文。
-        """
-        try:
-            body = await request.json()
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-            return PlainTextResponse(
-                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
-                status_code=400,
-                media_type="application/json",
-            )
-        try:
-            request_contract = ChatRequest.from_payload(body)
-        except ValueError as exc:
-            return PlainTextResponse(
-                json.dumps({"error": str(exc)}, ensure_ascii=False),
-                status_code=400, media_type="application/json",
-            )
-
-        if request_contract.requirement:
-            full_requirement = await _merge_requirement(
-                request_contract.requirement,
-                request_contract.message,
-                request_contract.model_profile,
-            )
-            merge_used = True
-        else:
-            full_requirement = request_contract.message
-            merge_used = False
-
-        request_contract = ChatRequest(
-            message=request_contract.message,
-            requirement=full_requirement,
-            session_id=request_contract.session_id,
-            model_profile=request_contract.model_profile,
-            stream=request_contract.stream,
-        )
-
-        async def events():
-            async for event in RUNTIME_BUS.chat_events(request_contract):
-                item = event.to_dict()
-                if event.event == "result":
-                    if "outputs" in item:
-                        item["report"] = _extract_report(item.pop("outputs").get("text"))
-                    item.update(requirement=full_requirement, merge_used=merge_used,
-                                orchestration_backend=item.get("orchestration_backend",
-                                                               config.ORCHESTRATION_BACKEND))
-                yield item
-
-        if request_contract.stream:
-            async def ndjson():
-                async for item in events():
-                    yield json.dumps(item, ensure_ascii=False) + "\n"
-            return StreamingResponse(ndjson(), media_type="application/x-ndjson",
-                                     headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
-        async for item in events():
-            if item["event"] == "result":
-                return PlainTextResponse(json.dumps(item, ensure_ascii=False),
-                                         media_type="application/json")
-
     @mcp.custom_route("/", methods=["GET"])
     async def portal(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
+        return _serve_html("chat.html")
 
     @mcp.custom_route("/portal", methods=["GET"])
     async def portal_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
+        return _serve_html("chat.html")
 
     @mcp.custom_route("/chat", methods=["GET"])
     async def chat_page(_: Request) -> PlainTextResponse:
-        return HTMLResponse(render_page(RUNTIME_BUS.chat_html()), headers={"Cache-Control": "no-store"})
+        return _serve_html("chat.html")
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard(_: Request) -> PlainTextResponse:

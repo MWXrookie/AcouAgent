@@ -43,7 +43,7 @@ services:
       DIFY_API_KEY: ${DIFY_API_KEY:-}
       DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
     ports:
-      - "${DIFY_MCP_BIND_IP:-0.0.0.0}:8001:8001"
+      - "${DIFY_MCP_BIND_IP:-127.0.0.1}:8001:8001"
     networks:
       - gateway_frontend
       - executor_internal

@@ -15,6 +15,8 @@
 import asyncio
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 try:
     from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
@@ -23,6 +25,7 @@ except ImportError:
 
 from app import config
 from app.analysis import register as register_analysis
+from app.agent_api import register as register_agent_api
 from app.dashboard import init_db
 from app.portal import register as register_portal
 from app.tools import register as register_tools
@@ -51,10 +54,26 @@ async def _learning_lifespan(_server):
 mcp = FastMCP("Dify JWave Tools", auth=auth, lifespan=_learning_lifespan)
 
 register_tools(mcp)
+register_agent_api(mcp)
 register_portal(mcp)
 register_analysis(mcp)
 
 
 if __name__ == "__main__":
     init_db()
-    mcp.run(transport="http", host="0.0.0.0", port=8001, path="/mcp", stateless_http=True)
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=8001,
+        path="/mcp",
+        stateless_http=True,
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=list(config.PORTAL_ALLOWED_ORIGINS),
+                allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+                allow_headers=["Accept", "Content-Type"],
+                allow_credentials=False,
+            )
+        ],
+    )

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="acouagent-api-base" content="/api/v1/agent">
+<title>AcouAgent · 声学仿真</title>
+<link rel="stylesheet" href="/assets/chat.css">
+</head>
+<body>
+<aside class="app-sidebar">
+  <div class="brand">AcouAgent</div>
+  <a class="side-link active" href="/">声学仿真</a>
+  <a class="side-link" href="/dashboard">执行看板</a>
+  <a class="side-link" href="/skills">技能库</a>
+  <a class="side-link" href="/cache">纠错缓存</a>
+</aside>
+<div class="header">
+  <h1>声学仿真<span>自然语言多轮对话</span></h1>
+  <button class="reset-btn" onclick="resetChat()">新对话</button>
+  <button class="model-btn" onclick="openModelSettings()">模型设置</button>
+</div>
+
+<div class="modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
+  <div class="modal-box">
+    <h2 id="model-modal-title">连接你的模型</h2>
+    <p class="modal-intro">选择模型 → 保存配置 → 按需测试连接。测试会发起一次小型模型调用。</p>
+    <label for="model-profile">模型来源</label>
+    <select id="model-profile" onchange="toggleByokFields()"></select>
+    <div id="byok-fields" hidden>
+      <label for="byok-provider">服务商快捷配置</label>
+      <select id="byok-provider" onchange="applyByokProvider(false)">
+        <option value="deepseek">DeepSeek 官方 API</option>
+        <option value="qwen">阿里云百炼 · Qwen（中国站）</option>
+        <option value="custom">自定义 OpenAI 兼容端点</option>
+      </select>
+      <label for="byok-base-url">OpenAI 兼容 API 地址</label>
+      <input id="byok-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" oninput="markByokConfigDirty()">
+      <label for="byok-model-preset">模型名称</label>
+      <select id="byok-model-preset" onchange="toggleCustomByokModel(false)"></select>
+      <div id="byok-custom-model-wrap" hidden>
+        <label for="byok-model-custom">自定义模型 ID</label>
+        <input id="byok-model-custom" type="text" autocomplete="off" placeholder="模型 ID" oninput="markByokConfigDirty()">
+      </div>
+      <label for="byok-api-key">API Key</label>
+      <input id="byok-api-key" type="password" autocomplete="new-password" placeholder="仅发送到这台自部署服务器" oninput="markByokConfigDirty()">
+    </div>
+    <p id="model-profile-detail" style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:10px">正在读取服务端配置…</p>
+    <div id="model-preflight-result" class="model-connection-status" data-state="idle" role="status" aria-live="polite">
+      <strong id="model-preflight-title">等待测试连接</strong>
+      <span id="model-preflight-detail">输入 API Key 后测试；注册成功后 Key 会从输入框清除。</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;line-height:1.6">密钥仅保存在当前网关进程的临时内存中，到期或重启后失效；不会写入浏览器持久存储、SQLite、日志或技能库。</p>
+    <div class="modal-actions">
+      <button onclick="closeModelSettings()">取消</button>
+      <button id="model-test-btn" onclick="testModelConnection()">测试连接</button>
+      <button class="primary" onclick="saveModelSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="chat-log" id="chat-log"></div>
+
+<div class="input-bar">
+  <div class="model-readiness" id="model-readiness" data-state="loading" role="status" aria-live="polite"><div><strong id="model-readiness-title">正在读取模型配置</strong><span id="model-readiness-detail">配置就绪后即可提交仿真需求。</span></div><button type="button" onclick="openModelSettings()">配置模型</button></div>
+  <div class="input-wrap">
+    <textarea id="query-input" rows="3" placeholder="描述声学仿真问题，或继续修改参数…" aria-label="声学仿真需求" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();ask()}"></textarea>
+    <button id="ask-btn" onclick="ask()">发送</button>
+  </div>
+  <div class="merge-hint" id="merge-hint"></div>
+</div>
+
+<script src="/assets/agent-client.js"></script>
+<script src="/assets/chat.js"></script>
+</body>
+</html>

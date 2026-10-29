@@ -1,0 +1,663 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AcouAgent Agent API",
+    "version": "1.0.0",
+    "description": "Chat, capability discovery, and model management contract for replaceable AcouAgent frontends and backends."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/agent"
+    }
+  ],
+  "tags": [
+    {
+      "name": "agent"
+    },
+    {
+      "name": "legacy"
+    }
+  ],
+  "paths": {
+    "/info": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "getAgentInfo",
+        "responses": {
+          "200": {
+            "description": "Backend capability declaration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BackendInfo"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "agentChat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Terminal result JSON, or NDJSON event stream when stream=true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowEvent"
+                    }
+                  }
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "description": "One WorkflowEvent JSON object per line; result is terminal."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Capability not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Backend workflow failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/model-profiles": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "listModelProfiles",
+        "responses": {
+          "200": {
+            "description": "Public model profile metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModelProfileList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Backend does not expose model profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/model-sessions": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "createModelSession",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Opaque temporary model session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModelSession"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid model configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Capability not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/model-sessions/{profile_id}": {
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "deleteModelSession",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session removed"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Capability not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/model-profiles/{profile_id}/test": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "operationId": "testModelProfile",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded model preflight result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Model transport failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Capability not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {}
+            }
+          }
+        }
+      },
+      "BackendInfo": {
+        "type": "object",
+        "required": [
+          "api_version",
+          "backend_id",
+          "backend_label",
+          "capabilities"
+        ],
+        "properties": {
+          "api_version": {
+            "const": "v1"
+          },
+          "backend_id": {
+            "type": "string",
+            "examples": [
+              "local",
+              "dify"
+            ]
+          },
+          "backend_label": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "object",
+            "required": [
+              "chat",
+              "streaming",
+              "model_profiles",
+              "byok",
+              "model_preflight",
+              "skill_usage"
+            ],
+            "properties": {
+              "chat": {
+                "type": "boolean"
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "model_profiles": {
+                "type": "boolean"
+              },
+              "byok": {
+                "type": "boolean"
+              },
+              "model_preflight": {
+                "type": "boolean"
+              },
+              "skill_usage": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "requirement": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "session_id": {
+            "type": "string",
+            "maxLength": 24
+          },
+          "model_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "progress",
+              "skill_usage",
+              "result"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "workflow_run_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "skill_usage": {},
+          "report": {
+            "type": "string"
+          },
+          "workflow_status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "error"
+            ]
+          },
+          "orchestration_backend": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ModelProfileList": {
+        "type": "object",
+        "required": [
+          "default_profile",
+          "byok",
+          "profiles"
+        ],
+        "properties": {
+          "default_profile": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "byok": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "ModelSession": {
+        "type": "object",
+        "required": [
+          "profile_id",
+          "label",
+          "model",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "profile_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ModelSessionRequest": {
+        "type": "object",
+        "required": [
+          "base_url",
+          "model",
+          "api_key"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "model": {
+            "type": "string"
+          },
+          "api_key": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-legacy-aliases": [
+    {
+      "method": "POST",
+      "path": "/chat",
+      "successor": "/api/v1/agent/chat",
+      "deprecated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/chat",
+      "successor": "/api/v1/agent/chat",
+      "deprecated": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-profiles",
+      "successor": "/api/v1/agent/model-profiles",
+      "deprecated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/byok/session",
+      "successor": "/api/v1/agent/model-sessions",
+      "deprecated": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/byok/session",
+      "successor": "/api/v1/agent/model-sessions/{profile_id}",
+      "deprecated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/model-profiles/test",
+      "successor": "/api/v1/agent/model-profiles/{profile_id}/test",
+      "deprecated": true
+    }
+  ]
+}

@@ -123,6 +123,8 @@ Linux / WSL 将最后一行换成 `bash scripts/install.sh`。
 - [队友安装与更新](docs/TEAM_QUICKSTART.md)：首次部署、更新 main、环境检查与常见问题
 - [模型配置](docs/MODEL_PROFILES.md)：临时 BYOK、长期 profile 和模型服务设置
 - [技术与部署详解](docs/TECHNICAL_GUIDE.md)：安全边界、MCP 工具、存储、技能质量与 Dify 接线
+- [Agent 后端接口](docs/API_BACKEND.md) 与 [前端接入契约](docs/API_FRONTEND.md)：可替换前后端的版本化接口
+- [工作流全流程图](docs/diagrams/acouagent-workflow-flow.md)：本地/Dify、技能检索、执行器、物理门和兼容路径
 - [变更日志](docs/CHANGELOG.md)：功能演进与验证记录
 - [开发与提交规范](AGENTS.md)：面向项目维护者的协作入口
 

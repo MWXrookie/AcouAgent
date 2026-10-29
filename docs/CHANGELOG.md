@@ -1,3 +1,19 @@
+## 2026-10-29 · Agent v1 通用接口与可替换静态前端
+
+将聊天路由从 `portal.py` 拆到 `agent_api.py`，新增 `/api/v1/agent/info`、`/api/v1/agent/chat`、模型 profile、临时 BYOK 会话和连接预检接口。`RuntimeBus` 现在提供 backend capability declaration；local 与 Dify 通过 `CoreBackend` 适配器区分能力，Dify 不伪造本地模型管理。旧 `/chat`、`/api/v1/chat`、`/api/model-profiles`、`/api/byok/session` 和 `/api/model-profiles/test` 保留历史响应形状并增加 `Deprecation` 与 successor `Link`。
+
+聊天页已从 `dashboard.py` 内嵌 HTML 拆为 `app/web/chat.html`、`chat.css`、`chat.js` 和 `agent-client.js`；静态客户端只使用 canonical `/api/v1/agent/*`，通过 API base meta 和 `PORTAL_ALLOWED_ORIGINS` 支持同源或显式白名单跨域，并按 `/info` capability 隐藏不支持的模型设置。Compose 默认绑定恢复为 `127.0.0.1`。
+
+新增 `docs/API_BACKEND.md`、`docs/API_FRONTEND.md`、`docs/openapi.agent.v1.json` 和 `docs/diagrams/acouagent-workflow-flow.mmd`，同步架构 JSON 与现有页面/测试 seam。`conda jw` 定向契约测试通过；在 `a7368f2` 基线叠加本次改动的干净 Docker 快照上全量回归为 2150 passed、2 skipped。当前工作区另有既存参数合同暂存改动导致 2 项 Dify guard fixture 漂移，未在本轮修改。Archify HTML/visual-check 仍待具备工具的环境补跑；未自动部署或重启 executor。脱敏验证记录见 [AGENT_API_2026-10-29](validation/AGENT_API_2026-10-29.md)。
+
+## 2026-10-29 · 解析题路由与显式 SI 参数合同修复
+
+截图中的矩形房间刚性壁模态题是解析计算请求，却进入驱动源仿真校验，最终被报为缺少 `sound_speed / density / source_frequency / domain_N / domain_dx`。参数提取模型实际成功调用，失败发生在参数合同而非模型连接；旧执行记录也未新增 jwave run。根因是提取提示词同时输出历史字段和显式 SI 字段，但共享校验器只有在识别初压 `source_type` 时才做别名归一化，且系统没有解析题/仿真题路由。
+
+新增 `problem_kind=simulation|analytical|unsupported`：非仿真请求在参数校验前 fail closed，返回 `analytical_question_not_supported` 或 `unsupported_problem`，明确“未执行 jwave”，不再输出底层缺参；只有 simulation 进入技能检索与数值执行。新增共享参数合同，对 `sound_speed_m_s`、`density_kg_m3`、`grid_shape`、`dx_m`、`t_end_s`、`frequency_hz` 等别名做确定性归一化，同义字段冲突直接拒绝，不补猜缺失值。
+
+验证：新增 2 项解析题路由回归与 3 项 SI 别名/冲突回归通过；参数流水线 25 项通过；修改文件 Python 语法检查通过。完整初压测试文件仍被既有检索集成用例在本机超时阻塞，未冒充全量通过。架构 JSON 已同步，但当前环境没有 Archify CLI，生成 HTML、`validate --quality showcase`、`deliver` 和 `visual-check` 仍需在具备工具的环境补跑。
+
 ## 2026-10-28 · 执行看板 UI 优化与主题闪烁修复
 
 删除看板中低频使用的「对比」功能（勾选两条记录对比）；统计卡由 4 张扩展为 5 张（新增「全零」，成功卡下增加成功率百分比，后端 get_stats 解析 stdout 补全零计数）；顶部重复导航移除、统一由左侧侧边栏导航；修复页面加载主题闪烁（FOUC），design.css 默认改为浅色、深色移入 [data-theme=dark]；补充空状态引导、清空历史危险样式、管理员令牌说明、统计卡点击筛选、绝对时间显示、失败分析默认展开、自动刷新暂停/立即刷新控制、表格 aria-label 与代码摘要逻辑精简。

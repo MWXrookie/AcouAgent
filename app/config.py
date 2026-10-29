@@ -4,6 +4,7 @@
 """
 
 import os
+from urllib.parse import urlparse
 
 MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN")
 EXECUTOR_SHARED_TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN")
@@ -12,6 +13,32 @@ DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
 DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://nginx/v1").rstrip("/")
 PORTAL_ADMIN_TOKEN = os.environ.get("PORTAL_ADMIN_TOKEN", "")
 ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "local").strip().lower()
+
+
+def _allowed_origins(raw: str) -> tuple[str, ...]:
+    """Parse exact browser origins for the optional cross-origin frontend mode."""
+    origins: list[str] = []
+    for item in raw.split(","):
+        value = item.strip().rstrip("/")
+        if not value:
+            continue
+        parsed = urlparse(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise RuntimeError("PORTAL_ALLOWED_ORIGINS must contain exact http(s) origins")
+        normalized = f"{parsed.scheme}://{parsed.netloc}"
+        if normalized not in origins:
+            origins.append(normalized)
+    return tuple(origins)
+
+
+PORTAL_ALLOWED_ORIGINS = _allowed_origins(os.environ.get("PORTAL_ALLOWED_ORIGINS", ""))
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"

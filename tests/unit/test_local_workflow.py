@@ -78,6 +78,46 @@ def test_required_model_stage_still_fails_closed(monkeypatch, task):
     assert not result.get("run_id")
 
 
+@pytest.mark.parametrize(("kind", "error_code"), [
+    ("analytical", "analytical_question_not_supported"),
+    ("unsupported", "unsupported_problem"),
+])
+def test_non_simulation_request_stops_before_parameter_validation(
+        monkeypatch, kind, error_code):
+    async def fake_model(profile_id, task, prompt, run_id):
+        assert task == "parameter_extraction"
+        return {
+            "content": json.dumps({
+                "problem_kind": kind,
+                "scenario_type": None,
+                "simulation_params": None,
+                "skill_query": None,
+                "description": "non-simulation request",
+            }),
+            "profile_id": "test-profile",
+            "model": "test-model",
+        }
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("non-simulation request must not reach the simulation pipeline")
+
+    monkeypatch.setattr(local_workflow, "_model", fake_model)
+    monkeypatch.setattr(local_workflow, "_tool_functions", forbidden)
+
+    async def run():
+        return [item async for item in local_workflow.workflow_events(
+            "推导矩形房间的声学模态公式并列出前 10 阶频率", "session", "test-profile")]
+
+    result = asyncio.run(run())[-1]
+    assert result["workflow_status"] == "error"
+    assert result["error_code"] == error_code
+    assert result["problem_kind"] == kind
+    assert result["quality_level"] == "Q0"
+    assert "未执行 jwave" in result["report"]
+    assert "缺少必填字段" not in result["report"]
+    assert not result.get("run_id")
+
+
 def test_optional_model_error_does_not_expose_unrecognized_provider_text(monkeypatch):
     analyzed = dict(verdict="normal", quality_level="Q2", summary="actual gate")
     result = _collect(monkeypatch, analyzed, "result_review", "private-provider-secret")[-1]
@@ -112,7 +152,7 @@ def test_model_review_cannot_override_failed_physics_gate(monkeypatch):
 
 
 def test_portal_source_sends_only_profile_id_not_browser_secret_fields():
-    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
+    source = (Path(__file__).resolve().parents[2] / "app" / "web" / "chat.js").read_text(
         encoding="utf-8"
     )
     assert "model_profile: getModelProfile()" in source
@@ -122,9 +162,8 @@ def test_portal_source_sends_only_profile_id_not_browser_secret_fields():
 
 
 def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
-    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
-        encoding="utf-8"
-    )
+    root = Path(__file__).resolve().parents[2]
+    source = (root / "app" / "web" / "chat.js").read_text(encoding="utf-8") + (root / "app" / "web" / "chat.html").read_text(encoding="utf-8")
     for expected in (
         "DeepSeek 官方 API",
         "https://api.deepseek.com",
@@ -142,9 +181,8 @@ def test_portal_source_offers_editable_deepseek_qwen_and_custom_byok_presets():
 
 
 def test_portal_model_connection_feedback_uses_compact_state_box():
-    source = (Path(__file__).resolve().parents[2] / "app" / "dashboard.py").read_text(
-        encoding="utf-8"
-    )
+    root = Path(__file__).resolve().parents[2]
+    source = (root / "app" / "web" / "chat.js").read_text(encoding="utf-8") + (root / "app" / "web" / "chat.html").read_text(encoding="utf-8")
     for state in ("idle", "pending", "success", "warning", "error"):
         assert f"'{state}'" in source or f'data-state="{state}"' in source
     assert 'class="model-connection-status"' in source

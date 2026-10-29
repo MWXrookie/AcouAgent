@@ -18,6 +18,7 @@ from app import analysis, cache_store, dashboard, execution, llm, model_client, 
 MAX_QUERY_BYTES = 65536
 MAX_CODE_BYTES = 20000
 MAX_RETRIES = 2
+PROBLEM_KINDS = {"simulation", "analytical", "unsupported"}
 
 
 class LocalWorkflowError(RuntimeError):
@@ -70,6 +71,13 @@ def _json_object(text: str) -> dict:
     raise LocalWorkflowError("model_json_invalid")
 
 
+def _problem_kind(extracted: dict) -> str:
+    value = extracted.get("problem_kind", "simulation")
+    if not isinstance(value, str) or value not in PROBLEM_KINDS:
+        raise LocalWorkflowError("problem_kind_invalid")
+    return value
+
+
 def _knowledge() -> str:
     root = Path(__file__).resolve().parents[1] / "docs"
     parts = []
@@ -82,9 +90,14 @@ def _extraction_prompt(query: str) -> str:
     return f"""你是 jwave 0.2.1 声学仿真参数提取器。只输出一个 JSON 对象，不输出解释。
 用户需求：{query}
 输出结构：
-{{"scenario_type":"point_source_2d|plane_wave_2d|interface_2d|heterogeneous_2d|initial_pressure_2d|attenuation_2d|point_source_3d|initial_pressure_3d",
-"simulation_params":{{"完整的物理参数键":"对应值"}},
-"skill_query":{{"scenario_type":"同上","parameters":{{}}}},"description":"完整需求摘要"}}
+{{"problem_kind":"simulation|analytical|unsupported",
+"scenario_type":"simulation 时为场景枚举，否则为 null",
+"simulation_params":"simulation 时为完整参数对象，否则为 null",
+"skill_query":"simulation 时为对象或 null，否则为 null","description":"完整需求摘要"}}
+problem_kind=simulation 仅用于用户要求运行 jwave/数值仿真、给出场/波形/图像，或明确需要数值执行的问题。
+problem_kind=analytical 用于只要求解析公式、理论推导、手算或模态频率列表，且没有要求运行仿真的问题。
+problem_kind=unsupported 用于超出当前声学数值仿真范围的问题。
+problem_kind 不是 simulation 时，scenario_type、simulation_params 和 skill_query 必须为 null；不得伪造仿真参数。
 simulation_params 必须包含完整物理合同，不能只把激励信息放入 skill_query。
 驱动源需要 sound_speed、density、source_frequency、domain_N、domain_dx、t_end、cfl、pml_size。
 初压激励没有驱动源频率，不得添加 source_frequency（含 null）。
@@ -387,6 +400,35 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
                 profile_id=profile.audit_profile_id(), model=profile.model)
             parameter_extraction_available = False
         extracted = _json_object(extracted_response["content"])
+        problem_kind = _problem_kind(extracted)
+        if frequency is not None or declared is not None:
+            problem_kind = "simulation"
+        if problem_kind != "simulation":
+            report = (
+                "未执行 jwave：该请求被识别为解析计算/公式推导，不属于当前数值仿真执行合同。"
+                "当前工作台只对实际执行和确定性物理门负责，不把模型推导结果冒充为仿真实测。"
+                if problem_kind == "analytical"
+                else "未执行 jwave：当前工作台不支持该问题类型，请提交明确的声学数值仿真需求。"
+            )
+            yield {
+                "event": "result",
+                "report": report,
+                "workflow_status": "error",
+                "request_id": request_id,
+                "workflow_run_id": workflow_run_id,
+                "skill_usage": [],
+                "quality_level": "Q0",
+                "error_code": (
+                    "analytical_question_not_supported"
+                    if problem_kind == "analytical"
+                    else "unsupported_problem"
+                ),
+                "problem_kind": problem_kind,
+                "model_parameter_extraction_available": parameter_extraction_available,
+                "model_profile": extracted_response["profile_id"],
+                "orchestration_backend": "local",
+            }
+            return
         scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
         if not isinstance(scenario, str) or not isinstance(params, dict):
             raise LocalWorkflowError("parameter_schema_invalid")

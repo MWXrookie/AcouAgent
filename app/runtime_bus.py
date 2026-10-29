@@ -21,7 +21,7 @@ from app.adapters import (
     SKILL_ADAPTER,
     WORKFLOW_ADAPTER,
 )
-from app.contracts import ChatRequest, CoreBackend, PortalCommand
+from app.contracts import BackendInfo, ChatRequest, CoreBackend, PortalCommand
 
 
 class RuntimeBus:
@@ -31,6 +31,27 @@ class RuntimeBus:
     talks to this bus, which preserves a stable contract while the underlying
     runtime can evolve independently.
     """
+
+    @staticmethod
+    def agent_info() -> BackendInfo:
+        """Return the selected backend's public capability declaration."""
+        return WORKFLOW_ADAPTER.info()
+
+    @staticmethod
+    def model_profiles() -> dict[str, Any]:
+        return WORKFLOW_ADAPTER.model_profiles()
+
+    @staticmethod
+    def create_model_session(payload: object) -> dict[str, Any]:
+        return WORKFLOW_ADAPTER.create_model_session(payload)
+
+    @staticmethod
+    async def test_model_profile(profile_id: str) -> dict[str, Any]:
+        return await WORKFLOW_ADAPTER.test_model_profile(profile_id)
+
+    @staticmethod
+    def remove_model_session(profile_id: object) -> bool:
+        return WORKFLOW_ADAPTER.remove_model_session(profile_id)
 
     @staticmethod
     def public_profiles() -> dict[str, Any]:

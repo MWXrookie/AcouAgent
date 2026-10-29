@@ -1,8 +1,8 @@
 # 技术方案与架构设计
 
-> ⚠️ **2026-10-07 起**：本文档早于 `DEVELOPMENT_PLAN.md` v3.0 的终点（本地可视化技能库系统）与编排层迁移决定，部分内容已过时（如 Gradio 前端、旧节点数、旧成功率）。规划与验收请以 v3.0 与 `SKILL_LIBRARY_ACCEPTANCE.md` 为准。
+> ⚠️ **2026-10-29**：本文档中的早期阶段图、旧节点数和旧前端描述仅作历史参考；当前接口、运行时和验收边界以 [Agent 后端接口](API_BACKEND.md)、[前端接入契约](API_FRONTEND.md)、[当前状态](CURRENT_STATUS.md) 与架构 JSON/HTML 为准。
 
-> **2026-10-15 当前运行时**：发行默认使用项目内 `local` 编排。模型入口为统一 OpenAI-compatible BYOK：门户密钥只存网关内存并按期失效，长期配置使用通用环境变量或 profile；自动纠错与主编排共用同一 profile。下文出现的 DeepSeek 和 Dify 固定节点图是历史部署说明。当前组件事实图见 `diagrams/acouagent-runtime.architecture.html`。
+> **2026-10-29 当前接口运行时**：静态 `chat.html` 通过 `agent-client.js` 只依赖 `/api/v1/agent/*`；后端以 `CoreBackend` + `RuntimeBus` 选择本地或 Dify，模型管理能力由 `/api/v1/agent/info` 的能力矩阵声明。知识库、技能库、看板和 executor 的既有维护边界保持不变。旧 `/chat`、`/api/v1/chat` 和模型接口作为渐进弃用别名保留。当前架构事实图见 `diagrams/acouagent-runtime.architecture.html`，完整工作流见 `diagrams/acouagent-workflow-flow.mmd`。下文 DeepSeek、Dify 节点和旧 Gradio 段落仅作历史参考。
 
 > 版本 v1.0 | 2026-08-08 | 关联: AGENTS.md, PRD.md
 
@@ -25,143 +25,35 @@
 
 ### 1.1 系统架构图
 
+当前运行时的主边界：
+
+```text
+用户 / 独立前端
+        │  meta: /api/v1/agent
+        ▼
+静态 Chat UI (chat.html + chat.js)
+        │  agent-client.js
+        ▼
+Agent API v1 (/api/v1/agent/*)
+        │  ChatRequest / WorkflowEvent / capability envelope
+        ▼
+RuntimeBus ───── capability gate
+        │
+        ├── LocalCoreAdapter ── 模型 profile / BYOK / 预检
+        │       ├── 参数提取 → problem_kind
+        │       ├── 共享参数合同 / 技能与知识库检索
+        │       ├── 代码生成 / 缓存纠错
+        │       ├── jwave executor（隔离边界）
+        │       └── 分析 / 确定性物理门 / 审查解释
+        └── DifyCoreAdapter ── Dify workflow SSE → 事件归一化
+
+旧接口兼容层：/chat、/api/v1/chat、/api/model-profiles、/api/byok/session
+        └── 旧响应形状 + Deprecation: true + successor Link
+
+独立维护旁路（本轮不重构）：/skills/api/v1、/dashboard/api/*
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            用户入口层                                    │
-│                                                                         │
-│  ┌──────────────────────────┐     ┌──────────────────────────┐         │
-│  │  Web Chat (Gradio)       │     │  Dify 原生 Chat           │         │
-│  │  :7860 (P1 新增)         │     │  :80 → :3000             │         │
-│  │  • 对话界面               │     │  (已有, MVP 可用)          │         │
-│  │  • 图片渲染               │     │                          │         │
-│  │  • 仿真历史               │     │                          │         │
-│  └───────────┬──────────────┘     └───────────┬──────────────┘         │
-│              │                                │                         │
-│              │  HTTP/SSE (Dify Chat API)      │                         │
-│              ▼                                ▼                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                          编排层 (Dify 1.16.1)                            │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  Docker Network: docker_default (external)                       │   │
-│  │                                                                  │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │   │
-│  │  │  Nginx    │  │  API     │  │  Worker  │  │  PostgreSQL   │   │   │
-│  │  │  :80/443  │  │  :5001   │  │  :5001   │  │  :5432        │   │   │
-│  │  └──────────┘  └──────────┘  └────┬─────┘  └──────────────┘   │   │
-│  │                                   │                             │   │
-│  │              ┌────────────────────┘                             │   │
-│  │              │  工作流 "仿真智能体" (App ID: 0592503e-...)       │   │
-│  │              │                                                  │   │
-│  │  ┌───────────┴───────────┐                                      │   │
-│  │  │ 节点管道               │                                      │   │
-│  │  │                       │                                      │   │
-│  │  │ Start → 需求分析(LLM) │                                      │   │
-│  │  │   → 知识检索(top_k=4) │ ← Weaviate + qwen3-rerank           │   │
-│  │  │   → 模板转换          │                                      │   │
-│  │  │   → 参数提取(LLM)     │                                      │   │
-│  │  │   → [参数校验] NEW     │ ──────────────────┐                 │   │
-│  │  │   → 代码生成(LLM)     │                   │                 │   │
-│  │  │   → MCP retry         │ ────────┐         │                 │   │
-│  │  │   → [结果分析] NEW     │ ────┐   │         │                 │   │
-│  │  │   → [审查决策] NEW     │ ─┐  │   │         │                 │   │
-│  │  │   → [结果解释] NEW     │  │  │   │         │                 │   │
-│  │  │   → End               │  │  │   │         │                 │   │
-│  │  │                       │  │  │   │         │                 │   │
-│  │  │  迭代循环: [retry] ───┘  │  │   │         │                 │   │
-│  │  │   回到参数提取 (≤3次)     │  │   │         │                 │   │
-│  │  └──────────────────────────┘  │   │         │                 │   │
-│  └────────────────────────────────┼───┼─────────┼─────────────────┘   │
-│                                   │   │         │                     │
-├───────────────────────────────────┼───┼─────────┼─────────────────────┤
-│                        工具层 (MCP Server)             │               │
-│                                   │   │         │                     │
-│  ┌────────────────────────────────┼───┼─────────┼─────────────────┐   │
-│  │  Docker: dify-mcp (:8001)      │   │         │                 │   │
-│  │  Networks: dify_default + executor_internal │                   │   │
-│  │                                 │   │         │                 │   │
-│  │  ┌──────────────────────────────┼───┼─────────┼───────────┐   │   │
-│  │  │ FastMCP Gateway              │   │         │           │   │   │
-│  │  │ • Bearer Token 认证          │   │         │           │   │   │
-│  │  │ • /health, /dashboard       │   │         │           │   │   │
-│  │  │                              │   │         │           │   │   │
-│  │  │ ┌────────────────────────────┼───┼─────────┼─────┐    │   │   │
-│  │  │ │ 已有工具                   │   │         │     │    │   │   │
-│  │  │ │ • list_installed_libraries │   │         │     │    │   │   │
-│  │  │ │ • jwave_environment       │   │         │     │    │   │   │
-│  │  │ │ • run_jwave_code          │───┘         │     │    │   │   │
-│  │  │ │ • run_jwave_code_with_retry│            │     │    │   │   │
-│  │  │ └────────────────────────────┼─────────────┼─────┘    │   │   │
-│  │  │                               │             │          │   │   │
-│  │  │ ┌─────────────────────────────┼─────────────┼─────┐   │   │   │
-│  │  │ │ P1 新增工具                 │             │     │   │   │   │
-│  │  │ │ • validate_simulation_params│             │     │   │   │   │
-│  │  │ │ • analyze_simulation_result │             │     │   │   │   │
-│  │  │ └─────────────────────────────┼─────────────┼─────┘   │   │   │
-│  │  └───────────────────────────────┼─────────────┼─────────┘   │   │
-│  │                                  │             │             │   │
-│  │  ┌───────────────────────────────┼─────────────┼─────────┐   │   │
-│  │  │ DeepSeek API 调用             │             │         │   │   │
-│  │  │ • 纠错: _llm_fix_code()       │             │         │   │   │
-│  │  │ • 外网: api.deepseek.com     │             │         │   │   │
-│  │  └───────────────────────────────┼─────────────┼─────────┘   │   │
-│  │                                  │             │             │   │
-│  │  ┌───────────────────────────────┼─────────────┼─────────┐   │   │
-│  │  │ Dashboard                    │             │         │   │   │
-│  │  │ • SQLite: /app/data/execution_history.db  │         │   │   │
-│  │  │ • Web: /dashboard            │             │         │   │   │
-│  │  │ • API: /dashboard/api/executions          │         │   │   │
-│  │  └───────────────────────────────┼─────────────┼─────────┘   │   │
-│  └──────────────────────────────────┼─────────────┼─────────────┘   │
-│                                     │             │                 │
-├─────────────────────────────────────┼─────────────┼─────────────────┤
-│                        执行层 (Docker Sandbox)        │               │
-│                                     │             │                 │
-│  ┌──────────────────────────────────┼─────────────┼─────────────┐   │
-│  │  Docker: jwave-executor (:8010) │             │             │   │
-│  │  Network: executor_internal (无外网)            │             │   │
-│  │                                  │             │             │   │
-│  │  ┌───────────────────────────────┼─────────────┼─────────┐   │   │
-│  │  │ HTTP Server (executor.py)     │             │         │   │   │
-│  │  │ • POST /execute - 代码执行     │             │         │   │   │
-│  │  │ • GET  /health  - 健康检查     │             │         │   │   │
-│  │  │ • Token: HMAC compare_digest  │             │         │   │   │
-│  │  └───────────────────────────────┼─────────────┼─────────┘   │   │
-│  │                    │              │             │             │   │
-│  │                    ▼              │             │             │   │
-│  │  ┌────────────────────────────────┼─────────────┼─────────┐   │   │
-│  │  │ Subprocess Executor           │             │         │   │   │
-│  │  │ • /usr/local/bin/python -I main.py          │         │   │   │
-│  │  │ • start_new_session (进程隔离)  │             │         │   │   │
-│  │  │ • resource.setrlimit (CPU/FSIZE/NOFILE/NPROC)          │   │   │
-│  │  │ • timeout → killpg (整棵进程树) │             │         │   │   │
-│  │  │ • tmpfs: /tmp (noexec,nosuid,nodev)          │         │   │   │
-│  │  └────────────────────────────────┼─────────────┼─────────┘   │   │
-│  │                                   │             │             │   │
-│  │  安全检查:                        │             │             │   │
-│  │  • cap_drop: ALL                  │             │             │   │
-│  │  • no-new-privileges: true        │             │             │   │
-│  │  • read_only: true (除 /tmp)       │             │             │   │
-│  │  • pids_limit: 256                │             │             │   │
-│  │  • mem_limit: 4g                  │             │             │   │
-│  │  • cpus: 2.0                      │             │             │   │
-│  └───────────────────────────────────┼─────────────┼─────────────┘   │
-│                                      │             │                 │
-├──────────────────────────────────────┼─────────────┼─────────────────┤
-│                           外部依赖    │             │                 │
-│                                      │             │                 │
-│  ┌────────────┐  ┌──────────────┐   │             │                 │
-│  │ DeepSeek   │  │ Dify 知识库   │   │             │                 │
-│  │ API        │  │ (Weaviate)   │   │             │                 │
-│  │ (纠错 LLM) │  │ (向量检索)    │   │             │                 │
-│  └────────────┘  └──────────────┘   │             │                 │
-│                                      │             │                 │
-│  ┌────────────┐  ┌──────────────┐   │             │                 │
-│  │ jwave      │  │ JAX          │   │             │                 │
-│  │ 0.2.1      │  │ 0.4.30 (CPU) │   │             │                 │
-│  └────────────┘  └──────────────┘   │             │                 │
-└─────────────────────────────────────────────────────────────────────┘
-```
+
+`Agent API v1` 的请求、事件、错误和能力矩阵见 [后端接口文档](API_BACKEND.md)；前端替换清单见 [前端接口文档](API_FRONTEND.md)。图中执行器仍只接受原有只读、降权、无外网和资源限制。
 
 ### 1.2 网络拓扑
 
@@ -371,21 +263,22 @@ Dify Knowledge Base
 └── 编辑流程: [[kb-edit-process]]
 ```
 
-### 3.5 Web 前端 (P1 新增)
+### 3.5 Web 前端（当前实现）
 
+```text
+app/web/chat.html         静态聊天页面，声明 API base
+app/web/chat.css          页面视觉样式
+app/web/chat.js           会话、模型设置和事件展示
+app/web/agent-client.js   无构建依赖的 Agent HTTP 客户端
+                         ├── info()
+                         ├── chat() 解析 JSON / NDJSON
+                         ├── model profile / BYOK 方法
+                         └── AgentApiError
+app/ui_chrome.py          共享 design.css / design.js 注入
+app/agent_api.py          /api/v1/agent/* + legacy aliases
 ```
-frontend/app.py (Gradio)
-├── gr.ChatInterface(chat)
-│   ├── 发送消息 → Dify Chat API (HTTP POST)
-│   ├── 流式接收 SSE → 逐 token 更新气泡
-│   ├── 图片渲染 → base64 → <img> 标签嵌入
-│   └── 历史加载 → Dify conversations API
-│
-├── Tab: 仿真历史
-│   └── 调用 Dashboard API → 列表展示
-│
-└── 启动: app.launch(server_name="0.0.0.0", server_port=7860)
-```
+
+聊天页启动时先读取 `/api/v1/agent/info`，再按能力展示或隐藏模型设置。历史仍保存在浏览器 localStorage，后端只接收 `requirement`、`session_id` 和可选 `model_profile`。技能维护和看板页面继续使用原有 API。
 
 ---
 
@@ -576,16 +469,18 @@ CREATE TABLE executions (
 ### 6.1 认证链
 
 ```
-用户 ──→ [无认证 MVP] ──→ Gradio 前端
-                              │
-                              ▼ Dify API Key
-                          Dify API ──→ 工作流执行
-                                          │
-                                          ▼ MCP Bearer Token
-                                      MCP Gateway
-                                          │
-                                          ▼ HMAC compare_digest
-                                      jwave-executor
+用户 / 独立前端 ──→ [同源 / 显式 CORS 白名单] ──→ Agent API v1
+                                                   │
+                                                   ▼ RuntimeBus / CoreBackend
+                                        ┌──────────┴──────────┐
+                                        ▼                     ▼
+                                  LocalCoreAdapter       DifyCoreAdapter
+                                        │                     │
+                                        ▼                     ▼ Dify API Key
+                                  MCP Gateway / executor    Dify workflow
+                                        │
+                                        ▼ HMAC compare_digest
+                                  jwave-executor
 ```
 
 ### 6.2 隔离层级
@@ -675,7 +570,7 @@ CODE_RETRY_MAX=7
 
 | 项目 | 说明 | 计划 |
 |------|------|------|
-| Gradio 替换为 Next.js | Gradio 适合原型，不适合生产 | P2 |
+| Agent API 契约漂移 | 新前端与独立后端需要持续校验 OpenAPI、事件和能力矩阵 | 已建立契约测试；后续持续维护 |
 | SQLite 替换为 PostgreSQL | 共用 Dify 的 PG | P2 |
 | executor 单实例瓶颈 | 目前串行执行，需排队 | P2 (多 executor) |
 | 无 CI/CD | 手动测试 + 手动部署 | P2 (GitHub Actions) |

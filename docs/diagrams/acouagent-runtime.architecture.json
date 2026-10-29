@@ -23,9 +23,11 @@
           "model_preflight",
           "local_orchestrator",
           "mcp_gateway",
-          "simulation_pipeline"
+          "simulation_pipeline",
+          "legacy_aliases",
+          "skill_maintenance"
         ],
-        "note": "门户预检模型能力，按激励合同保留完整物理输入。复制的高斯/模态初压及完整频域声明按用户原始字段校验，模型遗漏不得丢失边界、材料、单位或结果合同。检索、沙箱和确定性物理门独立核验；实际复用绑定本次新运行；固定双传感器结果显示时间波形与采样统计，不冒充二维场或全场峰值。"
+        "note": "门户预检模型能力，按激励合同保留完整物理输入。本地核心先区分 simulation / analytical / unsupported；解析题不得进入数值参数合同或 executor。复制的高斯/模态初压及完整频域声明按用户原始字段校验，模型遗漏不得丢失边界、材料、单位或结果合同；显式 SI 别名确定性归一化，冲突拒绝。检索、沙箱和确定性物理门独立核验；实际复用绑定本次新运行；固定双传感器结果显示时间波形与采样统计，不冒充二维场或全场峰值。 Canonical Agent API v1 统一进入 RuntimeBus，前端只依赖 ChatRequest、WorkflowEvent 和能力矩阵；旧路径保留兼容并带 Deprecation/successor 标记。"
       },
       {
         "id": "quality-loop",
@@ -58,9 +60,10 @@
           "web_portal",
           "local_orchestrator",
           "state_store",
-          "simulation_pipeline"
+          "simulation_pipeline",
+          "skill_maintenance"
         ],
-        "note": "管理员导入/编辑、查看差异、验证并接纳；trial不授级，历史评级与当前许可分开。自动来源独立验证后接纳。负反馈即停用，显式重验后的新手动证明才能恢复；单slot，未知不重派。"
+        "note": "管理员导入/编辑、查看差异、验证并接纳；trial不授级，历史评级与当前许可分开。自动来源独立验证后接纳。负反馈即停用，显式重验后的新手动证明才能恢复；单slot，未知不重派。 技能维护页面继续使用既有 skills/api/v1，不纳入本轮聊天与模型管理通用接口。"
       },
       {
         "id": "fresh-install",
@@ -97,7 +100,7 @@
       "id": "web_portal",
       "type": "frontend",
       "label": "Web 门户",
-      "sublabel": "聊天 / 技能编辑 / 验证结果",
+      "sublabel": "静态 chat / agent-client / 技能维护",
       "pos": [
         170,
         300
@@ -111,8 +114,8 @@
     {
       "id": "core_port",
       "type": "backend",
-      "label": "核心统一端口",
-      "sublabel": "ChatRequest / WorkflowEvent / RuntimeBus",
+      "label": "Agent API v1 / RuntimeBus",
+      "sublabel": "ChatRequest / WorkflowEvent / capabilities",
       "pos": [
         350,
         300
@@ -272,6 +275,36 @@
         76
       ],
       "tag": "无外网 + 30s墙钟/2 CPU"
+    },
+    {
+      "id": "legacy_aliases",
+      "type": "backend",
+      "label": "旧接口兼容层",
+      "sublabel": "Deprecation / successor / 旧响应",
+      "pos": [
+        150,
+        185
+      ],
+      "size": [
+        185,
+        64
+      ],
+      "tag": "渐进弃用"
+    },
+    {
+      "id": "skill_maintenance",
+      "type": "backend",
+      "label": "技能 / 知识库维护",
+      "sublabel": "skills/api/v1 / 现有页面保持",
+      "pos": [
+        840,
+        100
+      ],
+      "size": [
+        185,
+        64
+      ],
+      "tag": "不重构边界"
     }
   ],
   "boundaries": [
@@ -292,7 +325,9 @@
         "simulation_pipeline",
         "state_store",
         "skill_bootstrap",
-        "model_preflight"
+        "model_preflight",
+        "legacy_aliases",
+        "skill_maintenance"
       ]
     },
     {
@@ -432,6 +467,34 @@
         600,
         500
       ]
+    },
+    {
+      "id": "portal-to-legacy",
+      "from": "web_portal",
+      "to": "legacy_aliases",
+      "label": "旧路径 / 兼容",
+      "variant": "dashed"
+    },
+    {
+      "id": "legacy-to-core",
+      "from": "legacy_aliases",
+      "to": "core_port",
+      "label": "归一化后进入 RuntimeBus",
+      "variant": "dashed"
+    },
+    {
+      "id": "portal-to-skill-maintenance",
+      "from": "web_portal",
+      "to": "skill_maintenance",
+      "label": "既有维护 API 不变",
+      "variant": "dashed"
+    },
+    {
+      "id": "skill-maintenance-to-state",
+      "from": "skill_maintenance",
+      "to": "state_store",
+      "label": "技能 / 知识库审计",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -441,8 +504,10 @@
       "items": [
         "发行默认 local；Dify 仅为显式兼容覆盖",
         "前端只依赖 ChatRequest / WorkflowEvent；核心通过 CoreBackend 替换",
-        "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话",
-        "本地模式覆盖提取、检索、生成、缓存纠错、执行、审查和解释"
+        "Canonical /api/v1/agent/*；旧聊天和模型路径为带 Deprecation 的兼容别名",
+        "能力矩阵驱动前端降级；Dify 不伪造模型 profile 或 BYOK",
+        "提取后先分类问题；解析/不支持请求不进入 jwave 参数合同或 executor",
+        "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话"
       ]
     },
     {
