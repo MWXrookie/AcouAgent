@@ -67,7 +67,7 @@ function skillName(item){
  const text=typeof item.state_text==='string'?item.state_text:'';
  const parts=text.split('；');
  // Preserve the specific scientific description instead of the host/executor label.
- if(parts.length>1&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();
+ if(parts.length>1&&parts[0].includes('受控执行器')&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();
  if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选'))return text;
  return scenarioLabel(item.scenario_type)+(item.status==='candidate'?' · 待验证案例':' · 仿真方案');
 }
