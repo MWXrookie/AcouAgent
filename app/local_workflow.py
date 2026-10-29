@@ -570,9 +570,9 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
                     params_json, result.get("run_id", "") or "")
             signature = cache_store._extract_error_signature(result.get("stderr", "") or "",
                 result.get("exit_code"), result.get("stdout", "") or "")
-            if signature:
-                observed_errors.append(signature)
             passed = _passed(result, analyzed)
+            if signature and not passed:
+                observed_errors.append(signature)
             if pending_cache_update is not None:
                 signature, fix_hint = pending_cache_update
                 try:
