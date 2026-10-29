@@ -29,7 +29,9 @@ try{
  check(await page.locator('#task-review .primary').isDisabled(),'unsupported_runtime_cannot_execute');
  await screenshot('01-original-parameters.png');
  await page.locator('#task-review details').first().locator('summary').click();
- check((await page.locator('#task-review').innerText()).includes('\\text{m}'),'original_source_evidence_visible');
+ const evidenceText=await page.locator('#task-review details').first().innerText();
+ check(evidenceText.includes('4.0 m')&&!evidenceText.includes('\\text{m}'),'source_evidence_plain_and_readable');
+ check(await page.locator('#task-source').inputValue()===original,'source_binding_preserved_after_plain_display');
  await screenshot('02-source-evidence.png');
  const edit=page.locator('#task-source');await page.locator('#task-review details').last().locator('summary').click();
  await edit.fill('二维矩形房间，刚性壁面，Lx=400cm，c=343m/s，前10个模态频率');

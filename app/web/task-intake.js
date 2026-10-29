@@ -50,7 +50,7 @@ function show(value){
   if(contract.task_kind==='room_eigenmodes_2d'&&f.name==='density_kg_m3'&&f.status==='missing')continue;
   const tr=el('tr'),v=displayValue(f);
   tr.append(el('th',f.label),el('td',v),el('td',statusLabels[f.status]||'待核对'));rows.append(tr);
-  if(f.sources.length){const p=el('p');p.append(el('strong',f.label+'：'),document.createTextNode(f.sources.map(s=>s.fragment).join('；')));sources.append(p)}
+  if(f.sources.length){const p=el('p');p.append(el('strong',f.label+'：'),document.createTextNode(f.sources.map(s=>plainMathText(s.fragment)).join('；')));sources.append(p)}
   if(f.value&&typeof f.value==='object'&&(f.name==='result_spec'||Array.isArray(f.value)&&f.value.some(x=>x&&typeof x==='object'&&!Array.isArray(x)))){const d=el('details');d.append(el('summary',f.label+'的完整识别结果'),el('pre',JSON.stringify(f.value,null,2)));sources.append(d)}
  }
  for(const item of contract.issues)issues.append(el('li',item.message));

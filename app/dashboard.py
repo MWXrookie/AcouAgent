@@ -1069,7 +1069,7 @@ function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").re
 // Simple markdown-to-HTML renderer
 function renderMarkdown(md) {
   var blocks=[];
-  var html=String(md||'').replace(/\r\n?/g,'\n');
+  var html=(typeof plainMathText==='function'?plainMathText(md):String(md||'')).replace(/\r\n?/g,'\n');
   // Protect fenced output before applying inline Markdown.
   html=html.replace(/^\s*(\x60{3,}|~{3,})[^\n]*\n([\s\S]*?)^\s*\1\s*$/gm,function(_,mark,body){
     blocks.push('<details class="report-output"><summary>查看原始输出</summary><pre><code>'+esc(body.trimEnd())+'</code></pre></details>');
@@ -1222,7 +1222,7 @@ function renderChat() {
   }
   log.innerHTML = conversation.map(function(m) {
     var cls = m.role === 'user' ? 'user' : 'assistant';
-    var body = m.loading ? '<span class="typing"><i></i><i></i><i></i></span>' : (m.role === 'user' ? esc(m.content) : renderMarkdown(m.content));
+    var body = m.loading ? '<span class="typing"><i></i><i></i><i></i></span>' : (m.role === 'user' ? esc(plainMathText(m.content)) : renderMarkdown(m.content));
     return '<div class="msg ' + cls + '">' + body + '</div>';
   }).join('');
   log.scrollTop = log.scrollHeight;
@@ -1824,7 +1824,7 @@ function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").re
 
 function renderMarkdown(md) {
   var blocks=[];
-  var html=String(md||'').replace(/\r\n?/g,'\n');
+  var html=(typeof plainMathText==='function'?plainMathText(md):String(md||'')).replace(/\r\n?/g,'\n');
   // Protect fenced output before applying inline Markdown.
   html=html.replace(/^\s*(\x60{3,}|~{3,})[^\n]*\n([\s\S]*?)^\s*\1\s*$/gm,function(_,mark,body){
     blocks.push('<details class="report-output"><summary>查看原始输出</summary><pre><code>'+esc(body.trimEnd())+'</code></pre></details>');
@@ -2230,11 +2230,14 @@ function renderSessionList() {
     }
     var row = document.createElement('div');row.className = 'session-item' + (s.id === currentSessionId ? ' active' : '');
     var open = document.createElement('button');open.type = 'button';open.className = 'session-open';
-    open.textContent = s.title || '新对话';open.title = open.textContent;
+    var firstQuestion=(s.messages||[]).find(function(m){return m.role==='user'});
+    var titleSource=s.title || '新对话';
+    if (/[\\$]/.test(titleSource) && firstQuestion) titleSource=firstQuestion.content;
+    open.textContent = plainMathText(titleSource).slice(0,40);open.title = plainMathText(titleSource);
     if (s.id === currentSessionId) open.setAttribute('aria-current','true');
     open.addEventListener('click',function() { switchSession(s.id); });
     var remove = document.createElement('button');remove.type = 'button';remove.className = 'session-del';
-    remove.textContent = '×';remove.setAttribute('aria-label','删除对话：' + (s.title || '新对话'));
+    remove.textContent = '×';remove.setAttribute('aria-label','删除对话：' + open.textContent);
     remove.addEventListener('click',function() { deleteSession(s.id); });
     row.append(open,remove);box.appendChild(row);
   });
@@ -2298,7 +2301,7 @@ function renderChat() {
   }
   log.innerHTML = conversation.map(function(m) {
     var cls = m.role === 'user' ? 'user' : 'assistant';
-    var body = m.loading ? '<span class="typing"><i></i><i></i><i></i></span>' : (m.role === 'user' ? esc(m.content) : renderMarkdown(m.content));
+    var body = m.loading ? '<span class="typing"><i></i><i></i><i></i></span>' : (m.role === 'user' ? esc(plainMathText(m.content)) : renderMarkdown(m.content));
     return '<div class="msg ' + cls + '">' + body + '</div>';
   }).join('');
   log.scrollTop = log.scrollHeight;

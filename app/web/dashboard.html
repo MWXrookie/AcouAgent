@@ -349,7 +349,7 @@ function renderRow(r) {
 
 function renderAnalysis(a, room) {
   if (!a) return '<div class="detail-box analysis-summary">本次记录没有可关联的物理分析摘要。</div>';
-  if (room) return '<div class="detail-box analysis-summary"><strong>房间模态分析</strong><p>' + esc(a.summary || '尚无独立验证结论') + '</p><p>此任务输出模态频率，压力幅值与传播信号指标不适用。</p></div>';
+  if (room) return '<div class="detail-box analysis-summary"><strong>房间模态分析</strong><p>' + esc(plainMathText(a.summary || '尚无独立验证结论')) + '</p><p>此任务输出模态频率，压力幅值与传播信号指标不适用。</p></div>';
   var shape = Array.isArray(a.field_shape) && a.field_shape.length ? a.field_shape.join(' × ') : '-';
   var maxPressure = a.max_pressure == null ? '-' : Number(a.max_pressure).toPrecision(6) + ' ' + analysisUnit(a);
   var rmsPressure = a.rms_pressure == null ? '-' : Number(a.rms_pressure).toPrecision(6) + ' ' + analysisUnit(a);
@@ -359,7 +359,7 @@ function renderAnalysis(a, room) {
     + '<dt>RMS 压力</dt><dd>' + esc(rmsPressure) + '</dd>'
     + '<dt>场形状</dt><dd>' + esc(shape) + '</dd>'
     + '<dt>检测到信号</dt><dd>' + (a.has_signal ? '是' : '否') + '</dd>'
-    + '</dl><strong>确定性分析摘要</strong><p>' + esc(a.summary || '暂无摘要') + '</p></div>';
+    + '</dl><strong>确定性分析摘要</strong><p>' + esc(plainMathText(a.summary || '暂无摘要')) + '</p></div>';
 }
 
 function toggleDetail(id) {

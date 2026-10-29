@@ -23,7 +23,7 @@ def test_catalog_titles_remain_distinct_in_browser():
     items = [dict(state_text=name, scenario_type='initial_pressure_2d', status='active') for name in names]
     items += [dict(state_text='本机受控执行器；固定均匀水介质高斯初压', status='active'),
               dict(state_text='已记录仿真的未认证候选案例', status='candidate')]
-    script = "const scenarioLabel=()=> '二维点声源';\n"+function+'\nconsole.log(JSON.stringify('+json.dumps(items,ensure_ascii=False)+'.map(skillName)));'
+    script = (Path(__file__).resolve().parents[2]/"app/web/scientific-text.js").read_text(encoding="utf-8")+"\nconst scenarioLabel=()=> '二维点声源';\n"+function+'\nconsole.log(JSON.stringify('+json.dumps(items,ensure_ascii=False)+'.map(skillName)));'
     result = subprocess.run([node, '-e', script], capture_output=True, text=True, encoding='utf-8', check=True)
     displayed = json.loads(result.stdout)
     assert displayed[:15] == names
@@ -60,7 +60,7 @@ def test_automatic_source_titles_describe_physics_without_changing_storage():
     items=[dict(state_text='Automatic controlled source',scenario_type=x['scenario_type'],status='active',display_parameters=display_parameters(json.dumps(dict(normalizer_version='normalizer_v2',parameters=x['parameters'])))) for x in specs]
     for file,start,end,prefix,formatter in [('app/web/skills.html','function skillName(item)','function simulationParameters',"const scenarioLabel=()=> '二维点声源';",'skillName'),('app/web/design.js','function referenceName(item)','if(chat){','','referenceName')]:
         text=(root/file).read_text(encoding='utf-8');function=text[text.index(start):text.index(end)]
-        result=subprocess.run([node,'-e',prefix+function+'console.log(JSON.stringify('+json.dumps(items)+'.map('+formatter+')));'],capture_output=True,text=True,encoding='utf-8',check=True)
+        result=subprocess.run([node,'-e',(root/'app/web/scientific-text.js').read_text(encoding='utf-8')+prefix+function+'console.log(JSON.stringify('+json.dumps(items)+'.map('+formatter+')));'],capture_output=True,text=True,encoding='utf-8',check=True)
         names=json.loads(result.stdout)
         assert len(set(names))==3 and all('Automatic' not in name for name in names)
         assert '区域声速 2300 m/s' in names[1] and '区域密度 2000 kg/m³' in names[2]

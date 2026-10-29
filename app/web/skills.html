@@ -62,7 +62,8 @@ const scenarioLabels={plane_wave_2d:'二维平面波',point_source_2d:'二维点
 const statusLabels={candidate:'待独立验证',active:'已有验证记录',questioned:'需要重新验证',retired:'已停用'};
 const scenarioLabel=x=>scenarioLabels[x]||x,statusLabel=x=>statusLabels[x]||x;
 const qualityLabel=x=>x==='Q4'?'Q4 · 已有指定范围的物理验证记录':x==='Q2'?'Q2 · 候选，尚未独立认证':x;
-function skillName(item){
+function skillName(item){return plainMathText(rawSkillName(item))}
+function rawSkillName(item){
  if(item.presentation?.title)return item.presentation.title;
  const text=typeof item.state_text==='string'?item.state_text:'';
  const parts=text.split('；');
@@ -86,8 +87,8 @@ function simulationRequest(item){
 }
 function readableSummary(item,v){
  const box=$('friendly-summary');box.replaceChildren();const info=item.presentation;
- const add=(label,value)=>{const row=elSummary('p'),b=elSummary('strong',label+'：');row.append(b,document.createTextNode(value));box.append(row)};
- function elSummary(tag,text){const n=document.createElement(tag);if(text)n.textContent=text;return n}
+ const add=(label,value)=>{const row=elSummary('p'),b=elSummary('strong',label+'：');row.append(b,document.createTextNode(plainMathText(value)));box.append(row)};
+ function elSummary(tag,text){const n=document.createElement(tag);if(text)n.textContent=plainMathText(text);return n}
  add('用途',info?.purpose||'本例保存了一次声学仿真的设置。完整参数可在下方查看。');
  if(info?.output)add('输出',info.output);
  if(info?.boundary)add('边界',info.boundary);
@@ -159,7 +160,7 @@ async function select(id,version=null){
   $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current);
   $('trust').textContent=statusLabel(current.status)+(current.archived?' · 已归档':'');$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
   $('source').textContent='版本 '+v.version+' · 来源运行 '+v.source_run_id+' · 校验器 '+v.validator_version;$('evidence-grade').textContent=current.quality_level;$('evidence-run').textContent=v.source_run_id;
-  $('stored-name').textContent='原始记录名称：'+current.state_text;$('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');
+  $('stored-name').textContent='记录名称：'+plainMathText(current.state_text);$('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');
   $('code').textContent=v.code_template;$('hash').textContent='SHA256 '+v.code_hash;$('stats').textContent=current.statistics_explanation;
   $('run').value=v.source_run_id;$('archive').textContent=current.archived?'恢复':'归档';
   $('revalidate').hidden=current.status!=='questioned'||current.archived;
