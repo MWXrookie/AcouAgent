@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--ssh-host')
     parser.add_argument('--gateway-container', default='dify-mcp')
     parser.add_argument('--data-dir', type=Path)
+    parser.add_argument('--skills-copy', type=Path, help='Optional local copied library; read-only routes only')
     parser.add_argument('--port', type=int, default=18221)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
@@ -30,6 +31,13 @@ def main():
     from starlette.routing import Route
     import uvicorn
     from app import portal, config, dashboard, execution
+    if args.skills_copy:
+        if not args.skills_copy.is_file():
+            parser.error('skills copy must already exist')
+        from app import skill_library_service
+        from app.skill_store import SkillStore
+        skill_library_service.STORE = SkillStore(args.skills_copy)
+        config.SKILL_LIBRARY_ENABLED = True
     if args.execute_room:
         if not args.ssh_host or not args.data_dir:
             parser.error('real room mode requires --ssh-host and a fresh --data-dir')
@@ -45,7 +53,7 @@ def main():
             self.routes = []
         def custom_route(self, path, methods):
             def decorate(fn):
-                if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or (args.execute_room and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}):
+                if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or (args.execute_room and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}) or (args.skills_copy and methods == ['GET'] and path in {'/skills','/skills/api/{skill_id}','/skills/api/{skill_id}/events','/skills/api/{skill_id}/feedback'}):
                     self.routes.append(Route(path, fn, methods=methods))
                 return fn
             return decorate
