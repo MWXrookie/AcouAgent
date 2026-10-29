@@ -38,6 +38,8 @@
 
 新增界面入口：先完整备份，再准备手动技能，自动学习默认关闭且可独立开启或关闭。参考文件由Windows主进程通过正常TLS获取，限定公开仓库固定提交与SHA256；只读交给隔离准备器，由原解析器再次核验，不交给求解执行器。实际安装版已验证schema17→18、三个标准模板可用、学习开关生效及备份恢复至17；既有行和资产保留。41项Node和15项Python回归通过。
 
-以上不代表自然语言真实仿真已验收。仍需完成：模型新求解与标准答案核对、真正学习和复用的完整事务、同步最新main及固定镜像、新操作者冷启动、最终独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
+alpha.3随后完成实际安装窗口的DeepSeek Flash连接、B01/B02真实首次求解、独立自动接纳和新运行复用，共28项通过；实际场对冻结k-Wave参考重算通过。大核Docker上LLVM线程耗尽通过限制实际CPU可见集合解决，配额与沙箱限制保持，43项回归通过。两组单次耗时减少约32%/37%，不宣称泛化或准确率提升。详见[真实模型报告](DESKTOP_MODEL_ACCEPTANCE.md)。
+
+仍需完成：安装版手动添加的完整事务、同步最新main及固定镜像、同步后复验、新操作者冷启动、最终独立复核、应用图标与发行说明。尚未发布GitHub桌面发行包。详细边界见 [阶段验收](DESKTOP_CANDIDATE_ACCEPTANCE.md)。
 
 官方依据：[Electron安全](https://www.electronjs.org/docs/latest/tutorial/security)、[Electron进程隔离](https://www.electronjs.org/docs/latest/tutorial/context-isolation)、[Windows运行时前提](https://docs.docker.com/desktop/setup/install/windows-install/)、[NSIS安装器](https://www.electron.build/docs/nsis/)。

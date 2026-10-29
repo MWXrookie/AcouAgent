@@ -21,6 +21,7 @@ async function fixture(t, behavior) {
     if (text.includes('.OSType')) return '"linux"';
     if (text.includes('.Architecture')) return '"x86_64"';
     if (text.includes('volume inspect')) throw Error('no such volume');
+    if (args.includes('run') && !args.includes('compose')) return '[0,1,2,3]';
     return '';
   };
   const runtime = new Runtime({resourceDir,dataDir,vault:{load:async()=>({...secrets})},runner,platform:'win32'});
@@ -32,6 +33,25 @@ test('missing Docker produces actionable state without writing a plaintext secre
   const state = await runtime.start();
   assert.equal(state.phase,'error');assert.match(state.detail,/Docker Desktop/);assert.equal(state.ready,false);
   assert.deepEqual(await fs.readdir(dataDir),[]);
+});
+
+test('executor affinity uses at most two actual available CPU IDs without weakening probe isolation',async t=>{
+ const {runtime,calls}=await fixture(t,(_file,args)=>args.includes('run')&&!args.includes('compose')?'[4,7,10,13]':undefined);
+ await runtime.inspectEnvironment();await runtime.selectExecutorCpus();
+ assert.equal(runtime.cpuSet,'4,7');assert.equal(runtime.environment().ACOUAGENT_EXECUTOR_CPUSET,'4,7');
+ const probe=calls.find(c=>c.args.includes('run'));assert.ok(probe.args.includes(runtime.images.executor));
+ assert.ok(probe.args.includes('--read-only'));assert.ok(probe.args.includes('no-new-privileges:true'));
+ assert.equal(probe.args[probe.args.indexOf('--network')+1],'none');
+ assert.equal(probe.args.includes('--volume')||probe.args.includes('-v')||probe.args.includes('-e'),false);
+});
+
+test('affinity supports one CPU and rejects malformed host topology before starting services',async t=>{
+ for(const [raw,expected] of [['[9]','9'],['[]',null],['[2,2]',null],['[7,4]',null],['["0"]',null],['null',null]]){
+  const {runtime,calls}=await fixture(t,(_file,args)=>args.includes('run')&&!args.includes('compose')?raw:undefined);
+  await runtime.inspectEnvironment();
+  if(expected){await runtime.selectExecutorCpus();assert.equal(runtime.cpuSet,expected);}
+  else {await runtime.start();assert.equal(runtime.state.phase,'error');assert.equal(calls.some(c=>c.args.includes('up')),false);}
+ }
 });
 
 test('new Docker installation is discoverable without restarting the desktop app for PATH', async t => {

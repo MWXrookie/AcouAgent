@@ -34,6 +34,7 @@ services:
     pids_limit: 256
     mem_limit: 4g
     cpus: 2.0
+    cpuset: ${ACOUAGENT_EXECUTOR_CPUSET:-0}
     labels:
       io.acouagent.desktop.install_id: ${ACOUAGENT_INSTALL_ID:?required}
     healthcheck:

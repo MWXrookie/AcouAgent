@@ -22,6 +22,7 @@ async function main(){
   const executorId=(await runtime.compose(['ps','-q','jwave-executor'])).trim();
   const inspected=JSON.parse(await runtime.docker(['inspect',executorId]));const h=inspected[0].HostConfig;
   check(h.ReadonlyRootfs&&h.CapDrop.includes('ALL')&&h.SecurityOpt.includes('no-new-privileges:true')&&h.PidsLimit===256,'executor_security_preserved');
+  check(h.CpusetCpus===runtime.cpuSet&&h.CpusetCpus.split(',').length<=2&&h.NanoCpus===2000000000,'executor_cpu_visibility_matches_two_cpu_budget');
   const network=JSON.parse(await runtime.docker(['network','inspect','acouagent-desktop_executor_internal']));check(network[0].Internal===true,'executor_network_internal');
   const gatewayId=(await runtime.compose(['ps','-q','gateway'])).trim();
   const gateway=JSON.parse(await runtime.docker(['inspect',gatewayId]));check(gateway[0].HostConfig.PortBindings['8001/tcp'].every(p=>p.HostIp==='127.0.0.1'),'gateway_loopback_only');

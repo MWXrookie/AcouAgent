@@ -94,7 +94,7 @@ class Runtime extends EventEmitter {
     super(); Object.assign(this, {resourceDir, dataDir, vault, runner, platform, importer, exporter, referenceDownloader});
     this.state = {phase: 'idle', title: '准备本地仿真环境', detail: '首次启动将检查运行环境并准备经过验证的计算镜像。', ready: false, busy: false, logs: []};
     this.settings = {port: 18081, extensions: false, learning: false, runtimeSha256: '', dataVolume: DEFAULT_VOLUME};
-    this.context = null; this.secrets = null;
+    this.context = null; this.secrets = null; this.cpuSet = '0';
   }
   snapshot() {return {...this.state, port: this.settings.port, extensions: this.settings.extensions, learning: this.settings.learning, logs: [...this.state.logs]};}
   change(phase, title, detail, ready = false) {Object.assign(this.state, {phase, title, detail, ready}); this.emit('state', this.snapshot());}
@@ -139,7 +139,7 @@ class Runtime extends EventEmitter {
     return {...env, ...this.secrets, ACOUAGENT_GATEWAY_IMAGE: this.images.gateway, ACOUAGENT_EXECUTOR_IMAGE: this.images.executor,
       ACOUAGENT_DESKTOP_PORT: String(this.settings.port), ACOUAGENT_DATA_VOLUME: this.settings.dataVolume,
       ACOUAGENT_SKILL_EXTENSIONS: String(this.settings.extensions), ACOUAGENT_SKILL_LEARNING: String(this.settings.extensions && this.settings.learning),
-      ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ...extra};
+      ACOUAGENT_RUNTIME_SHA256: this.settings.runtimeSha256, ACOUAGENT_EXECUTOR_CPUSET: this.cpuSet, ...extra};
   }
   async docker(args, {timeout = 30000, progress = false, context = true, extraEnv = {}} = {}) {
     const candidates = [...new Set([this.dockerExecutable, ...dockerCandidates(this.platform)].filter(Boolean))];
@@ -196,6 +196,7 @@ class Runtime extends EventEmitter {
     return this.snapshot();
   }
   friendlyError(error) {
+    if (error.message === 'executor_cpu_affinity_invalid') return '无法核对本机可用计算核心，已停止启动。请保留数据并导出诊断。';
     if (error.message === 'restore_volume_missing') return '未发现原数据卷。请先检查并启动创建基础环境，再选择备份。';
     if (/reference_preparation_failed|reference_digest|reference_downloader/.test(error.message)) return '核验资料下载或校验未通过。准备前备份已保留，自动学习未开启；请确认本机网络后重新检查并启动。';
     if (/general_preparation_failed|skill_preparation_failed/.test(error.message)) return '手动技能准备未通过。准备前备份已保留，自动学习未开启；请重新检查并启动，或导出诊断。';
@@ -209,6 +210,21 @@ class Runtime extends EventEmitter {
     return '请确认 Docker Desktop 已启动、网络可下载镜像，再重试。原有数据不会被删除。';
   }
   async start() {return this.exclusive(() => this.startCore());}
+  async selectExecutorCpus() {
+    // CPU quota does not narrow sched_getaffinity: LLVM otherwise sees every
+    // host CPU and can exhaust the unchanged process/thread limit on large PCs.
+    // Probe only our fixed image, without network, credentials or data mounts.
+    const raw = await this.docker(['run', '--rm', '--network', 'none', '--read-only', '--cap-drop', 'ALL',
+      '--security-opt', 'no-new-privileges:true', '--memory', '128m', '--pids-limit', '16', '--cpus', '2',
+      '--label', OWNER_LABEL + '=' + this.secrets.ACOUAGENT_INSTALL_ID,
+      '--entrypoint', 'python', this.images.executor, '-c',
+      'import json,os;print(json.dumps(sorted(os.sched_getaffinity(0))))']);
+    let cpus;
+    try {cpus = JSON.parse(raw);} catch {throw Error('executor_cpu_affinity_invalid');}
+    if (!Array.isArray(cpus) || cpus.length < 1 || cpus.length > 4096
+      || cpus.some((cpu, i) => !Number.isSafeInteger(cpu) || cpu < 0 || cpu > 1048575 || (i && cpu <= cpus[i - 1]))) throw Error('executor_cpu_affinity_invalid');
+    this.cpuSet = cpus.slice(0, 2).join(',');
+  }
   async startCore() {
     this.change('checking', '检查计算运行时', '检测本机Docker、Linux容器和数据所有权。');
     await this.inspectEnvironment(); await this.assertOwnership(this.settings.dataVolume, !!this.pendingRestoreRecovery);
@@ -229,6 +245,7 @@ class Runtime extends EventEmitter {
       catch (error) {if (!/no such image|not found/i.test(error.message)) throw error; missingImage = true;}
     }
     if (missingImage) await this.compose(['pull'], {timeout: 20 * 60 * 1000, progress: true});
+    await this.selectExecutorCpus();
     this.change('starting', '启动本地服务', '服务只绑定本机，数据保存在本应用独立数据卷。');
     await this.compose(['up', '-d'], {timeout: 180000, progress: true});
     this.change('bootstrap', '准备基础技能', '正在核对17项固定技能及物理验证，完成后才能进入工作台。');

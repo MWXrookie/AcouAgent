@@ -1,7 +1,7 @@
 {
   "name": "acouagent-desktop",
   "productName": "AcouAgent",
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.3",
   "private": true,
   "description": "AcouAgent Windows desktop simulation workbench",
   "author": "AcouAgent contributors",
