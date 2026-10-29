@@ -39,16 +39,16 @@ def _mode(p):
             or not isinstance(amplitudes, list) or len(vectors) != len(amplitudes)
             or not all(_number(a) and a != 0 for a in amplitudes)
             or not all(isinstance(v, list) and len(v) == 2 and all(_number(n) for n in v) for v in vectors)):
-        return '驻波传播', '观察给定初始压力分布随时间的变化。'
+        return '驻波传播', '给定初始压力分布的时域变化。'
     if len(vectors) == 1:
         x, y = vectors[0]
         if x and not y:
-            return '水平驻波', '设置沿水平方向变化的初始压力，观察驻波随时间振荡。'
+            return '水平驻波', '水平方向初始压力对应的驻波振荡。'
         if y and not x:
-            return '竖直驻波', '设置沿竖直方向变化的初始压力，观察驻波随时间振荡。'
+            return '竖直驻波', '竖直方向初始压力对应的驻波振荡。'
         if x and y and math.isclose(abs(x), abs(y), rel_tol=1e-9):
-            return '45°斜向驻波', '设置沿45°方向变化的初始压力，观察斜向驻波随时间振荡。'
-        return '斜向驻波', '设置斜向变化的初始压力，观察驻波随时间振荡。'
+            return '45°斜向驻波', '45°方向初始压力对应的驻波振荡。'
+        return '斜向驻波', '斜向初始压力对应的驻波振荡。'
     if len(vectors) == 2:
         a, b = vectors
         if ((a[0] and not a[1] and b[1] and not b[0])
@@ -95,7 +95,7 @@ def _present(scenario, raw, original='', *, detail=False):
     else:
         point = p.get('source_geometry') == 'point' or scenario in ('point_source_2d', 'point_source_3d')
         title = prefix + (freq or '') + ('点声源传播' if point else '声波传播') + (' · ' + duration if duration else '')
-        purpose = '记录点声源发声后，声压在给定时间内的传播。使用前需确认声源和边界设置。' if point else '观察给定声源和介质条件下的声波传播，使用前需确认完整设置。'
+        purpose = '点声源在给定时间内的声压传播。' if point else '给定声源和介质条件下的声波传播。'
     # A short human-authored name remains the user's name. Internal generated
     # titles are replaced for display only; the stored title is kept intact.
     generated = ('受控执行器' in original or original in ('Automatic controlled source', '已记录仿真的未认证候选案例')
@@ -109,9 +109,9 @@ def _present(scenario, raw, original='', *, detail=False):
     result = dict(title=title, subtitle=subtitle)
     if not detail:
         return result
-    boundary = {'periodic': '周期边界：波从一侧离开后，从另一侧进入。',
-                'absorbing_pml': '四周设置吸收层，减少计算区域边缘的反射。',
-                'rigid': '刚性壁面，壁面法向速度为零。'}.get(p.get('boundary_condition'), '原记录未明确声明边界，使用前需要确认。')
+    boundary = {'periodic': '周期边界',
+                'absorbing_pml': 'PML吸收边界',
+                'rigid': '刚性壁面'}.get(p.get('boundary_condition'), '未记录')
     setup = []
     for key, label, quantity in [('frequency_hz', '声源频率', 'frequency'), ('t_end_s', '计算时长', 'time'),
                                   ('initial_sigma_m', '初始压力宽度', 'length'), ('interface_position_m', '界面位置', 'length')]:
@@ -132,8 +132,8 @@ def _present(scenario, raw, original='', *, detail=False):
     if (scenario in ('point_source_2d', 'point_source_3d') and isinstance(position, list)
             and 1 <= len(position) <= 3 and all(type(v) is int and v >= 0 for v in position)):
         setup.append('声源网格位置 (' + ', '.join(str(v) for v in position) + ')')
-    output = ('固定频率下的声压分布；本例采用数值源归一化，不是标定后的绝对声压。'
-              if p.get('solver_mode') == 'frequency_domain' else '指定测点随时间变化的声压波形。' if p.get('sensor_indices') else '本次运行保存的压力结果；完整输出设置见下方参数。')
+    output = ('稳态声压分布（数值源归一化）'
+              if p.get('solver_mode') == 'frequency_domain' else '指定测点随时间变化的声压波形。' if p.get('sensor_indices') else '压力结果')
     result.update(purpose=purpose, boundary=boundary, setup=setup, output=output)
     return result
 

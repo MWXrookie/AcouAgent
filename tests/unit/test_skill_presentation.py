@@ -44,7 +44,7 @@ def test_human_name_and_unknown_legacy_values_do_not_change_physics():
     assert present('point_source_2d',p,'我的水箱实验')['title']=='我的水箱实验'
     assert present('point_source_2d',p,'水：我的水箱实验')['title']=='水：我的水箱实验'
     detail=present('point_source_2d',p,'',detail=True)
-    assert '未明确声明' in detail['boundary'] and not any('声速' in x for x in detail['setup'])
+    assert detail['boundary']=='未记录' and not any('声速' in x for x in detail['setup'])
     assert present('point_source_2d',dict(boundary_condition=[]),'',detail=True) is None
     assert present('point_source_2d','x'*8193) is None
     assert present('point_source_2d','not json') is None
@@ -54,5 +54,5 @@ def test_frequency_units_and_source_normalization_are_not_absolute_pressure():
     raw=dict(normalizer_version='normalizer_v2',parameters=dict(solver_mode='frequency_domain',
         frequency_hz=238732.414637843,medium_type='homogeneous_water',grid_shape=[128,128],boundary_condition='absorbing_pml'))
     text=present('point_source_2d',json.dumps(raw),'Automatic controlled source',detail=True)
-    assert '238.732 kHz' in text['title'] and '不是标定后的绝对声压' in text['output']
+    assert '238.732 kHz' in text['title'] and '数值源归一化' in text['output']
     assert raw['parameters']['frequency_hz']==238732.414637843

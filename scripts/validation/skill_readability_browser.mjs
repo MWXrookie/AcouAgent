@@ -19,18 +19,21 @@ try{
  check(meta.items.length===meta.organization.case_count,'all_current_cases_fit_bounded_metadata_response');
  const titles=await page.locator('#list button.skill strong').allTextContents();
  check(new Set(titles).size===titles.length,'every_current_case_has_a_distinct_readable_title');
+ check(await page.locator('.notice').count()===0,'no_instruction_or_warning_banners');
+ check(!(await page.locator('main').innerText()).includes('先看案例用途'),'no_tutorial_boilerplate');
  check(titles.every(t=>!/(Automatic|受控执行器|固定初压模态|待验证案例|仿真方案|；)/.test(t)),'internal_and_repetitive_prefixes_removed');
  for(const item of meta.items){
   await page.locator('button[data-skill-id="'+item.skill_id+'"]').click();
   await page.waitForFunction(()=>document.getElementById('message').textContent==='详情已读取。');
   const title=await page.locator('#summary').innerText(),body=await page.locator('#friendly-summary').innerText();
   check(title===item.presentation.title,'list_and_detail_names_match_'+item.skill_id);
-  check(body.includes('模拟什么')&&body.includes('可以看到')&&body.includes('本例设置'),'purpose_output_settings_readable_'+item.skill_id);
+  check(body.includes('用途')&&body.includes('输出')&&body.includes('参数'),'purpose_output_settings_readable_'+item.skill_id);
   check(!/(rad\/m|normalizer|source_|managed-|波数分量|Q[0-4])/.test(body),'technical_payload_not_in_main_introduction_'+item.skill_id);
   check(await page.locator('#detail details').first().getAttribute('open')===null,'raw_evidence_remains_folded_'+item.skill_id);
+  check(!body.includes('如何使用')&&!body.includes('使用前需确认'),'no_repetitive_usage_prompts_'+item.skill_id);
   items.push({title,introduction:body});
  }
- check(new Set(items.map(i=>i.introduction.split('可以看到')[0])).size>=8,'introductions_explain_distinct_physical_tasks');
+ check(new Set(items.map(i=>i.introduction.split('输出')[0])).size>=8,'introductions_explain_distinct_physical_tasks');
  const first=meta.items[0];await page.locator('button[data-skill-id="'+first.skill_id+'"]').click();await page.waitForFunction(()=>document.getElementById('message').textContent==='详情已读取。');
  await page.evaluate(()=>window.scrollTo(0,0));
  await page.screenshot({path:path.join(out,'after-desktop.png'),fullPage:true,animations:'disabled'});

@@ -30,9 +30,9 @@ try{
  for(const item of modal){const text=await page.locator(`button[data-skill-id="${item.skill_id}"] strong`).innerText();titles.push(text);check(item.presentation?text===item.presentation.title:text.includes(item.state_text.split('；')[0])||item.state_text.startsWith('受控执行器'),'scientific_case_prefix_preserved_'+item.skill_id)}
  check(new Set(titles).size===new Set(modal.map(i=>i.state_text)).size,'distinct_periodic_cases_do_not_appear_as_duplicate_titles');
  await page.locator('button.skill').first().click();await page.waitForFunction(()=>!document.getElementById('detail').hidden&&document.getElementById('message').textContent==='详情已读取。');
- check((await page.locator('#friendly-summary').innerText()).includes('模拟什么'),'purpose_visible_before_technical_evidence');
+ check((await page.locator('#friendly-summary').innerText()).includes('用途'),'purpose_visible_before_technical_evidence');
  check(await page.locator('#detail details').first().getAttribute('open')===null,'technical_evidence_collapsed_by_default');
- check((await page.locator('#detail').innerText()).includes('复制内容包含本例参数和结果设置'),'copy_described_as_structured_request_not_original_prompt');
+ check((await page.locator('#copy-request').innerText())==='复制仿真请求','copy_action_remains_available');
  await page.screenshot({path:path.join(output,'desktop.png')});
  await page.locator('#skill-search').fill('不存在的案例xyz');await page.waitForFunction(()=>![...document.querySelectorAll('#list button.skill')].some(b=>!b.hidden));
  check((await page.locator('#list-state').innerText()).includes('暂无匹配技能'),'empty_search_has_meaningful_feedback');

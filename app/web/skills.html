@@ -15,16 +15,13 @@ button{cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opac
 :focus-visible{outline:2px solid var(--blue);outline-offset:3px}label{display:block;margin:12px 0 6px}
 input,textarea{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:12px;max-height:360px;overflow:auto;font-size:13px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.skill{display:block;width:100%;text-align:left;margin:8px 0}.badge{color:#e3b341;font-size:14px}
-#message{min-height:28px;color:#e3b341}.event{border-top:1px solid var(--line);padding:12px 0}
+body .design-sidebar-footer{display:none}#message{min-height:28px;color:var(--muted)}#message[data-kind="error"]{color:#cf222e}.status-silent{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.event{border-top:1px solid var(--line);padding:12px 0}
 @media(max-width:720px){main{padding:16px}.layout{grid-template-columns:1fr}}
 </style>
 <main>
 <a href="/portal">返回仿真门户</a><h1>技能库</h1>
-<p class="muted">查看已积累的仿真方案、适用范围和变更记录。</p>
 <p><a href="/skills/authoring">添加与编辑技能 →</a></p>
 <div id="organization" class="skill-organization" aria-label="技能库全库统计" hidden></div>
-<p id="organization-note" class="muted">同一能力下可以有不同参数案例；重复运行不等于新增技能。</p>
-<p class="notice">先看案例用途，再复制设置开始计算。标记为“待独立验证”的案例暂不能用于可信复用。</p>
 <div class="workbench-controls" aria-label="技能筛选">
 <label for="skill-search">搜索当前列表<input id="skill-search" type="search" placeholder="名称、场景或状态"></label>
 <label for="scenario-filter">仿真类别<select id="scenario-filter"><option value="">全部场景</option></select></label>
@@ -34,11 +31,11 @@ input,textarea{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere;backgr
 <p id="message" role="status" aria-live="polite"></p>
 <div class="layout">
 <section aria-labelledby="list-title"><h2 id="list-title">按仿真类别浏览</h2><p id="scope" class="muted"></p><div id="list-state" class="state-panel" data-kind="loading"><strong>正在读取技能</strong><span>仅加载当前最多 50 条案例。</span></div><div id="list" aria-live="polite"></div></section>
-<section aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">技能详情</h2><p id="empty" class="muted">选择一个技能查看详情。</p>
+<section aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">技能详情</h2><p id="empty" class="muted">未选择案例</p>
 <div id="detail" hidden>
-<p id="summary"></p><p id="trust" class="notice"></p>
+<div class="row"><h3 id="summary"></h3><span id="trust" class="muted"></span></div>
 <div id="friendly-summary" class="skill-overview"></div>
-<button id="copy-request">复制完整仿真请求</button><p class="muted">复制内容包含本例参数和结果设置。粘贴到声学仿真的新对话后，核对参数再计算。</p>
+<button id="copy-request">复制仿真请求</button>
 <details><summary>完整参数、代码与验证记录</summary><p id="stored-name" class="muted"></p>
 <div class="evidence-grid" aria-label="验证证据摘要"><div><span>记录等级</span><strong id="evidence-grade">—</strong></div><div><span>来源运行</span><strong id="evidence-run">—</strong></div><div><span>调用规则</span><strong>每次服务端重核</strong></div></div>
 <h3>适用边界</h3><pre id="bounds"></pre>
@@ -91,12 +88,11 @@ function readableSummary(item,v){
  const box=$('friendly-summary');box.replaceChildren();const info=item.presentation;
  const add=(label,value)=>{const row=elSummary('p'),b=elSummary('strong',label+'：');row.append(b,document.createTextNode(value));box.append(row)};
  function elSummary(tag,text){const n=document.createElement(tag);if(text)n.textContent=text;return n}
- add('模拟什么',info?.purpose||'本例保存了一次声学仿真的设置。完整参数可在下方查看。');
- if(info?.output)add('可以看到',info.output);
- if(info?.boundary)add('边界设置',info.boundary);
- if(info?.setup?.length){const heading=elSummary('h3','本例设置'),list=elSummary('ul');list.className='skill-settings';for(const text of info.setup)list.append(elSummary('li',text));box.append(heading,list)}
- if(item.organization)add('使用记录',item.organization.version_count+'个方案版本，'+item.organization.reexecution_count+'次已核对复用。');
- add('如何使用','复制本例设置 → 在声学仿真中开启新对话 → 核对参数后计算。修改参数后会重新检查适用范围。');
+ add('用途',info?.purpose||'本例保存了一次声学仿真的设置。完整参数可在下方查看。');
+ if(info?.output)add('输出',info.output);
+ if(info?.boundary)add('边界',info.boundary);
+ if(info?.setup?.length){const heading=elSummary('h3','参数'),list=elSummary('ul');list.className='skill-settings';for(const text of info.setup)list.append(elSummary('li',text));box.append(heading,list)}
+ if(item.organization)add('记录',item.organization.version_count+'个方案版本，'+item.organization.reexecution_count+'次已核对复用。');
 }
 function organizationSummary(data){
  const box=$('organization'),summary=data.organization;box.replaceChildren();box.hidden=!summary;
@@ -105,17 +101,17 @@ function organizationSummary(data){
   const card=document.createElement('div'),n=document.createElement('strong'),text=document.createElement('span');
   n.textContent=String(summary[key]);text.textContent=label;card.append(n,text);box.append(card);
  }
- $('organization-note').textContent='历史统计'+(summary.includes_archived?'（含归档）':'（不含归档）')+'。同一案例运行多次不会新增案例；修改方案会留下版本记录。';
+ box.setAttribute('aria-label','技能库全库统计'+(summary.includes_archived?'（含归档）':'（不含归档）'));
 }
 let current=null, selectedId=null, cursor=0, auditUntil=null, generation=0;
 $('copy-request').addEventListener('click',async()=>{
  if(!current || !current.selected_version)return;
  try{
   const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(simulationRequest(current));
-  await navigator.clipboard.writeText(request);message('完整请求已复制，请到声学仿真页面粘贴并开始新求解。');
+  await navigator.clipboard.writeText(request);message('已复制');
  }catch(e){message('复制未完成，请刷新详情后重试。频域请求必须保留完整参数和结果定义。','error')}
 });
-function message(s,kind='status'){$('message').textContent=s;$('message').dataset.kind=kind;$('message').setAttribute('role',kind==='error'?'alert':'status')}
+function message(s,kind='status'){$('message').classList.toggle('status-silent',['列表已更新。','详情已读取。'].includes(s));$('message').textContent=s;$('message').dataset.kind=kind;$('message').setAttribute('role',kind==='error'?'alert':'status')}
 function listState(kind,title,detail,hidden=false){const box=$('list-state');box.dataset.kind=kind;box.hidden=hidden;box.replaceChildren();const strong=document.createElement('strong');strong.textContent=title;const span=document.createElement('span');span.textContent=detail;box.append(strong,span)}
 async function api(path,options={}){
  const response=await fetch(path,{cache:'no-store',...options});
@@ -129,7 +125,7 @@ async function loadList(){
   const data=await api('/skills/api?limit=50&archived='+$('archived').checked);
   $('list').replaceChildren();
   if(!data.available){message('技能库尚未准备好，或记录暂不可读取。','error');listState('error','技能列表不可用','请检查服务状态后刷新。');return false}
-  organizationSummary(data);$('scope').textContent='当前显示 '+data.items.length+' 个案例（最多50个）。选择一个案例查看用途与设置。';
+  organizationSummary(data);$('scope').textContent=data.organization?'显示 '+data.items.length+' / '+data.organization.case_count+' 个案例':data.items.length+' 个案例';
   const groups=new Map();
   for(const item of data.items){
    if(!groups.has(item.scenario_type))groups.set(item.scenario_type,[]);
@@ -161,7 +157,7 @@ async function select(id,version=null){
   if(!data.available||!data.item){message('该技能或版本不可读取，请刷新列表。');return}
   current=data.item;const v=current.selected_version;
   $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current);
-  $('trust').textContent=statusLabel(current.status)+(current.archived?' · 已归档':'')+'。'+(current.status==='candidate'?'尚未通过独立验证，暂不能用于可信复用。':'使用时仍会检查参数和验证记录。');$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
+  $('trust').textContent=statusLabel(current.status)+(current.archived?' · 已归档':'');$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
   $('source').textContent='版本 '+v.version+' · 来源运行 '+v.source_run_id+' · 校验器 '+v.validator_version;$('evidence-grade').textContent=current.quality_level;$('evidence-run').textContent=v.source_run_id;
   $('stored-name').textContent='原始记录名称：'+current.state_text;$('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');
   $('code').textContent=v.code_template;$('hash').textContent='SHA256 '+v.code_hash;$('stats').textContent=current.statistics_explanation;
