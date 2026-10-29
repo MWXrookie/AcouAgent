@@ -71,9 +71,21 @@ function skillName(item){
  if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选'))return text;
  return scenarioLabel(item.scenario_type)+(item.status==='candidate'?' · 待验证案例':' · 仿真方案');
 }
+function simulationParameters(v){
+ const raw=v.normalized_params||{};
+ return raw.normalizer_version==='normalizer_v2'?(raw.parameters||{}):raw;
+}
+function simulationRequest(item){
+ const raw=item.selected_version.normalized_params||{};
+ if(raw.normalizer_version==='normalizer_v2'){
+  if(!raw.parameters||!raw.result_spec)throw Error('技能的参数或结果定义不完整，请刷新详情后重试。');
+  return {scenario_type:item.scenario_type,simulation_params:raw.parameters,result_spec:raw.result_spec};
+ }
+ return {...raw,scenario_type:item.scenario_type};
+}
 function readableSummary(item,v){
  const box=$('friendly-summary');box.replaceChildren();
- const params=v.normalized_params||{},fields=[['sound_speed_m_s','声速','m/s'],['density_kg_m3','密度','kg/m³'],['frequency_hz','频率','Hz'],['grid_shape','网格',''],['dx_m','网格间距','m'],['t_end_s','仿真结束时间','s']];
+ const params=simulationParameters(v),fields=[['sound_speed_m_s','声速','m/s'],['density_kg_m3','密度','kg/m³'],['frequency_hz','频率','Hz'],['grid_shape','网格',''],['dx_m','网格间距','m'],['t_end_s','仿真结束时间','s']];
  const add=(title,value)=>{const row=document.createElement('p'),b=document.createElement('strong');b.textContent=title+'：';row.append(b,document.createTextNode(value));box.append(row)};
  add('适用场景',scenarioLabel(item.scenario_type)+' · '+skillName(item));
  add('验证状态',qualityLabel(item.quality_level)+' · '+statusLabel(item.status)+(item.archived?' · 已归档':''));
@@ -85,9 +97,10 @@ function readableSummary(item,v){
 let current=null, selectedId=null, cursor=0, auditUntil=null, generation=0;
 $('copy-request').addEventListener('click',async()=>{
  if(!current || !current.selected_version)return;
- const params={...current.selected_version.normalized_params,scenario_type:current.scenario_type};
- const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(params);
- try{await navigator.clipboard.writeText(request);message('完整请求已复制，请到声学仿真页面粘贴并开始新求解。')}catch(e){message('无法复制，请手动复制规范化参数，并添加 scenario_type。')}
+ try{
+  const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(simulationRequest(current));
+  await navigator.clipboard.writeText(request);message('完整请求已复制，请到声学仿真页面粘贴并开始新求解。');
+ }catch(e){message('复制未完成，请刷新详情后重试。频域请求必须保留完整参数和结果定义。','error')}
 });
 function message(s,kind='status'){$('message').textContent=s;$('message').dataset.kind=kind;$('message').setAttribute('role',kind==='error'?'alert':'status')}
 function listState(kind,title,detail,hidden=false){const box=$('list-state');box.dataset.kind=kind;box.hidden=hidden;box.replaceChildren();const strong=document.createElement('strong');strong.textContent=title;const span=document.createElement('span');span.textContent=detail;box.append(strong,span)}

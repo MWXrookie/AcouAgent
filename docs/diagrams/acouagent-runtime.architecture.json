@@ -60,7 +60,7 @@
           "state_store",
           "simulation_pipeline"
         ],
-        "note": "管理员导入/编辑、查看差异、验证并接纳；trial不授级，历史评级与当前许可分开。自动来源独立验证后接纳。负反馈即停用，显式重验后的新手动证明才能恢复；单slot，未知不重派。"
+        "note": "技能概览展开频域物理字段；复制完整请求保留scenario_type、simulation_params与result_spec，不补值、不丢结果约定，旧初压格式保持。管理员查看差异、独立验证后接纳；trial不授级，负反馈即停用，显式重验的新证明才能恢复。"
       },
       {
         "id": "fresh-install",
