@@ -160,7 +160,7 @@ async function select(id,version=null){
   if(epoch!==generation)return;
   if(!data.available||!data.item){message('该技能或版本不可读取，请刷新列表。');return}
   current=data.item;const v=current.selected_version;
-  $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current); 
+  $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current);
   $('trust').textContent=statusLabel(current.status)+(current.archived?' · 已归档':'')+'。'+(current.status==='candidate'?'尚未通过独立验证，暂不能用于可信复用。':'使用时仍会检查参数和验证记录。');$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
   $('source').textContent='版本 '+v.version+' · 来源运行 '+v.source_run_id+' · 校验器 '+v.validator_version;$('evidence-grade').textContent=current.quality_level;$('evidence-run').textContent=v.source_run_id;
   $('stored-name').textContent='原始记录名称：'+current.state_text;$('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');

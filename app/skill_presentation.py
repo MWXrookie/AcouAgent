@@ -125,6 +125,13 @@ def _present(scenario, raw, original='', *, detail=False):
             setup.append(label + ' ' + ' / '.join(f'{v:.6g}' for v in values) + ' ' + unit)
     if shape_text:
         setup.append('计算网格 ' + shape_text)
+    spacing = p.get('dx_m')
+    if isinstance(spacing, list) and 1 <= len(spacing) <= 3 and all(_number(v) and v > 0 for v in spacing):
+        setup.append('网格间距 ' + ' × '.join(measure(v, 'length') for v in spacing))
+    position = p.get('source_index')
+    if (scenario in ('point_source_2d', 'point_source_3d') and isinstance(position, list)
+            and 1 <= len(position) <= 3 and all(type(v) is int and v >= 0 for v in position)):
+        setup.append('声源网格位置 (' + ', '.join(str(v) for v in position) + ')')
     output = ('固定频率下的声压分布；本例采用数值源归一化，不是标定后的绝对声压。'
               if p.get('solver_mode') == 'frequency_domain' else '指定测点随时间变化的声压波形。' if p.get('sensor_indices') else '本次运行保存的压力结果；完整输出设置见下方参数。')
     result.update(purpose=purpose, boundary=boundary, setup=setup, output=output)
