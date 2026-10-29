@@ -1,0 +1,82 @@
+{
+  "original_query": "考虑一个二维矩形房间，尺寸为 $L_x = 4.0\\ \\text{m}$，$L_y = 3.0\\ \\text{m}$。房间四周为刚性壁面（声学硬边界）。房间内空气密度 $\\rho_0 = 1.21\\ \\text{kg/m}^3$，声速 $c = 343\\ \\text{m/s}$。\n推导该矩形房间的声学模态频率公式，并计算前 10 个最低阶模态频率（按频率从低到高排列）。注意标注每个模态的阶数 $(n_x, n_y)$。",
+  "source_kind": "user_problem_with_derived_analytic_reference_not_a_published_numeric_table",
+  "sources": [
+    "https://www.mathworks.com/help/audio/ug/find-room-modes-with-finite-element-analysis.html",
+    "https://doc.comsol.com/6.4/doc/com.comsol.help.models.mph.eigenmodes_of_room/eigenmodes_of_room.html"
+  ],
+  "parameters": {
+    "dimensions": 2,
+    "length_x_m": 4.0,
+    "length_y_m": 3.0,
+    "sound_speed_m_s": 343.0,
+    "density_kg_m3": 1.21,
+    "boundary_condition": "rigid",
+    "mode_count": 10
+  },
+  "convention": {
+    "exclude_zero_mode": true,
+    "preserve_degenerate_modes": true,
+    "sort_by": [
+      "frequency_hz",
+      "nx",
+      "ny"
+    ],
+    "density_affects_ideal_frequencies": false
+  },
+  "expected_modes": [
+    [
+      1,
+      0,
+      42.875
+    ],
+    [
+      0,
+      1,
+      57.166666666666664
+    ],
+    [
+      1,
+      1,
+      71.45833333333333
+    ],
+    [
+      2,
+      0,
+      85.75
+    ],
+    [
+      2,
+      1,
+      103.05867395701236
+    ],
+    [
+      0,
+      2,
+      114.33333333333333
+    ],
+    [
+      1,
+      2,
+      122.1080535268297
+    ],
+    [
+      3,
+      0,
+      128.625
+    ],
+    [
+      3,
+      1,
+      140.75659275066934
+    ],
+    [
+      2,
+      2,
+      142.91666666666666
+    ]
+  ],
+  "product_status": "room_mode_solver_not_implemented",
+  "reference_status": "cross_checked_with_independent_neumann_discretization_40x30_and_160x120",
+  "source_representation": "user_question_reply_answer_after_JSON_decoding"
+}

@@ -369,6 +369,13 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         yield {"event": "result", "report": "请求为空或超过长度限制。", "workflow_status": "error",
                "request_id": request_id, "workflow_run_id": workflow_run_id, "skill_usage": []}
         return
+    from app.task_intake import capability_notice
+    notice = capability_notice(query)
+    if notice is not None:
+        yield dict(event="result", workflow_status="error", request_id=request_id,
+                   workflow_run_id=workflow_run_id, skill_usage=[],
+                   orchestration_backend="local", **notice)
+        return
     try:
         yield {"event": "progress", "stage": "本地编排：提取参数", "request_id": request_id,
                "workflow_run_id": workflow_run_id}
