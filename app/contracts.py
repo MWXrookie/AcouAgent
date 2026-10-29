@@ -7,8 +7,9 @@ model, execution, or skill modules.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping, Protocol
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,41 @@ class PortalCommand:
     name: str
     payload: dict[str, Any] | None = None
     headers: dict[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class ChatRequest:
+    """Frontend-independent request contract for one orchestration turn."""
+
+    message: str
+    requirement: str = ""
+    session_id: str = ""
+    model_profile: str | None = None
+    stream: bool = False
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "ChatRequest":
+        if not isinstance(payload, Mapping):
+            raise ValueError("invalid_request")
+        message = payload.get("message")
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError("message is required")
+        requirement = payload.get("requirement", "")
+        session_id = payload.get("session_id", "")
+        model_profile = payload.get("model_profile")
+        if not isinstance(requirement, str) or not isinstance(session_id, str):
+            raise ValueError("invalid_request")
+        if model_profile is not None and (
+            not isinstance(model_profile, str) or len(model_profile) > 64
+        ):
+            raise ValueError("invalid model_profile")
+        return cls(
+            message=message.strip(),
+            requirement=requirement.strip(),
+            session_id=session_id.strip()[:24],
+            model_profile=model_profile,
+            stream=payload.get("stream") is True,
+        )
 
 
 @dataclass
@@ -58,4 +94,18 @@ class WorkflowEvent:
         return payload
 
 
-__all__ = ["PortalCommand", "ExecutionArtifact", "WorkflowEvent"]
+class CoreBackend(Protocol):
+    """Port implemented by local, Dify, LangChain, or future core adapters."""
+
+    def events(self, request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
+        """Stream normalized workflow events for one frontend request."""
+        ...
+
+
+__all__ = [
+    "PortalCommand",
+    "ChatRequest",
+    "ExecutionArtifact",
+    "WorkflowEvent",
+    "CoreBackend",
+]

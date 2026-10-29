@@ -7,9 +7,11 @@ portal code to know low-level module names or side effects.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app import analysis, cache_store, config, execution, local_workflow, model_client, model_preflight, model_profiles, skill_library_service
+from app.contracts import ChatRequest, WorkflowEvent
 from app.dashboard import (
     CHAT_HTML,
     clear_executions,
@@ -78,16 +80,65 @@ class ExecutionAdapter:
         return execution._shrink_field_in_stdout(stdout, max_chars=max_chars)
 
 
+class LocalCoreAdapter:
+    """Core port implementation backed by the native local workflow."""
+
+    @staticmethod
+    async def events(request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
+        source = local_workflow.workflow_events(
+            request.requirement,
+            f"portal-{request.session_id}" if request.session_id else "portal",
+            request.model_profile,
+        )
+        async for item in _normalize_workflow_events(source):
+            yield item
+
+
+class DifyCoreAdapter:
+    """Core port implementation backed by the optional Dify workflow API."""
+
+    @staticmethod
+    async def events(request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
+        source = dify_workflow_events(
+            request.requirement,
+            f"portal-{request.session_id}" if request.session_id else "portal",
+            config.DIFY_API_KEY,
+        )
+        async for item in _normalize_workflow_events(source):
+            yield item
+
+
+async def _normalize_workflow_events(source) -> AsyncIterator[WorkflowEvent]:
+    async for item in source:
+        if not isinstance(item, dict):
+            raise TypeError("workflow_event_must_be_object")
+        event = item.get("event")
+        if not isinstance(event, str) or not event:
+            raise ValueError("workflow_event_missing_name")
+        yield WorkflowEvent(event=event, data={
+            key: value for key, value in item.items() if key != "event"
+        })
+
+
 class WorkflowAdapter:
+    """Selects a core port without exposing backend details to the portal."""
+
+    _backends = {
+        "local": LocalCoreAdapter,
+        "dify": DifyCoreAdapter,
+    }
+
     @staticmethod
     def run(payload: dict[str, Any]) -> dict[str, Any]:
         return local_workflow.run(payload)
 
     @staticmethod
-    def events(requirement: str, user: str, model_profile: str | None = None):
-        if config.ORCHESTRATION_BACKEND == "local":
-            return local_workflow.workflow_events(requirement, user, model_profile)
-        return dify_workflow_events(requirement, user, config.DIFY_API_KEY)
+    async def events(request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
+        backend = WorkflowAdapter._backends.get(config.ORCHESTRATION_BACKEND)
+        if backend is None:
+            raise RuntimeError("unsupported_orchestration_backend")
+        async for event in backend.events(request):
+            yield event
 
 
 class AnalysisAdapter:
@@ -166,6 +217,8 @@ __all__ = [
     "ModelAdapter",
     "ExecutionAdapter",
     "WorkflowAdapter",
+    "LocalCoreAdapter",
+    "DifyCoreAdapter",
     "AnalysisAdapter",
     "SkillAdapter",
     "DashboardAdapter",

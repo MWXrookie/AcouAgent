@@ -21,7 +21,7 @@ from app.adapters import (
     SKILL_ADAPTER,
     WORKFLOW_ADAPTER,
 )
-from app.contracts import PortalCommand
+from app.contracts import ChatRequest, CoreBackend, PortalCommand
 
 
 class RuntimeBus:
@@ -108,7 +108,20 @@ class RuntimeBus:
 
     @staticmethod
     def workflow_events(requirement: str, user: str, model_profile: str | None = None) -> Any:
-        return WORKFLOW_ADAPTER.events(requirement, user, model_profile)
+        request = ChatRequest(
+            message=requirement,
+            requirement=requirement,
+            session_id=user.removeprefix("portal-") if user.startswith("portal-") else "",
+            model_profile=model_profile,
+        )
+        return WORKFLOW_ADAPTER.events(request)
+
+    @staticmethod
+    async def chat_events(request: ChatRequest) -> Any:
+        """Return the stable event stream exposed to every frontend."""
+        backend: CoreBackend = WORKFLOW_ADAPTER
+        async for event in backend.events(request):
+            yield event
 
     @staticmethod
     def analyze_and_record(stdout: str, stderr: str, exit_code: int, params: str, run_id: str) -> dict[str, Any]:

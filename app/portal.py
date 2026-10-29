@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
 from app import config, model_client, model_preflight, model_profiles
+from app.contracts import ChatRequest
 from app.runtime_bus import RUNTIME_BUS
 from app.ui_chrome import render_page
 
@@ -176,6 +177,7 @@ def register(mcp) -> None:
     async def cache_page(_: Request) -> PlainTextResponse:
         return _serve_html("cache.html")
 
+    @mcp.custom_route("/api/v1/chat", methods=["POST"])
     @mcp.custom_route("/chat", methods=["POST"])
     async def chat_api(request: Request) -> PlainTextResponse:
         """多轮对话：合并历史需求 → 调用本地或 Dify 兼容工作流。
@@ -191,43 +193,37 @@ def register(mcp) -> None:
                 status_code=400,
                 media_type="application/json",
             )
-        if not isinstance(body, dict):
+        try:
+            request_contract = ChatRequest.from_payload(body)
+        except ValueError as exc:
             return PlainTextResponse(
-                json.dumps({"error": "invalid_request"}, ensure_ascii=False),
-                status_code=400,
-                media_type="application/json",
-            )
-        message = (body.get("message") or "").strip()
-        requirement = (body.get("requirement") or "").strip()
-        session_id = (body.get("session_id") or "").strip()[:24]
-        model_profile = body.get("model_profile")
-        if model_profile is not None and (
-            not isinstance(model_profile, str) or len(model_profile) > 64
-        ):
-            return PlainTextResponse(
-                json.dumps({"error": "invalid model_profile"}, ensure_ascii=False),
-                status_code=400, media_type="application/json",
-            )
-        if not message:
-            return PlainTextResponse(
-                json.dumps({"error": "message is required"}, ensure_ascii=False),
+                json.dumps({"error": str(exc)}, ensure_ascii=False),
                 status_code=400, media_type="application/json",
             )
 
-        if requirement:
-            full_requirement = await _merge_requirement(requirement, message, model_profile)
+        if request_contract.requirement:
+            full_requirement = await _merge_requirement(
+                request_contract.requirement,
+                request_contract.message,
+                request_contract.model_profile,
+            )
             merge_used = True
         else:
-            full_requirement = message
+            full_requirement = request_contract.message
             merge_used = False
 
-        # 按会话隔离 Dify user（有 session 时用 portal-<session>，否则回退 portal）
-        dify_user = f"portal-{session_id}" if session_id else "portal"
+        request_contract = ChatRequest(
+            message=request_contract.message,
+            requirement=full_requirement,
+            session_id=request_contract.session_id,
+            model_profile=request_contract.model_profile,
+            stream=request_contract.stream,
+        )
 
         async def events():
-            source = RUNTIME_BUS.workflow_events(full_requirement, dify_user, model_profile)
-            async for item in source:
-                if item["event"] == "result":
+            async for event in RUNTIME_BUS.chat_events(request_contract):
+                item = event.to_dict()
+                if event.event == "result":
                     if "outputs" in item:
                         item["report"] = _extract_report(item.pop("outputs").get("text"))
                     item.update(requirement=full_requirement, merge_used=merge_used,
@@ -235,7 +231,7 @@ def register(mcp) -> None:
                                                                config.ORCHESTRATION_BACKEND))
                 yield item
 
-        if body.get("stream") is True:
+        if request_contract.stream:
             async def ndjson():
                 async for item in events():
                     yield json.dumps(item, ensure_ascii=False) + "\n"

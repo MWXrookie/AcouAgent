@@ -136,6 +136,7 @@ docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 | 路由 | 功能 |
 | --- | --- |
 | `/`、`/portal`、`/chat` | 自然语言多轮仿真，侧栏包含技能库入口 |
+| `/api/v1/chat` | 与前端实现无关的版本化聊天接口；请求/事件契约与 `/chat` 相同 |
 | `/skills` | 技能列表、适用参数、版本、证据与反馈 |
 | `/dashboard` | 执行历史、代码与报告 |
 | `/cache` | 纠错经验缓存 |

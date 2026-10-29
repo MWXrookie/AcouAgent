@@ -109,9 +109,24 @@
       "tag": "FastMCP Web"
     },
     {
+      "id": "core_port",
+      "type": "backend",
+      "label": "核心统一端口",
+      "sublabel": "ChatRequest / WorkflowEvent / RuntimeBus",
+      "pos": [
+        350,
+        300
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "前端与核心可替换"
+    },
+    {
       "id": "local_orchestrator",
       "type": "backend",
-      "label": "本地编排器",
+      "label": "本地核心适配器",
       "sublabel": "提取 / 检索 / 生成 / 缓存纠错 / 解读",
       "pos": [
         390,
@@ -271,6 +286,7 @@
       "kind": "region",
       "label": "dify-mcp 服务",
       "wraps": [
+        "core_port",
         "local_orchestrator",
         "mcp_gateway",
         "simulation_pipeline",
@@ -305,8 +321,8 @@
     {
       "id": "portal-to-local",
       "from": "web_portal",
-      "to": "local_orchestrator",
-      "label": "默认本地编排",
+      "to": "core_port",
+      "label": "版本化 HTTP / ChatRequest",
       "labelAt": [
         300,
         390
@@ -314,10 +330,17 @@
       "variant": "emphasis"
     },
     {
+      "id": "port-to-local",
+      "from": "core_port",
+      "to": "local_orchestrator",
+      "label": "CoreBackend",
+      "variant": "emphasis"
+    },
+    {
       "id": "portal-to-dify",
-      "from": "web_portal",
+      "from": "core_port",
       "to": "dify_workflow",
-      "label": "可选 SSE 工作流 API",
+      "label": "DifyCoreAdapter / SSE",
       "fromSide": "bottom",
       "toSide": "left",
       "variant": "dashed"
@@ -417,6 +440,7 @@
       "title": "入口与编排",
       "items": [
         "发行默认 local；Dify 仅为显式兼容覆盖",
+        "前端只依赖 ChatRequest / WorkflowEvent；核心通过 CoreBackend 替换",
         "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话",
         "本地模式覆盖提取、检索、生成、缓存纠错、执行、审查和解释"
       ]
