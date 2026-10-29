@@ -46,16 +46,8 @@ try{
  await capture('01-model-settings');
  await page.getByRole('button',{name:'取消',exact:true}).click();
  check(await page.locator('#query-input').inputValue()==='本轮只检查界面，不提交求解','cancel_preserves_question');
- if(modelState==='missing'||modelState==='error'){
-  await page.locator('#ask-btn').click();
-  await page.locator('#model-modal.open').waitFor();
-  await page.waitForFunction(()=>document.activeElement?.id==='model-profile');
-  check(await page.locator('#query-input').inputValue()==='本轮只检查界面，不提交求解','missing_model_preserves_question');
-  check(await page.locator('#model-modal').isVisible(),'missing_model_opens_settings');
-  await page.keyboard.press('Escape');
-  check(!await page.locator('#model-modal').isVisible(),'model_escape_closes');
-  check(await page.evaluate(()=>document.activeElement.id==='ask-btn'),'model_focus_returns_to_trigger');
- }
+ // The reviewed intake may contact a model on submit. This GET-only audit
+ // opens settings explicitly; execution/preview flows have separate acceptance.
  await page.locator('#query-input').focus();await page.keyboard.press('Tab');
  check(await page.evaluate(()=>document.activeElement?.tagName==='BUTTON'),'input_keyboard_next_action');
  await capture('02-portal');

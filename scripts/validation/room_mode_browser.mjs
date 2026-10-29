@@ -13,7 +13,7 @@ const fixture=JSON.parse(await readFile(path.join(root,'tests/fixtures/task_inta
 const cases=[fixture.original_query,
  '二维矩形房间，Lx=400cm，Ly=3000mm，声速343m/s，四壁刚性，前10个模态频率，不包括零模态',
  '二维矩形房间，Lx=3m，Ly=3m，声速343m/s，四壁刚性，前9个模态频率，包含零模态'];
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
+const browser=await chromium.launch({channel:process.env.SKILL_BROWSER_CHANNEL||'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
 page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);
 const checks=[],errors=[],runs=[];let confirms=0;
 page.on('pageerror',error=>errors.push(error.message));
@@ -64,4 +64,4 @@ try{
  check(errors.length===0,'no_page_javascript_errors');
  console.log(JSON.stringify({passed:checks.length,actual_runs:runs.length}));
 }catch(error){errors.push(error.message);await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}
-finally{clearTimeout(watchdog);await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'real_room_browser_sandbox_qa',checks,errors,runs,model_calls:0,transport:'local_isolated_gateway_ssh_relay_to_existing_executor',production_database_writes:0,skill_admissions:0},null,2));await browser.close();}
+finally{clearTimeout(watchdog);await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'real_room_browser_sandbox_qa',checks,errors,runs,model_calls:0,transport:process.env.ROOM_PRODUCTION_QA==='true'?'browser_direct_production_gateway':'local_isolated_gateway_ssh_relay_to_existing_executor',production_database_writes:process.env.ROOM_PRODUCTION_QA==='true',production_executions:process.env.ROOM_PRODUCTION_QA==='true'?runs.length:0,skill_admissions:0},null,2));await browser.close();}
