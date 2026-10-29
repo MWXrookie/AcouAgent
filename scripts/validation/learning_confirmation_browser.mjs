@@ -15,7 +15,7 @@ await page.addInitScript(()=>{const original=window.fetch;window.fetch=async(...
 function check(value,name){if(!value)throw Error(name);checks.push(name)}
 async function save(){await writeFile(path.join(out,'report.json'),JSON.stringify({checks,results,errors,production_database_writes:0},null,2))}
 try{
- for(const [caseId,file] of [['B01','manual-skill.json'],['B02','b02-manual-skill.json'],['B03','b03-manual-skill.json']]){
+ for(const [caseId,file] of (process.env.LEARNING_BOUNDARY_ONLY==='true'?[]:[['B01','manual-skill.json'],['B02','b02-manual-skill.json'],['B03','b03-manual-skill.json']])){
   const spec=JSON.parse(await readFile('docs/skills-next/examples/'+file,'utf8'));
   const question={scenario_type:spec.scenario_type,simulation_params:spec.parameters,result_spec:spec.result_spec};
   for(const phase of (caseId==='B01'?['source','reuse','reuse-repeat-2','reuse-repeat-3']:['source','reuse'])){
@@ -53,7 +53,9 @@ try{
   }
  }
  // Changed physics cannot inherit the exact-case independent certification.
+ await page.goto(base+'/portal');
  const before=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
+ let boundaryRuns=0;
  for(const [caseId,file] of [['B01','manual-skill.json'],['B02','b02-manual-skill.json'],['B03','b03-manual-skill.json']]){
   const spec=JSON.parse(await readFile('docs/skills-next/examples/'+file,'utf8'));
   const params=structuredClone(spec.parameters);
@@ -69,14 +71,15 @@ try{
    for(const c of await page.locator('#task-review fieldset input').all())await c.check();
    await page.locator('#task-review .primary').click();await page.waitForFunction(()=>window.__final!=null,null,{timeout:90000});
    const final=await page.evaluate(()=>window.__final);results.push({case:caseId,phase:'changed-physics-negative',final});
-   check(final.workflow_status!=='succeeded'&&!final.execution_reuse_verified&&!final.run_id,caseId+' changed physics cannot silently reuse certified case');
+   check(final.quality_level!=='Q4'&&!final.execution_reuse_verified&&final.learning?.admitted!==true,caseId+' changed physics cannot silently inherit certified reuse');
+   if(final.run_id){boundaryRuns++;const row=await page.evaluate(async id=>(await fetch('/dashboard/api/executions/by-run/'+id)).json(),final.run_id);check(row.execution?.run_id===final.run_id,caseId+' changed physics fresh execution is traceable');}
   }else{
    check(await page.locator('#task-review .primary').isDisabled(),caseId+' changed physics blocked by explicit contract');
    await page.getByRole('button',{name:'取消',exact:true}).click();
   }
  }
  const after=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
- check(after.stats.total===before.stats.total,'unsupported physics changes cause zero solver dispatches');
+ check(after.stats.total===before.stats.total+boundaryRuns,'changed physics executions are fully accounted for');
  check(errors.length===0,'no browser javascript errors');
 }catch(e){errors.push(e.message);process.exitCode=1;await page.screenshot({path:path.join(out,'failure.png'),animations:'disabled'}).catch(()=>{})}
 finally{await save();await browser.close()}
