@@ -3,11 +3,11 @@
   "ok": true,
   "command": "visual-check",
   "status": "pass",
-  "visualReview": "pending",
+  "visualReview": "pass",
   "artifact": {
     "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "57d3c0129bb40b2b7a8c272a374c19afe2a643ce0748c2e837594edfb79bfe76",
-    "bytes": 727072
+    "sha256": "e98e3313b7738ae6e108ef54f2353c68460708f76053a106fc30017657dd9b77",
+    "bytes": 727079
   },
   "state": {
     "detail": "read",

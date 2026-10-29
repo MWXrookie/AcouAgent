@@ -83,6 +83,8 @@ def register(mcp) -> None:
     register_authoring_api(mcp)
     from app.skill_api import register as register_skill_api
     register_skill_api(mcp)
+    from app.task_contract_api import register as register_task_contract_api
+    register_task_contract_api(mcp)
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> PlainTextResponse:
@@ -221,6 +223,10 @@ def register(mcp) -> None:
                 status_code=400,
                 media_type="application/json",
             )
+        if any(body.get(name) is not None and not isinstance(body.get(name), str)
+               for name in ("message", "requirement", "session_id")):
+            return PlainTextResponse(json.dumps({"error": "invalid_request"}), status_code=400,
+                                     media_type="application/json")
         message = (body.get("message") or "").strip()
         requirement = (body.get("requirement") or "").strip()
         session_id = (body.get("session_id") or "").strip()[:24]
@@ -238,7 +244,15 @@ def register(mcp) -> None:
                 status_code=400, media_type="application/json",
             )
 
-        if requirement:
+        from app.task_intake import capability_notice
+        room_message = capability_notice(message)
+        room_previous = capability_notice(requirement) if requirement else None
+        if room_message is not None or room_previous is not None:
+            # Preserve declarations through follow-up; don't let a merge model
+            # rewrite dimensions, wall type, or the distinction between tasks.
+            full_requirement = message if room_message is not None else requirement+"\n"+message
+            merge_used = False
+        elif requirement:
             full_requirement = await _merge_requirement(requirement, message, model_profile)
             merge_used = True
         else:
@@ -249,6 +263,13 @@ def register(mcp) -> None:
         dify_user = f"portal-{session_id}" if session_id else "portal"
 
         async def events():
+            notice = capability_notice(full_requirement)
+            if notice is not None:
+                yield dict(event="result", workflow_status="error", request_id=str(uuid.uuid4()),
+                           workflow_run_id=str(uuid.uuid4()), skill_usage=[],
+                           requirement=full_requirement, merge_used=False,
+                           orchestration_backend="capability-router", **notice)
+                return
             source = (local_workflow.workflow_events(full_requirement, dify_user, model_profile)
                       if config.ORCHESTRATION_BACKEND == "local"
                       else workflow_events(full_requirement, dify_user, config.DIFY_API_KEY))
