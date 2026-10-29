@@ -946,6 +946,9 @@ class SkillStore:
                 item["trust_explanation"] = "此页展示保存的记录，不是复用许可；服务端在检索和生成时重核本机来源或独立宿主证据、参数、物理检查与撤回。跨主机认证及实际用户使用须另行验证。"
                 item["reuse_statistics"] = None
                 item["statistics_explanation"] = "历史观察次数不是可信成功率，暂无 Wilson 下限。"
+                from app.skill_organization import read as read_organization
+                _, counts = read_organization(db, True, [skill_id])
+                item['organization'] = counts.get(skill_id)
                 if len(json.dumps(item, ensure_ascii=False).encode()) > 32000:
                     return unavailable
                 return {"available": True, "item": item, "trust_verified": False}
@@ -1000,12 +1003,16 @@ class SkillStore:
         try:
             with self._read_db() as db:
                 rows = db.execute("""SELECT skill_id,scenario_type,state_text,status,quality_level,
-                    source_run_id,preconditions,archived,updated_at,failure_count
+                    source_run_id,preconditions,archived,updated_at,failure_count,
+                    (SELECT substr(v.normalized_params,1,8193) FROM skill_versions v
+                     WHERE v.skill_id=simulation_skills.skill_id ORDER BY v.version DESC LIMIT 1) display_params
                     FROM simulation_skills WHERE (? OR archived=0)
                     ORDER BY updated_at DESC,skill_id LIMIT ?""", (include_archived, limit)).fetchall()
                 items = []
                 for row in rows:
                     item = dict(row)
+                    from app.skill_organization import display_parameters
+                    item['display_parameters'] = display_parameters(item.pop('display_params'))
                     item["preconditions"] = validate_preconditions(json.loads(item["preconditions"]))
                     item["archived"] = bool(item["archived"])
                     # Legacy records may predate content checks. Refuse known
@@ -1014,7 +1021,14 @@ class SkillStore:
                     if len(json.dumps(items + [item], ensure_ascii=False).encode()) > 32000:
                         break
                     items.append(item)
-                return {"available": True, "items": items, "trust_verified": False}
+                from app.skill_organization import read as read_organization
+                organization, case_counts = read_organization(db, include_archived, [item['skill_id'] for item in items])
+                for item in items:
+                    item['organization'] = case_counts.get(item['skill_id'])
+                result = {"available": True, "items": items, "trust_verified": False, 'organization':organization}
+                while items and len(json.dumps(result, ensure_ascii=False).encode()) > 32000:
+                    items.pop()
+                return result
         except (sqlite3.Error, OSError, ValueError, TypeError):
             return {"available": False, "items": [], "trust_verified": False}
 

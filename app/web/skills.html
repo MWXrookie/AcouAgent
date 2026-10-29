@@ -22,21 +22,23 @@ input,textarea{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere;backgr
 <a href="/portal">返回仿真门户</a><h1>技能库</h1>
 <p class="muted">查看已积累的仿真方案、适用范围和变更记录。</p>
 <p><a href="/skills/authoring">添加与编辑技能 →</a></p>
-<p class="notice">本机基础技能须经受控执行与独立物理检查。候选记录仅供查看；每次复用仍重核适用范围、证据和撤回状态。技能代码仅经受限执行器运行。</p>
+<div id="organization" class="skill-organization" aria-label="技能库全库统计" hidden></div>
+<p id="organization-note" class="muted">同一能力下可以有不同参数案例；重复运行不等于新增技能。</p>
+<p class="notice">技能是已保存的仿真案例。修改参数后需重新核对；候选案例尚不能作为可信参考。</p>
 <div class="workbench-controls" aria-label="技能筛选">
 <label for="skill-search">搜索当前列表<input id="skill-search" type="search" placeholder="名称、场景或状态"></label>
-<label for="scenario-filter">场景<select id="scenario-filter"><option value="">全部场景</option></select></label>
+<label for="scenario-filter">能力家族<select id="scenario-filter"><option value="">全部场景</option></select></label>
 <label for="status-filter">生命周期<select id="status-filter"><option value="">全部状态</option><option value="active">可用</option><option value="candidate">候选</option><option value="questioned">待复核</option><option value="retired">已退役</option></select></label>
 <label class="check-label"><input id="archived" type="checkbox" style="width:auto"> 包含归档</label><button id="refresh">刷新列表</button>
 </div>
 <p id="message" role="status" aria-live="polite"></p>
 <div class="layout">
-<section aria-labelledby="list-title"><h2 id="list-title">已记录技能</h2><p id="scope" class="muted"></p><div id="list-state" class="state-panel" data-kind="loading"><strong>正在读取技能</strong><span>仅加载当前最多 50 条记录。</span></div><div id="list" aria-live="polite"></div></section>
+<section aria-labelledby="list-title"><h2 id="list-title">能力家族与参数案例</h2><p id="scope" class="muted"></p><div id="list-state" class="state-panel" data-kind="loading"><strong>正在读取技能</strong><span>仅加载当前最多 50 条案例。</span></div><div id="list" aria-live="polite"></div></section>
 <section aria-labelledby="detail-title"><h2 id="detail-title" tabindex="-1">技能详情</h2><p id="empty" class="muted">选择一个技能查看详情。</p>
 <div id="detail" hidden>
 <p id="summary"></p><p id="trust" class="notice"></p>
 <div id="friendly-summary" class="skill-overview"></div>
-<button id="copy-request">复制完整仿真请求</button><p class="muted">粘贴到声学仿真页面开始新求解；服务端仍会重核适用范围与证据。</p>
+<button id="copy-request">复制完整仿真请求</button><p class="muted">复制的是规范参数请求，频域案例保留完整结果合同；不是原始自然语言提问。粘贴到声学仿真页面开始新求解，服务端仍会重核适用范围与证据。</p>
 <details><summary>技术证据、完整参数与历史版本</summary>
 <div class="evidence-grid" aria-label="验证证据摘要"><div><span>记录等级</span><strong id="evidence-grade">—</strong></div><div><span>来源运行</span><strong id="evidence-run">—</strong></div><div><span>调用规则</span><strong>每次服务端重核</strong></div></div>
 <h3>适用边界</h3><pre id="bounds"></pre>
@@ -67,27 +69,56 @@ function skillName(item){
  const text=typeof item.state_text==='string'?item.state_text:'';
  const parts=text.split('；');
  // Preserve the specific scientific description instead of the host/executor label.
- if(parts.length>1&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();
- if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选'))return text;
- return scenarioLabel(item.scenario_type)+(item.status==='candidate'?' · 待验证案例':' · 仿真方案');
+ if(parts.length>1&&parts[0].includes('受控执行器')&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();
+ if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选')&&text!=='Automatic controlled source')return text;
+ const inputs=(item.display_parameters||[]).map(f=>f.label+' '+(Array.isArray(f.value)?f.value.map(n=>Number(n.toPrecision(6))).join('×'):Number(f.value.toPrecision(6)))+(f.unit?' '+f.unit:'')).join('；');
+ return scenarioLabel(item.scenario_type)+(item.status==='candidate'?' · 待验证案例':' · 仿真方案')+(inputs?' · '+inputs:'');
+}
+function simulationParameters(v){
+ const raw=v.normalized_params||{};
+ return raw.normalizer_version==='normalizer_v2'?(raw.parameters||{}):raw;
+}
+function simulationRequest(item){
+ const raw=item.selected_version.normalized_params||{};
+ if(raw.normalizer_version==='normalizer_v2'){
+  if(!raw.parameters||!raw.result_spec)throw Error('技能的参数或结果定义不完整，请刷新详情后重试。');
+  return {scenario_type:item.scenario_type,simulation_params:raw.parameters,result_spec:raw.result_spec};
+ }
+ return {...raw,scenario_type:item.scenario_type};
 }
 function readableSummary(item,v){
  const box=$('friendly-summary');box.replaceChildren();
- const params=v.normalized_params||{},fields=[['sound_speed_m_s','声速','m/s'],['density_kg_m3','密度','kg/m³'],['frequency_hz','频率','Hz'],['grid_shape','网格',''],['dx_m','网格间距','m'],['t_end_s','仿真结束时间','s']];
+ const params=simulationParameters(v),fields=[['sound_speed_m_s','声速','m/s'],['density_kg_m3','密度','kg/m³'],['frequency_hz','频率','Hz'],['grid_shape','网格',''],['dx_m','网格间距','m'],['t_end_s','仿真结束时间','s'],['initial_pressure_pa','初始峰值压力','Pa'],['initial_sigma_m','初压宽度','m'],['modal_amplitudes_pa','各模态幅值','Pa'],['modal_wavenumber_rad_per_m','波数分量','rad/m']];
  const add=(title,value)=>{const row=document.createElement('p'),b=document.createElement('strong');b.textContent=title+'：';row.append(b,document.createTextNode(value));box.append(row)};
- add('适用场景',scenarioLabel(item.scenario_type)+' · '+skillName(item));
+ const initial=params.source_type==='modal_initial_pressure'||params.source_type==='gaussian_initial_pressure';
+ add('解决什么问题',initial?(params.source_type==='modal_initial_pressure'?'给定周期模态初始压力，计算后续声波传播。':'给定高斯初始压力，计算后续声波传播。'):params.solver_mode==='frequency_domain'?'计算指定单频声源下的稳态声压。':scenarioLabel(item.scenario_type)+'仿真。');
+ add('当前案例',skillName(item));
+ const boundary={periodic:'周期边界',absorbing_pml:'吸收层边界',rigid:'刚性壁面'};
+ if(params.boundary_condition)add('适用边界',boundary[params.boundary_condition]||String(params.boundary_condition));
  add('验证状态',qualityLabel(item.quality_level)+' · '+statusLabel(item.status)+(item.archived?' · 已归档':''));
- const values=fields.filter(([key])=>params[key]!==undefined).map(([key,label,unit])=>label+' '+(Array.isArray(params[key])?params[key].join(' × '):String(params[key]))+(unit?' '+unit:''));
+ if(item.organization)add('版本与历史复用',item.organization.version_count+'个代码版本；'+item.organization.reexecution_count+'次已核对复用执行。多次运行仍属于同一参数案例。');
+ const values=fields.filter(([key])=>params[key]!==undefined).map(([key,label,unit])=>label+' '+(Array.isArray(params[key])?params[key].map(n=>typeof n==='number'?Number(n.toPrecision(6)):n).join(' × '):typeof params[key]==='number'?String(Number(params[key].toPrecision(6))):String(params[key]))+(unit?' '+unit:''));
  add('当前配方',values.join('；')||'请在技术详情中查看完整参数。');
+ add('输出',params.solver_mode==='frequency_domain'?'指定结果合同下的稳态声压，完整轴序、单位和范围见下方参数。':'声波传播的压力结果；只对已有验证记录覆盖的结果量负责。');
  add('参数修改', '以下记录不代表任意参数都可复用。修改后需重新求解，由服务端按当前证据核对；完整参数与适用边界可在下方查看。');
  add('使用方式','复制完整请求 → 到声学仿真页面粘贴 → 检查参数 → 开始新求解。列表展示不代表已经调用。');
+}
+function organizationSummary(data){
+ const box=$('organization'),summary=data.organization;box.replaceChildren();box.hidden=!summary;
+ if(!summary)return;
+ for(const [key,label] of [['family_count','能力家族'],['case_count','参数案例记录'],['version_count','代码版本'],['reexecution_count','已核对复用执行']]){
+  const card=document.createElement('div'),n=document.createElement('strong'),text=document.createElement('span');
+  n.textContent=String(summary[key]);text.textContent=label;card.append(n,text);box.append(card);
+ }
+ $('organization-note').textContent='全库登记统计'+(summary.includes_archived?'（含归档）':'（不含归档）')+'。家族仅用于分类；版本不是新案例。复用数是历史已记录执行，不代表当前许可或模型采纳。';
 }
 let current=null, selectedId=null, cursor=0, auditUntil=null, generation=0;
 $('copy-request').addEventListener('click',async()=>{
  if(!current || !current.selected_version)return;
- const params={...current.selected_version.normalized_params,scenario_type:current.scenario_type};
- const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(params);
- try{await navigator.clipboard.writeText(request);message('完整请求已复制，请到声学仿真页面粘贴并开始新求解。')}catch(e){message('无法复制，请手动复制规范化参数，并添加 scenario_type。')}
+ try{
+  const request='请按以下完整参数进行仿真，不改变参数，并显示技能参考调用反馈。\n'+pretty(simulationRequest(current));
+  await navigator.clipboard.writeText(request);message('完整请求已复制，请到声学仿真页面粘贴并开始新求解。');
+ }catch(e){message('复制未完成，请刷新详情后重试。频域请求必须保留完整参数和结果定义。','error')}
 });
 function message(s,kind='status'){$('message').textContent=s;$('message').dataset.kind=kind;$('message').setAttribute('role',kind==='error'?'alert':'status')}
 function listState(kind,title,detail,hidden=false){const box=$('list-state');box.dataset.kind=kind;box.hidden=hidden;box.replaceChildren();const strong=document.createElement('strong');strong.textContent=title;const span=document.createElement('span');span.textContent=detail;box.append(strong,span)}
@@ -97,26 +128,27 @@ async function api(path,options={}){
  return response.json();
 }
 async function loadList(){
- $('list').setAttribute('aria-busy','true');listState('loading','正在读取技能','仅加载当前最多 50 条记录。');
+ $('organization').hidden=true;$('list').setAttribute('aria-busy','true');listState('loading','正在读取技能','仅加载当前最多 50 条记录。');
  try{
   message('正在读取技能列表…');
   const data=await api('/skills/api?limit=50&archived='+$('archived').checked);
   $('list').replaceChildren();
   if(!data.available){message('技能库尚未准备好，或记录暂不可读取。','error');listState('error','技能列表不可用','请检查服务状态后刷新。');return false}
-  $('scope').textContent='本次显示最近 '+data.items.length+' 条记录（上限 50 条），不代表全库统计。';
+  organizationSummary(data);$('scope').textContent='当前列出最近 '+data.items.length+' 个案例（上限50）。同一案例可有多个版本和多次运行；全库登记统计见上方。';
   const groups=new Map();
   for(const item of data.items){
    if(!groups.has(item.scenario_type))groups.set(item.scenario_type,[]);
    groups.get(item.scenario_type).push(item);
   }
   for(const [scenario,items] of groups){
-   const title=document.createElement('h3');title.textContent=scenarioLabel(scenario)+' · '+items.length+' 条';
+   const title=document.createElement('h3');title.textContent=scenarioLabel(scenario)+' · '+items.length+' 个案例（当前列表）';
    $('list').append(title);
    for(const item of items){
     const button=document.createElement('button');button.className='skill';button.dataset.scenario=item.scenario_type;button.dataset.status=item.status;button.dataset.archived=String(item.archived);button.dataset.skillId=item.skill_id;
     const name=document.createElement('strong');name.textContent=skillName(item);name.title=item.skill_id;
-    const meta=document.createElement('small');meta.className='skill-meta';meta.textContent=qualityLabel(item.quality_level)+' · '+statusLabel(item.status)+(item.archived?' · 已归档':'');
+    const meta=document.createElement('small');meta.className='skill-meta';meta.textContent=statusLabel(item.status)+(item.archived?' · 已归档':'')+(item.organization?' · '+item.organization.version_count+'个版本 · '+item.organization.reexecution_count+'次已核对复用':'');
     button.append(name,meta);
+    if(item.display_parameters?.length){const inputs=document.createElement('small');inputs.className='skill-meta';inputs.textContent=item.display_parameters.map(f=>f.label+' '+(Array.isArray(f.value)?f.value.map(n=>Number(n.toPrecision(6))).join('×'):Number(f.value.toPrecision(6)))+(f.unit?' '+f.unit:'')).join('；');button.append(inputs)}
     button.addEventListener('click',()=>select(item.skill_id));$('list').append(button);
    }
   }
@@ -133,8 +165,8 @@ async function select(id,version=null){
   if(epoch!==generation)return;
   if(!data.available||!data.item){message('该技能或版本不可读取，请刷新列表。');return}
   current=data.item;const v=current.selected_version;
-  $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current)+' · '+scenarioLabel(current.scenario_type)+' · '+statusLabel(current.status)+' · 记录等级 '+current.quality_level+(current.archived?' · 已归档':'');
-  $('trust').textContent=current.trust_explanation;$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
+  $('empty').hidden=true;$('detail').hidden=false;readableSummary(current,v);$('summary').textContent=skillName(current)+' · '+scenarioLabel(current.scenario_type)+' · '+statusLabel(current.status)+(current.archived?' · 已归档':'');
+  $('trust').textContent='复用时会重新核对参数、验证记录和撤回状态。这里的记录不代表任意参数都可使用；技术证据可在下方展开查看。';$('bounds').textContent=Object.keys(current.preconditions).length?pretty(current.preconditions):'尚未声明适用范围，不能据此自动匹配复用。';
   $('source').textContent='版本 '+v.version+' · 来源运行 '+v.source_run_id+' · 校验器 '+v.validator_version;$('evidence-grade').textContent=current.quality_level;$('evidence-run').textContent=v.source_run_id;
   $('params').textContent=pretty(v.normalized_params);$('references').textContent='参考技能：'+(v.reference_skill_ids.join('、')||'无');
   $('code').textContent=v.code_template;$('hash').textContent='SHA256 '+v.code_hash;$('stats').textContent=current.statistics_explanation;

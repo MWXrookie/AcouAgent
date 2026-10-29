@@ -24,7 +24,7 @@ dev = [
 packages = ["app"]
 
 [tool.setuptools.package-data]
-app = ["web/*.html"]
+app = ["web/*.html", "web/*.css", "web/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

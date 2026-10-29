@@ -33,7 +33,7 @@ def _responses():
     }
 
 
-def _collect(monkeypatch, analyzed, failed_task=None, error_code="model_transport_failed"):
+def _collect(monkeypatch, analyzed, failed_task=None, error_code="model_transport_failed", stderr=""):
     responses = _responses()
     async def fake_model(profile_id, task, prompt, run_id):
         if task == failed_task:
@@ -45,7 +45,7 @@ def _collect(monkeypatch, analyzed, failed_task=None, error_code="model_transpor
         "validate_simulation_params": lambda raw: {"valid": True, "errors": [], "warnings": []},
         "run_jwave_code": lambda *args: {
             "exit_code": 0, "timed_out": False, "duration_ms": 1,
-            "stdout": "ok", "stderr": "", "run_id": "run-1",
+            "stdout": "ok", "stderr": stderr, "run_id": "run-1",
         },
     })
     monkeypatch.setattr(local_workflow.analysis, "analyze_and_record", lambda *args: analyzed)
@@ -92,7 +92,7 @@ def test_local_workflow_runs_generation_executor_gate_and_profile(monkeypatch):
     events = _collect(monkeypatch, analyzed)
     assert [item["stage"] for item in events if item["event"] == "progress"] == [
         "本地编排：提取参数", "本地编排：检索技能", "本地编排：生成代码",
-        "本地编排：沙箱执行 1/3", "本地编排：审查与解释",
+        "本地编排：沙箱执行 1/3", "本地编排：核对实际执行结果", "本地编排：审查与解释",
     ]
     result = events[-1]
     assert result["workflow_status"] == "succeeded"
@@ -296,3 +296,13 @@ def test_verified_direct_reference_skips_generation_and_new_execution(monkeypatc
     assert events[-1]["workflow_status"] == "succeeded"
     assert events[-1]["quality_level"] == "Q4"
     assert events[-1]["run_id"] == "direct-run"
+
+def test_successful_solver_warning_is_not_reported_as_a_failed_attempt(monkeypatch):
+    observed=[]
+    async def commentary(profile,task,prompt,run,audit):
+        observed.append(prompt)
+        return dict(content='unit explanation',profile_id='fast',model='unit',available=True)
+    monkeypatch.setattr(local_workflow,'_commentary_model',commentary)
+    final=_collect(monkeypatch,dict(verdict='normal',quality_level='Q2',summary='unit normal'),stderr='solver diagnostic: convergence achieved')[-1]
+    assert final['workflow_status']=='succeeded'
+    assert observed and all('"observed_errors": []' in prompt for prompt in observed)

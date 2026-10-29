@@ -282,6 +282,17 @@ function analysisUnit(a) {
     : a && a.units === 'Pa' ? 'Pa' : '单位未知';
 }
 function formatMetric(r) {
+  if (r.tool_name === 'controlled_room_modes_2d') {
+    try {
+      var room = JSON.parse(r.stdout || '{}');
+      if (room.method === 'neumann-cell-centred-finite-volume.v1' && Array.isArray(room.modes)) {
+        if (room.parameters && room.parameters.include_zero_mode && room.parameters.mode_count === 1) return '零频静态模态 0 Hz';
+        var hz = Math.min.apply(null, room.modes.map(function(m){return m.frequency_hz;}).filter(function(v){return typeof v === 'number' && Number.isFinite(v) && v > 0;}));
+        if (Number.isFinite(hz)) return '最低非零模态 ' + hz.toFixed(6) + ' Hz';
+      }
+    } catch(e) {}
+    return '房间模态 · 查看结论';
+  }
   if (r.analysis && r.analysis.max_pressure != null) return Number(r.analysis.max_pressure).toPrecision(6) + ' ' + analysisUnit(r.analysis);
   var m = /最大压力[：:]?\s*\**\s*([\d.eE+-]+)/.exec(r.stdout || '');
   return m ? Number(m[1]).toFixed(4) + ' 单位未知' : '-';
@@ -299,7 +310,7 @@ function renderRow(r) {
   var imgHtml = hasImg ? '<img class="result-img" src="data:image/png;base64,' + r.image_base64 + '" onclick="event.stopPropagation();showLightbox(this.src)" title="查看图像">' : '<span style="color:var(--muted)">无图</span>';
   var actions = '<button class="action-btn" onclick="event.stopPropagation();copyCode(' + r.id + ')" title="复制代码">复制</button>' +
     '<button class="action-btn" onclick="event.stopPropagation();downloadRecord(' + r.id + ')" title="导出 JSON">导出</button>' +
-    '<button class="action-btn" onclick="event.stopPropagation();rerunExecution(' + r.id + ',this)" title="重新运行">重跑</button>';
+    (r.tool_name === 'controlled_room_modes_2d' ? '<button class="action-btn" disabled title="请到声学仿真页面核对参数后重新计算">重跑</button>' : '<button class="action-btn" onclick="event.stopPropagation();rerunExecution(' + r.id + ',this)" title="重新运行">重跑</button>');
   if (r.skill_reference && typeof r.skill_reference.skill_id === 'string' && Number.isSafeInteger(r.skill_reference.version)) {
     var skillHref = '/skills?skill_id=' + encodeURIComponent(r.skill_reference.skill_id) + '&version=' + encodeURIComponent(r.skill_reference.version);
     actions += '<a class="action-btn skill-evidence-link" href="' + skillHref + '" onclick="event.stopPropagation()" title="查看本次已验证固定配方的技能证据">技能证据 v' + r.skill_reference.version + '</a>';
@@ -316,7 +327,7 @@ function renderRow(r) {
   return '<tr class="execution-row" onclick="toggleDetail(' + r.id + ')" style="cursor:pointer">'
     + '<td style="color:var(--muted);font-size:12px">' + r.id + '</td>'
     + '<td class="time">' + timeAgo(r.timestamp) + '</td>'
-    + '<td>' + badge(r) + '<small class="physical-status">' + (r.analysis ? '物理判定：' + esc(r.analysis.verdict || '未知') + ' · ' + esc(r.analysis.quality_level || '未分级') : '物理验证：无关联摘要') + '</small></td>'
+    + '<td>' + badge(r) + '<small class="physical-status">' + (r.tool_name === 'controlled_room_modes_2d' ? (r.analysis && r.analysis.verdict === 'normal' ? '模态频率独立核对通过' : '模态验证尚未通过') : r.analysis ? '物理判定：' + esc(r.analysis.verdict || '未知') + ' · ' + esc(r.analysis.quality_level || '未分级') : '物理验证：无关联摘要') + '</small></td>'
     + '<td class="metric-cell">' + metric + '</td>'
     + '<td class="dur">' + dur + '</td>'
     + '<td>' + imgHtml + ' ' + actions + '</td>'
@@ -329,15 +340,16 @@ function renderRow(r) {
     + '<span class="detail-tab' + (state.tab === 'stderr' ? ' active' : '') + '" onclick="event.stopPropagation();switchTab(' + r.id + ',\'stderr\')">stderr</span>'
     + expandBtn
     + '</div>'
-    + '<div class="detail-section' + (state.tab === 'report' ? ' active' : '') + '" id="sec-' + r.id + '-report">' + renderAnalysis(r.analysis) + '</div>'
+    + '<div class="detail-section' + (state.tab === 'report' ? ' active' : '') + '" id="sec-' + r.id + '-report">' + renderAnalysis(r.analysis, r.tool_name === 'controlled_room_modes_2d') + '</div>'
     + '<div class="detail-section' + (state.tab === 'code' ? ' active' : '') + '" id="sec-' + r.id + '-code">' + codeDetail + '</div>'
     + '<div class="detail-section' + (state.tab === 'stdout' ? ' active' : '') + '" id="sec-' + r.id + '-stdout"><div class="detail-box stdout">' + (esc(r.stdout) || "(无输出)") + '</div></div>'
     + '<div class="detail-section' + (state.tab === 'stderr' ? ' active' : '') + '" id="sec-' + r.id + '-stderr"><div class="detail-box stderr">' + (esc(r.stderr) || "(无输出)") + '</div></div>'
     + '</td></tr>';
 }
 
-function renderAnalysis(a) {
+function renderAnalysis(a, room) {
   if (!a) return '<div class="detail-box analysis-summary">本次记录没有可关联的物理分析摘要。</div>';
+  if (room) return '<div class="detail-box analysis-summary"><strong>房间模态分析</strong><p>' + esc(a.summary || '尚无独立验证结论') + '</p><p>此任务输出模态频率，压力幅值与传播信号指标不适用。</p></div>';
   var shape = Array.isArray(a.field_shape) && a.field_shape.length ? a.field_shape.join(' × ') : '-';
   var maxPressure = a.max_pressure == null ? '-' : Number(a.max_pressure).toPrecision(6) + ' ' + analysisUnit(a);
   var rmsPressure = a.rms_pressure == null ? '-' : Number(a.rms_pressure).toPrecision(6) + ' ' + analysisUnit(a);

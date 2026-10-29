@@ -5,7 +5,7 @@
 import {createRequire} from 'node:module';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import path from 'node:path';
-const require=createRequire(import.meta.url),{chromium}=require('playwright');
+const require=createRequire(process.env.PLAYWRIGHT_PACKAGE_JSON||import.meta.url),{chromium}=require('playwright');
 const base=process.env.GW_BASE_URL,token=process.env.SKILL_TEST_ADMIN_TOKEN;
 if(!base||!token||process.env.SKILL_TEST_DISPOSABLE!=='true')throw Error('explicit_disposable_gateway_and_token_required');
 const out=path.resolve(process.env.SKILL_BROWSER_OUTPUT||'outputs/skill-authoring-browser');await mkdir(out,{recursive:true});
