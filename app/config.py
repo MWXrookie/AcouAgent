@@ -16,6 +16,8 @@ ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "local").strip()
 # learning/admission or substitutes the existing Helmholtz quality profiles.
 ROOM_MODAL_ENABLED = os.environ.get("ROOM_MODAL_ENABLED", "").lower() == "true"
 ROOM_MODAL_RUNS_PATH = os.environ.get("ROOM_MODAL_RUNS_PATH", "/app/data/room_modal_runs.db")
+TASK_CONFIRMATION_ENABLED = os.environ.get('TASK_CONFIRMATION_ENABLED','').lower() == 'true'
+TASK_CONFIRMATION_RUNS_PATH = os.environ.get('TASK_CONFIRMATION_RUNS_PATH','/app/data/confirmed_workflow_runs.db')
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"
@@ -43,6 +45,8 @@ def validate() -> None:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
     if ORCHESTRATION_BACKEND not in {"dify", "local"}:
         raise RuntimeError("ORCHESTRATION_BACKEND must be dify or local")
+    if TASK_CONFIRMATION_ENABLED and ORCHESTRATION_BACKEND != 'local':
+        raise RuntimeError('TASK_CONFIRMATION_ENABLED requires local orchestration')
 
 # Skill features are opt-in; no flag alone certifies a run or activates a skill.
 SKILL_LIBRARY_ENABLED = os.environ.get("SKILL_LIBRARY_ENABLED", "").lower() == "true"

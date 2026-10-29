@@ -49,7 +49,7 @@ try{
  }
  check(new Set(runs.map(r=>r.run_id)).size===cases.length,'each_new_request_has_a_unique_real_run');
  check(JSON.stringify(runs[0].validation.modes)===JSON.stringify(runs[1].validation.modes),'equivalent_units_have_identical_results');
- await page.reload();await page.getByRole('button',{name:'查询上次模态计算'}).click();
+ await page.reload();await page.getByRole('button',{name:'查询上次确认任务'}).click();
  await page.waitForFunction(()=>document.getElementById('chat-log').innerText.includes('独立解析核对通过'));
  check(true,'reload_recovers_durable_result_without_resubmitting');
  const before=confirms;

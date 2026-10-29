@@ -88,7 +88,11 @@ def register(mcp) -> None:
     if config.ROOM_MODAL_ENABLED:
         from app.room_mode_service import RoomModeService
         room_service = RoomModeService(config.ROOM_MODAL_RUNS_PATH)
-    register_task_contract_api(mcp, service=room_service)
+    workflow_service = None
+    if config.TASK_CONFIRMATION_ENABLED and config.ORCHESTRATION_BACKEND == 'local':
+        from app.workflow_task_service import WorkflowTaskService
+        workflow_service = WorkflowTaskService(config.TASK_CONFIRMATION_RUNS_PATH)
+    register_task_contract_api(mcp, service=room_service, workflow_service=workflow_service)
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> PlainTextResponse:
@@ -258,11 +262,11 @@ def register(mcp) -> None:
             # rewrite dimensions, wall type, or the distinction between tasks.
             full_requirement = message if room_message is not None else requirement+"\n"+message
             merge_used = False
-        elif requirement:
+        elif requirement and not config.TASK_CONFIRMATION_ENABLED:
             full_requirement = await _merge_requirement(requirement, message, model_profile)
             merge_used = True
         else:
-            full_requirement = message
+            full_requirement = requirement+'\n'+message if requirement else message
             merge_used = False
 
         # 按会话隔离 Dify user（有 session 时用 portal-<session>，否则回退 portal）
@@ -275,6 +279,12 @@ def register(mcp) -> None:
                            workflow_run_id=str(uuid.uuid4()), skill_usage=[],
                            requirement=full_requirement, merge_used=False,
                            orchestration_backend="capability-router", **notice)
+                return
+            if config.TASK_CONFIRMATION_ENABLED:
+                yield dict(event='result',workflow_status='error',request_id=str(uuid.uuid4()),
+                           workflow_run_id=str(uuid.uuid4()),skill_usage=[],requirement=full_requirement,
+                           merge_used=False,execution_performed=False,error_code='task_confirmation_required',
+                           report='请在声学仿真页面先核对参数并确认任务；此入口不会绕过确认执行。')
                 return
             source = (local_workflow.workflow_events(full_requirement, dify_user, model_profile)
                       if config.ORCHESTRATION_BACKEND == "local"

@@ -92,7 +92,7 @@ def test_local_workflow_runs_generation_executor_gate_and_profile(monkeypatch):
     events = _collect(monkeypatch, analyzed)
     assert [item["stage"] for item in events if item["event"] == "progress"] == [
         "本地编排：提取参数", "本地编排：检索技能", "本地编排：生成代码",
-        "本地编排：沙箱执行 1/3", "本地编排：审查与解释",
+        "本地编排：沙箱执行 1/3", "本地编排：核对实际执行结果", "本地编排：审查与解释",
     ]
     result = events[-1]
     assert result["workflow_status"] == "succeeded"

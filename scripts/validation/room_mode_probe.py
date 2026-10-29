@@ -17,7 +17,7 @@ from app import executor_evidence, room_modes
 from app.task_contract import room_contract
 
 
-def remote_execute(host, container, code, timeout, *, request_nonce=None):
+def remote_execute(host, container, code, timeout, *, request_nonce=None, managed=False):
     """Real test transport only; preserves and verifies the executor receipt."""
     for value in (host, container):
         if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.@-]{1,128}', value) or value.startswith('-'):
@@ -28,6 +28,12 @@ r=urllib.request.Request('http://jwave-executor:8010/execute',data=json.dumps(p)
 with urllib.request.urlopen(r,timeout=40) as response:
     sys.stdout.write(response.read().decode())
 '''
+    if managed:
+        relay = '''import json,sys
+from app.execution import _execute_code
+p=json.load(sys.stdin)
+print(json.dumps(_execute_code(p['code'],p['timeout_seconds'],request_nonce=p['request_nonce'])))
+'''
     command = 'docker exec -i '+shlex.quote(container)+' python -c '+shlex.quote(relay)
     nonce = request_nonce or uuid.uuid4().hex
     payload = dict(code=code, timeout_seconds=timeout, request_nonce=nonce)
@@ -37,8 +43,14 @@ with urllib.request.urlopen(r,timeout=40) as response:
     if child.returncode:
         raise RuntimeError('gateway_transport_failed')
     result = json.loads(child.stdout)
-    receipt = result.pop('executor_receipt', None)
-    result['execution_evidence'] = executor_evidence.verify_executor_receipt(receipt,result,code,timeout,nonce)
+    if managed:
+        evidence = result.get('execution_evidence',{})
+        checked = executor_evidence.verify_executor_receipt(evidence.get('receipt'),result,code,timeout,nonce)
+        if evidence.get('matched') is not True or checked['matched'] is not True:
+            raise ValueError('managed_gateway_receipt_unmatched')
+    else:
+        receipt = result.pop('executor_receipt', None)
+        result['execution_evidence'] = executor_evidence.verify_executor_receipt(receipt,result,code,timeout,nonce)
     result['execution_evidence']['test_transport'] = 'ssh_gateway_internal_executor'
     return result
 

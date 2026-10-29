@@ -10,7 +10,7 @@ from app.task_contract import ConfirmationDrafts
 QUERY = '二维矩形房间，刚性壁面，Lx=4 m，Ly=3 m，c=343 m/s，求前10个模态频率。'
 
 
-def client_app(runner=None, service=None):
+def client_app(runner=None, service=None, workflow_service=None):
     class Registry:
         routes = []
         def custom_route(self, path, methods):
@@ -19,7 +19,7 @@ def client_app(runner=None, service=None):
                 return fn
             return decorate
     registry = Registry()
-    task_contract_api.register(registry, runner=runner, service=service)
+    task_contract_api.register(registry, runner=runner, service=service,workflow_service=workflow_service)
     return Starlette(routes=registry.routes)
 
 
@@ -137,4 +137,81 @@ def test_durable_status_recovers_unknown_dispatch_without_resubmission(tmp_path,
             status = (await c.post('/api/task-intake/status',json=dict(task_id=data['task_id'],session_id='owner'))).json()
             assert status['run_id'] == result['run_id'] and len(calls) == 1
             assert (await c.post('/api/task-intake/status',json=dict(task_id=data['task_id'],session_id='other'))).json() == dict(found=False)
+    asyncio.run(run())
+
+
+def test_workflow_preview_hides_private_extraction_and_confirm_is_single_use(tmp_path,monkeypatch):
+    from app import workflow_contract, local_workflow
+    from app.workflow_task_service import WorkflowTaskService
+    from tests.unit.test_workflow_contract import build
+    value = build()
+    async def prepare(query,profile):
+        assert query==value['source_text'] and profile=='profile'
+        return value
+    calls = []
+    async def events(query,user,profile,*,_confirmed):
+        calls.append(_confirmed)
+        yield dict(event='result',workflow_status='error',report='unit-only no actual solver')
+    monkeypatch.setattr(workflow_contract,'prepare',prepare)
+    monkeypatch.setattr(local_workflow,'workflow_events',events)
+    monkeypatch.setattr(task_contract_api,'DRAFTS',ConfirmationDrafts())
+    service = WorkflowTaskService(tmp_path/'tasks.db')
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client_app(workflow_service=service)),base_url='http://isolated') as c:
+            data = (await c.post('/api/task-intake',json=dict(message=value['source_text'],session_id='owner',model_profile='profile'))).json()
+            assert data['handled'] and data['execution_available']
+            assert not any(k.startswith('_') for k in data['contract'])
+            body = dict(message=value['source_text'],session_id='owner',model_profile='profile',task_id=data['task_id'],
+                contract_sha256=data['contract']['contract_sha256'],accepted_proposals=[p['id'] for p in data['contract']['proposals']])
+            assert (await c.post('/api/task-intake/confirm',json=dict(body,accepted_proposals=[]))).status_code==400
+            result = (await c.post('/api/task-intake/confirm',json=body)).json()
+            assert len(calls)==1 and result['state']=='error'
+            assert (await c.post('/api/task-intake/confirm',json=body)).status_code==400
+            status = (await c.post('/api/task-intake/status',json=dict(task_id=data['task_id'],session_id='owner',model_profile='profile'))).json()
+            assert status['request_id']==result['request_id'] and len(calls)==1
+    asyncio.run(run())
+
+
+def test_new_confirmation_feature_blocks_legacy_chat_before_merge_or_dispatch(monkeypatch):
+    from app import config,portal,local_workflow
+    monkeypatch.setattr(config,'TASK_CONFIRMATION_ENABLED',True)
+    # Avoid a real persistence store at registration in this route-guard test.
+    monkeypatch.setattr(config,'ORCHESTRATION_BACKEND','dify')
+    def forbidden(*args,**kwargs): raise AssertionError('unconfirmed input must not dispatch or merge')
+    monkeypatch.setattr(portal,'_merge_requirement',forbidden)
+    monkeypatch.setattr(portal,'workflow_events',forbidden)
+    monkeypatch.setattr(local_workflow,'workflow_events',forbidden)
+    class Registry:
+        def __init__(self): self.routes=[]
+        def custom_route(self,path,methods):
+            def decorate(fn): self.routes.append(Route(path,fn,methods=methods)); return fn
+            return decorate
+    registry=Registry();portal.register(registry)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=Starlette(routes=registry.routes)),base_url='http://isolated') as c:
+            for backend in ('local','dify'):
+                monkeypatch.setattr(config,'ORCHESTRATION_BACKEND',backend)
+                r=await c.post('/chat',json=dict(message='改为100kHz点声源',requirement='水中声源',session_id='owner'))
+                assert r.json()['error_code']=='task_confirmation_required'
+                assert r.json()['execution_performed'] is False
+    asyncio.run(run())
+
+def test_reidentification_invalidates_old_draft_before_model_returns(monkeypatch):
+    from app import workflow_contract
+    monkeypatch.setattr(task_contract_api,'DRAFTS',ConfirmationDrafts())
+    async def run():
+        started,release=asyncio.Event(),asyncio.Event()
+        async def waiting(*args):
+            started.set()
+            await release.wait()
+            raise RuntimeError('unit-only failed extraction')
+        monkeypatch.setattr(workflow_contract,'prepare',waiting)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client_app(runner=lambda _: {},workflow_service=object())),base_url='http://isolated') as c:
+            old=(await c.post('/api/task-intake',json=dict(message=QUERY,session_id='s'))).json()
+            request=asyncio.create_task(c.post('/api/task-intake',json=dict(message='水中点声源',session_id='s',previous_task_id=old['task_id'])))
+            await asyncio.wait_for(started.wait(),2)
+            response=await c.post('/api/task-intake/confirm',json=dict(message=QUERY,session_id='s',task_id=old['task_id'],contract_sha256=old['contract']['contract_sha256'],accepted_proposals=[p['id'] for p in old['contract']['proposals']]))
+            assert response.status_code==400
+            release.set()
+            assert (await request).status_code==503
     asyncio.run(run())

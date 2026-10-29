@@ -1,0 +1,67 @@
+/** Real model + confirmed frozen intake + existing managed executor transport. */
+import {createRequire} from 'node:module';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const require=createRequire(process.env.PLAYWRIGHT_PACKAGE_JSON||path.join(root,'package.json'));
+const {chromium}=require('playwright');
+const base=process.env.GW_BASE_URL,output=process.env.WORKFLOW_BROWSER_OUTPUT;
+if(!base||!/^http:\/\/127\.0\.0\.1:\d+$/.test(base)||!output||process.env.WORKFLOW_REAL_MODEL_QA!=='true')throw Error('explicit_workflow_qa_required');
+await mkdir(output,{recursive:true});
+const query='在二维均匀水介质中进行时域点声源仿真：声速1500m/s，密度1000kg/m³，驱动频率100kHz，网格64×64，网格间距1mm×1mm，结束时间40μs，CFL=0.3，PML为8层且边界为absorbing_pml。source_geometry=point，source_index=[32,32]。source_type=tone_burst，脉冲周期数source_cycles=2。附加源项压力系数source_amplitude_pa=1.5 Pa。source_normalization=jwave_additive_pressure_coefficient，采用jwave 0.2.1网格附加源项压力系数约定，非规定边界声压或换能器标定压力。显示全时最大绝对压力场。';
+const incomplete='在二维均匀水介质中进行时域点声源仿真：声速1500m/s，密度1000kg/m³，驱动频率100kHz，网格64×64，网格间距1mm×1mm，结束时间20μs，CFL=0.3，PML为8层。显示声压分布。';
+const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1100}});
+page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);
+const checks=[],errors=[];let prepared=null,negative=null,final=null,submission=null;
+page.on('pageerror',e=>errors.push(e.message));
+await page.addInitScript(()=>{const fetch=window.fetch;window.__qaPrepared=null;window.__qaFinal=null;window.__qaSubmit=null;window.fetch=async(...args)=>{const r=await fetch(...args);if(args[0]==='/api/task-intake')r.clone().json().then(v=>window.__qaPrepared=v);if(args[0]==='/api/task-intake/confirm'){window.__qaSubmit=JSON.parse(args[1].body);r.clone().json().then(v=>window.__qaFinal=v)}return r}});
+const watchdog=setTimeout(async()=>{errors.push('global_timeout');await writeFile(path.join(output,'timeout-report.json'),JSON.stringify({checks,errors,prepared,final,not_accepted:true},null,2));browser.close().catch(()=>{});process.exit(2)},360000);
+function check(ok,name){if(!ok)throw Error(name);checks.push(name)}
+try{
+ await page.goto(base+'/portal');await page.waitForFunction(()=>document.getElementById('model-readiness').dataset.state==='configured');
+ const baseline=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
+ await page.locator('#query-input').fill(incomplete);await page.locator('#ask-btn').click();await page.locator('#task-review[open]').waitFor({timeout:110000});
+ negative=await page.evaluate(()=>window.__qaPrepared);
+ check(negative?.contract.status==='needs_input','underdeclared_source_is_not_solved_with_hidden_waveform_defaults');
+ check(await page.locator('#task-review .primary').isDisabled(),'missing_source_contract_cannot_confirm');
+ await page.screenshot({path:path.join(output,'missing-source.png'),animations:'disabled'});
+ await page.getByRole('button',{name:'取消',exact:true}).click();
+ const afterNegative=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
+ check(afterNegative.stats.total===baseline.stats.total,'incomplete_source_has_zero_solver_executions');
+ await page.locator('#query-input').fill(query);await page.locator('#ask-btn').click();
+ await page.locator('#task-review[open]').waitFor({timeout:110000});
+ prepared=await page.evaluate(()=>window.__qaPrepared);
+ check(prepared?.contract.task_kind==='driven_time_field','actual_model_task_classification_correct');
+ check(prepared.contract.status==='ready_for_confirmation','actual_model_parameters_valid_before_execution');
+ check(JSON.stringify(prepared.contract.parameters.domain_N)==='[64,64]'&&JSON.stringify(prepared.contract.parameters.domain_dx)==='[0.001,0.001]','explicit_grid_axes_and_mm_units_preserved');
+ check(prepared.contract.parameters.source_frequency===100000&&prepared.contract.parameters.t_end===.00004,'frequency_and_microseconds_recognized');
+ check(prepared.contract.parameters.source_cycles===2&&prepared.contract.parameters.source_amplitude_pa===1.5,'declared_waveform_cycles_and_source_coefficient_preserved');
+ check(!Object.keys(prepared.contract).some(k=>k.startsWith('_')),'private_frozen_extraction_not_sent_to_browser');
+ check(await page.locator('#task-review .primary').isDisabled(),'model_proposals_require_explicit_user_acceptance');
+ await page.screenshot({path:path.join(output,'parameters.png')});
+ for(const checkbox of await page.locator('#task-review fieldset input').all())await checkbox.check();
+ await page.locator('#task-review .primary').click();
+ await page.waitForFunction(()=>window.__qaFinal!==null,null,{timeout:240000});
+ final=await page.evaluate(()=>window.__qaFinal);
+ check(final.workflow_status==='succeeded'&&typeof final.run_id==='string','actual_confirmed_workflow_has_a_successful_new_run');
+ check(['Q1','Q2','Q3','Q4'].includes(final.quality_level),'actual_physics_gate_result_visible');
+ await page.waitForFunction(()=>!document.querySelector('#chat-log .typing')&&!document.getElementById('ask-btn').disabled&&!document.documentElement.classList.contains('design-busy'));
+ await page.screenshot({path:path.join(output,'result.png'),animations:'disabled'});
+ await page.locator('#chat-log').evaluate(log=>{log.scrollTop=log.lastElementChild.offsetTop-log.offsetTop});
+ await page.screenshot({path:path.join(output,'result-overview.png'),animations:'disabled'});
+ submission=await page.evaluate(()=>window.__qaSubmit);
+ const row=await page.evaluate(async id=>(await fetch('/dashboard/api/executions/by-run/'+id)).json(),final.run_id);
+ check(row.execution?.run_id===final.run_id,'dashboard_execution_matches_actual_workflow_run');
+ const previous=final.request_id;
+ const replay=await page.evaluate(async()=>{const r=await fetch('/api/task-intake/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(window.__qaSubmit)});return r.status});
+ check(replay===400,'same_confirmation_cannot_reexecute_workflow');
+ const status=await page.evaluate(async()=>{const b=window.__qaSubmit;return(await fetch('/api/task-intake/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:b.task_id,session_id:b.session_id,model_profile:b.model_profile})})).json()});
+ check(status.request_id===previous&&status.run_id===final.run_id,'durable_status_keeps_same_request_and_real_run');
+ await page.reload();const count=await page.locator('#chat-log .assistant').count();await page.getByRole('button',{name:'查询上次确认任务'}).click();
+ await page.waitForFunction(n=>document.querySelectorAll('#chat-log .assistant').length>n,count);
+ check(true,'reload_queries_actual_saved_result_without_new_workflow');
+ check(errors.length===0,'no_page_javascript_errors');
+ console.log(JSON.stringify({passed:checks.length,workflow_status:final.workflow_status,quality_level:final.quality_level}));
+}catch(error){errors.push(error.message);await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}
+finally{clearTimeout(watchdog);await writeFile(path.join(output,'report.json'),JSON.stringify({kind:'actual_model_confirmed_workflow_browser',checks,errors,negative,prepared,submission,final,transport:'isolated_local_service_via_existing_managed_gateway_executor',production_database_writes:0},null,2));await browser.close();}

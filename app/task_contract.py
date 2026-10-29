@@ -222,7 +222,7 @@ class ConfirmationDrafts:
                     or value['source_text'] != source_text or value['status'] != 'ready_for_confirmation'):
                 raise ValueError('task_confirmation_mismatch')
             required = {p['id'] for p in value['proposals']}
-            if (not isinstance(accepted, list) or len(accepted) > 8 or any(not isinstance(x, str) for x in accepted)
+            if (not isinstance(accepted, list) or len(accepted) > 64 or any(not isinstance(x, str) for x in accepted)
                     or len(accepted) != len(set(accepted)) or set(accepted) != required):
                 raise ValueError('task_proposals_not_confirmed')
             self._items.pop(key)
