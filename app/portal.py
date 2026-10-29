@@ -84,7 +84,11 @@ def register(mcp) -> None:
     from app.skill_api import register as register_skill_api
     register_skill_api(mcp)
     from app.task_contract_api import register as register_task_contract_api
-    register_task_contract_api(mcp)
+    room_service = None
+    if config.ROOM_MODAL_ENABLED:
+        from app.room_mode_service import RoomModeService
+        room_service = RoomModeService(config.ROOM_MODAL_RUNS_PATH)
+    register_task_contract_api(mcp, service=room_service)
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> PlainTextResponse:
@@ -95,11 +99,13 @@ def register(mcp) -> None:
         try:
             payload = model_profiles.public_profiles()
             payload["orchestration_backend"] = config.ORCHESTRATION_BACKEND
+            payload['room_modal_available'] = room_service is not None
             status = 200
         except model_profiles.ModelProfileError as exc:
             payload = {"profiles": [], "default_profile": None,
                        "orchestration_backend": config.ORCHESTRATION_BACKEND,
                        "error": str(exc)}
+            payload['room_modal_available'] = room_service is not None
             status = 503
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=status,
                                  media_type="application/json",
@@ -385,6 +391,9 @@ def register(mcp) -> None:
                 status_code=404,
                 media_type="application/json",
             )
+        if row.get('tool_name') == 'controlled_room_modes_2d':
+            return PlainTextResponse(json.dumps(dict(ok=False, error='请到声学仿真页面核对模态参数后重新计算。'), ensure_ascii=False),
+                                     status_code=409, media_type='application/json')
         try:
             code = execution._clean_code(row["code"])
             result = execution._execute_code(code, 15)

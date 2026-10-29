@@ -11,7 +11,12 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--preview-only', action='store_true', required=True)
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument('--preview-only', action='store_true')
+    modes.add_argument('--execute-room', action='store_true')
+    parser.add_argument('--ssh-host')
+    parser.add_argument('--gateway-container', default='dify-mcp')
+    parser.add_argument('--data-dir', type=Path)
     parser.add_argument('--port', type=int, default=18221)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
@@ -19,17 +24,28 @@ def main():
     for key in list(os.environ):
         if key.startswith(('MODEL_', 'SKILL_', 'DIFY_')) or key in {'DEEPSEEK_API_KEY', 'PORTAL_ADMIN_TOKEN'}:
             os.environ.pop(key)
+    os.environ['ROOM_MODAL_ENABLED'] = 'false'
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from starlette.applications import Starlette
     from starlette.routing import Route
     import uvicorn
-    from app import portal
+    from app import portal, config, dashboard, execution
+    if args.execute_room:
+        if not args.ssh_host or not args.data_dir:
+            parser.error('real room mode requires --ssh-host and a fresh --data-dir')
+        args.data_dir.mkdir(parents=True, exist_ok=False)
+        config.ROOM_MODAL_ENABLED = True
+        config.ROOM_MODAL_RUNS_PATH = str(args.data_dir/'tasks.db')
+        dashboard.DB_PATH = str(args.data_dir/'history.db')
+        dashboard.init_db()
+        from scripts.validation.room_mode_probe import remote_execute
+        execution._execute_code = lambda code, timeout, **kw:remote_execute(args.ssh_host,args.gateway_container,code,timeout,**kw)
     class Registry:
         def __init__(self):
             self.routes = []
         def custom_route(self, path, methods):
             def decorate(fn):
-                if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/skills/api'}:
+                if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or (args.execute_room and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}):
                     self.routes.append(Route(path, fn, methods=methods))
                 return fn
             return decorate

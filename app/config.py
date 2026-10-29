@@ -12,6 +12,10 @@ DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
 DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://nginx/v1").rstrip("/")
 PORTAL_ADMIN_TOKEN = os.environ.get("PORTAL_ADMIN_TOKEN", "")
 ORCHESTRATION_BACKEND = os.environ.get("ORCHESTRATION_BACKEND", "local").strip().lower()
+# Room capability has its own verifier and additive ledger; no flag grants
+# learning/admission or substitutes the existing Helmholtz quality profiles.
+ROOM_MODAL_ENABLED = os.environ.get("ROOM_MODAL_ENABLED", "").lower() == "true"
+ROOM_MODAL_RUNS_PATH = os.environ.get("ROOM_MODAL_RUNS_PATH", "/app/data/room_modal_runs.db")
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"

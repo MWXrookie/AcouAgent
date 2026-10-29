@@ -47,7 +47,7 @@ def _response(value, status=200):
     return JSONResponse(value, status_code=status, headers={'Cache-Control': 'no-store'})
 
 
-def register(mcp, runner=None):
+def register(mcp, runner=None, service=None):
     @mcp.custom_route('/api/task-intake', methods=['POST'])
     async def prepare(request):
         try:
@@ -64,7 +64,7 @@ def register(mcp, runner=None):
             if contract is None:
                 return _response(dict(handled=False))
             task_id = DRAFTS.put(contract, body['session_id'], body.get('model_profile'), body.get('previous_task_id'))
-            return _response(dict(handled=True, task_id=task_id, contract=contract, execution_available=runner is not None))
+            return _response(dict(handled=True, task_id=task_id, contract=contract, execution_available=runner is not None or service is not None))
         except (ValueError, TypeError, UnicodeError, asyncio.TimeoutError) as error:
             code = str(error) if isinstance(error, ValueError) else 'invalid_task_request'
             if code not in {'task_request_too_large', 'task_input_invalid', 'task_session_required', 'invalid_model_profile', 'task_draft_capacity', 'duplicate_request_field'}:
@@ -84,12 +84,29 @@ def register(mcp, runner=None):
     async def confirm(request):
         try:
             body = await _body(request, {'message', 'session_id', 'model_profile', 'task_id', 'contract_sha256', 'accepted_proposals'})
-            if runner is None:
+            if runner is None and service is None:
                 return _response(dict(error='task_capability_not_ready'), 409)
             contract = DRAFTS.consume(body.get('task_id'), body.get('contract_sha256'), body['session_id'],
                                       body.get('model_profile'), body.get('message'), body.get('accepted_proposals'))
             # A fresh id identifies this request; the runner owns its real run id.
-            result = await asyncio.to_thread(runner, contract)
+            if service is not None:
+                result = await asyncio.to_thread(service.submit, contract, body['task_id'], body['session_id'], body.get('model_profile'))
+            else:
+                result = await asyncio.to_thread(runner, contract)
             return _response(dict(result, request_id=secrets.token_hex(16)))
         except (ValueError, TypeError, UnicodeError, asyncio.TimeoutError):
             return _response(dict(error='task_confirmation_invalid_or_expired'), 400)
+
+    @mcp.custom_route('/api/task-intake/status', methods=['POST'])
+    async def status(request):
+        try:
+            body = await _body(request, {'session_id', 'model_profile', 'task_id'})
+            key = body.get('task_id')
+            if not isinstance(key, str) or not 1 <= len(key) <= 128:
+                raise ValueError('task_id_invalid')
+            if service is None:
+                return _response(dict(error='task_capability_not_ready'), 409)
+            result = await asyncio.to_thread(service.status, key, body['session_id'], body.get('model_profile'))
+            return _response(result)
+        except (ValueError, TypeError, UnicodeError, asyncio.TimeoutError):
+            return _response(dict(error='invalid_task_request'), 400)

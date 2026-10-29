@@ -31,6 +31,13 @@ def test_equivalent_unit_formats(lengths):
     assert result['parameters']['length_x_m'] == 4 and result['parameters']['length_y_m'] == 3
 
 
+def test_decimal_unit_equivalence_does_not_create_a_false_conflict():
+    query = PLAIN.replace('Lx=4 m', 'Lx=1.0000000000000002 m，Lx=100.00000000000002 cm')
+    result = room_contract(query)
+    assert result['status'] == 'ready_for_confirmation'
+    assert result['parameters']['length_x_m'] == 1.0000000000000002
+
+
 @pytest.mark.parametrize('query,field,state', [
     (PLAIN.replace('Ly=3 m，', ''), 'length_y_m', 'missing'),
     (PLAIN.replace('c=343 m/s', 'c=343'), 'sound_speed_m_s', 'unit_ambiguous'),

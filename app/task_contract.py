@@ -13,6 +13,7 @@ import re
 import secrets
 import threading
 import time
+from decimal import Decimal, InvalidOperation
 
 from app.task_intake import capability_notice
 
@@ -35,14 +36,15 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def _scalar(text):
+def _scalar(text, factor=1):
     parts = re.split(r'\\(?:times|cdot)', text)
-    value = float(parts[0].strip())
+    value = Decimal(parts[0].strip())
     if len(parts) == 2:
         exponent = re.fullmatch(r'\s*10\s*\^\s*\{?\s*([+-]?\d+)\s*\}?\s*', parts[1])
         if exponent is None or abs(int(exponent[1])) > 300:
             raise ValueError('numeric_exponent_invalid')
-        value *= 10. ** int(exponent[1])
+        value *= Decimal(10) ** int(exponent[1])
+    value = float(value * Decimal(str(factor)))
     if not math.isfinite(value):
         raise ValueError('numeric_value_invalid')
     return value
@@ -76,9 +78,9 @@ def _quantity(query, name):
     for match in re.finditer(pattern, query, re.I):
         try:
             factor = factors.get(match['unit'].lower(), 1.)
-            value = _scalar(match['number']) * factor
+            value = _scalar(match['number'], factor)
             converted = converted or factor != 1.
-        except (ValueError, OverflowError):
+        except (ValueError, OverflowError, InvalidOperation):
             value = -1.
         values.append((value, match))
     field = _field(query, name, values, canonical)
@@ -140,6 +142,9 @@ def room_contract(query):
             unsupported.append(name)
     if by_name['mode_count']['status'] == 'explicit' and by_name['mode_count']['value'] > 20:
         unsupported.append('mode_count_over_20')
+    if any(by_name[name]['status'] in {'explicit', 'converted'} and not 1e-6 <= by_name[name]['value'] <= 1e6
+           for name in ('length_x_m', 'length_y_m', 'sound_speed_m_s')):
+        unsupported.append('numeric_range')
     if notice['capability_state'] == 'clarification_required':
         issues.append(dict(field='task_kind', status='conflict', message='请区分模态频率与声源驱动声场'))
     params = {f['name']: f['value'] for f in fields if f['status'] in {'explicit', 'converted'}}

@@ -15,6 +15,11 @@ const assumptions=el('fieldset');assumptions.append(el('legend','确认计算约
 const original=el('details');original.append(el('summary','修改原始问题并重新识别'));const label=el('label','原始问题');label.htmlFor='task-source';const source=el('textarea');source.id='task-source';source.rows=5;source.maxLength=65536;original.append(label,source);dialog.append(original);
 const actions=el('div',undefined,'row task-actions');const cancel=el('button','取消'),refresh=el('button','重新识别'),confirm=el('button','确认参数并开始计算');[cancel,refresh,confirm].forEach(b=>b.type='button');confirm.className='primary';actions.append(cancel,refresh,confirm);dialog.append(actions);document.body.append(dialog);
 const statusLabels={explicit:'已明确',converted:'单位已换算',missing:'未提供',conflict:'存在冲突',invalid:'数值无效',unit_ambiguous:'单位不明确',proposed:'约定待确认'};
+const recovery=el('button','查询上次模态计算');recovery.type='button';recovery.className='task-recovery';recovery.hidden=true;byId('merge-hint').after(recovery);
+const recoveryKey='acouagent-room-pending';let lastTask=null;
+try{lastTask=JSON.parse(sessionStorage.getItem(recoveryKey)||'null');recovery.hidden=!lastTask}catch(e){}
+async function taskStatus(){if(!lastTask)return null;const r=await fetch('/api/task-intake/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(lastTask)});if(!r.ok)throw Error('暂时无法查询，请保留会话并查看执行看板。');return r.json()}
+recovery.onclick=async()=>{if(busy)return;setBusy(true);try{const result=await taskStatus();byId('merge-hint').textContent=result?.found?'已查询上次计算状态。':'暂未查到已登记结果；这不能证明任务没有执行，请勿连续重试。';if(result?.found&&['succeeded','rejected'].includes(result.state)){conversation.push({role:'assistant',content:result.report});renderChat();persistCurrent(true)}}catch(error){byId('merge-hint').textContent=error.message}finally{setBusy(false)}};
 const valueLabels={rectangle:'矩形',rigid:'刚性（声硬边界）',periodic:'周期边界',unsupported:'暂不支持'};
 function setBusy(value){busy=value;dialog.setAttribute('aria-busy',String(value));refresh.disabled=value;cancel.disabled=value;source.disabled=value;proposalList.querySelectorAll('input').forEach(i=>i.disabled=value);byId('ask-btn').disabled=value;updateConfirm()}
 function updateConfirm(){confirm.disabled=busy||dirty||!pending||!pending.execution_available||pending.contract.status!=='ready_for_confirmation'||[...proposalList.querySelectorAll('input')].some(i=>!i.checked)}
@@ -36,7 +41,7 @@ function show(value){
   if(f.sources.length){const p=el('p');p.append(el('strong',f.label+'：'),document.createTextNode(f.sources.map(s=>s.fragment).join('；')));sources.append(p)}
  }
  for(const item of contract.issues)issues.append(el('li',item.message));
- for(const name of contract.unsupported)issues.append(el('li',({dimensions:'目前仅支持二维房间',geometry:'目前仅支持空矩形房间',boundary_condition:'目前仅支持所有墙面为刚性',mode_count_over_20:'首批支持前20个以内的模态',nonuniform_medium:'目前仅支持均匀介质'})[name]||'所选条件尚不支持'));
+ for(const name of contract.unsupported)issues.append(el('li',({dimensions:'目前仅支持二维房间',geometry:'目前仅支持空矩形房间',boundary_condition:'目前仅支持所有墙面为刚性',mode_count_over_20:'首批支持前20个以内的模态',numeric_range:'首批长度和声速数值范围为1e-6至1e6（SI单位）',nonuniform_medium:'目前仅支持均匀介质'})[name]||'所选条件尚不支持'));
  for(const item of contract.proposals){const l=el('label'),input=el('input');input.type='checkbox';input.value=item.id;input.addEventListener('change',updateConfirm);l.append(input,document.createTextNode(' '+item.label));proposalList.append(l)}
  assumptions.hidden=!contract.proposals.length;issues.hidden=!issues.childElementCount;original.open=contract.status!=='ready_for_confirmation';
  state.textContent=contract.status==='needs_input'?'还有条件需要补充或澄清，请修改原始问题后重新识别。':contract.status==='unsupported'?'当前条件暂不支持计算，请核对适用范围。':value.execution_available?'参数已识别，请核对数值和下方计算约定。':'参数已识别；当前版本尚未开放此任务的求解。';
@@ -58,13 +63,14 @@ window.ask=async function(){
 confirm.onclick=async()=>{
  if(confirm.disabled)return;const contract=pending.contract;
  const body={task_id:pending.task_id,contract_sha256:contract.contract_sha256,message:source.value,session_id:getSessionId(),model_profile:getModelProfile()||null,accepted_proposals:[...proposalList.querySelectorAll('input:checked')].map(i=>i.value)};
+ lastTask={task_id:body.task_id,session_id:body.session_id,model_profile:body.model_profile};try{sessionStorage.setItem(recoveryKey,JSON.stringify(lastTask))}catch(e){}recovery.hidden=false;
  setBusy(true);dialog.close();byId('query-input').value='';byId('merge-hint').textContent='已确认参数，正在计算，请勿重复提交。';
  conversation.push({role:'user',content:contract.source_text});const index=conversation.length;conversation.push({role:'assistant',content:'正在按已确认的条件计算…',loading:true});renderChat();
  try{
   const response=await fetch('/api/task-intake/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const result=await response.json();if(!response.ok)throw Error('确认已过期或条件发生变化，请重新识别。');
   conversation[index]={role:'assistant',content:result.report||'未收到结果，请查看执行记录。'};currentRequirement=contract.source_text;
- }catch(error){conversation[index]={role:'assistant',content:'本次请求未确认完成。请先查看执行看板，再决定是否重新提交；系统不会自动重试。'};byId('query-input').value=contract.source_text;}
+ }catch(error){let status=null;try{status=await taskStatus()}catch(e){}conversation[index]={role:'assistant',content:status?.report||'本次请求未确认完成。请查询上次模态计算或查看执行看板，再决定是否重新提交；系统不会自动重试。'};byId('query-input').value=contract.source_text;}
  finally{pending=null;dirty=true;renderChat();persistCurrent(true);setBusy(false);byId('merge-hint').textContent='';}
 };
 })();

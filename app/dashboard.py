@@ -1081,6 +1081,10 @@ function renderMarkdown(md) {
     blocks.push('<figure><img src="'+url+'" alt="'+alt.replace(/"/g,'&quot;')+'" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><figcaption hidden>图片加载失败，请在执行看板查看原始图像。</figcaption></figure>');
     return 'REPORTBLOCK'+(blocks.length-1)+'END';
   });
+  html=html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s\"'&<>]+)\)/gi,function(_,label,url){
+    blocks.push('<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+label+'</a>');
+    return 'REPORTBLOCK'+(blocks.length-1)+'END';
+  });
   html=html.replace(/^###\s+(.+)$/gm,'<h3>$1</h3>').replace(/^##\s+(.+)$/gm,'<h2>$1</h2>');
   html=html.replace(/\x60([^\x60\n]+)\x60/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
   html=html.replace(/(\|[^\n]+\|\n)(\|[-:\s|]+\|\n)((?:\|[^\n]+\|\n?)*)/g,function(_,header,sep,rows){
@@ -1832,6 +1836,10 @@ function renderMarkdown(md) {
     blocks.push('<figure><img src="'+url+'" alt="'+alt.replace(/"/g,'&quot;')+'" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><figcaption hidden>图片加载失败，请在执行看板查看原始图像。</figcaption></figure>');
     return 'REPORTBLOCK'+(blocks.length-1)+'END';
   });
+  html=html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s\"'&<>]+)\)/gi,function(_,label,url){
+    blocks.push('<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+label+'</a>');
+    return 'REPORTBLOCK'+(blocks.length-1)+'END';
+  });
   html=html.replace(/^###\s+(.+)$/gm,'<h3>$1</h3>').replace(/^##\s+(.+)$/gm,'<h2>$1</h2>');
   html=html.replace(/\x60([^\x60\n]+)\x60/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
   html=html.replace(/(\|[^\n]+\|\n)(\|[-:\s|]+\|\n)((?:\|[^\n]+\|\n?)*)/g,function(_,header,sep,rows){
@@ -1904,8 +1912,12 @@ function updateModelReadiness(data) {
     detail.textContent = profile ? '凭据已配置；连接与兼容性可在模型设置中测试。' : '支持 DeepSeek、Qwen 和 OpenAI 兼容服务。输入内容会保留。';
   }
   box.querySelector('button').textContent = box.dataset.state === 'missing' ? '连接模型' : '模型设置';
+  if (box.dataset.state === 'missing' && state && state.room_modal_available) {
+    title.textContent = '房间模态可直接计算';
+    detail.textContent = '二维刚性矩形房间可核对参数后计算；其他自然语言仿真请先连接模型。';
+  }
   var submit = document.getElementById('ask-btn');
-  if (submit && !submit.disabled) submit.textContent = box.dataset.state === 'missing' ? '连接模型并继续' : '开始仿真';
+  if (submit && !submit.disabled) submit.textContent = box.dataset.state === 'missing' && !(state && state.room_modal_available) ? '连接模型并继续' : '开始仿真';
 }
 
 async function refreshModelReadiness() {

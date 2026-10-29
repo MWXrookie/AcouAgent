@@ -10,7 +10,7 @@ from app.task_contract import ConfirmationDrafts
 QUERY = '二维矩形房间，刚性壁面，Lx=4 m，Ly=3 m，c=343 m/s，求前10个模态频率。'
 
 
-def client_app(runner=None):
+def client_app(runner=None, service=None):
     class Registry:
         routes = []
         def custom_route(self, path, methods):
@@ -19,7 +19,7 @@ def client_app(runner=None):
                 return fn
             return decorate
     registry = Registry()
-    task_contract_api.register(registry, runner=runner)
+    task_contract_api.register(registry, runner=runner, service=service)
     return Starlette(routes=registry.routes)
 
 
@@ -112,4 +112,29 @@ def test_direct_chat_cannot_bypass_room_capability_guard_with_local_or_dify(monk
             for name in ('message', 'requirement', 'session_id'):
                 r = await c.post('/chat', json=dict({'message': 'x'}, **{name: []}))
                 assert r.status_code == 400
+    asyncio.run(run())
+
+
+def test_durable_status_recovers_unknown_dispatch_without_resubmission(tmp_path, monkeypatch):
+    from app import execution
+    from app.room_mode_service import RoomModeService
+    service = RoomModeService(tmp_path/'tasks.db')
+    calls = []
+    def lost(*args, **kwargs):
+        calls.append(args)
+        raise TimeoutError('unit-only')
+    monkeypatch.setattr(execution, '_execute_code', lost)
+    monkeypatch.setattr(task_contract_api, 'DRAFTS', ConfirmationDrafts())
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client_app(service=service)),base_url='http://isolated') as c:
+            data = (await c.post('/api/task-intake',json=dict(message=QUERY,session_id='owner'))).json()
+            assert data['execution_available'] is True
+            body = dict(message=QUERY,session_id='owner',task_id=data['task_id'],contract_sha256=data['contract']['contract_sha256'],
+                        accepted_proposals=[p['id'] for p in data['contract']['proposals']])
+            result = (await c.post('/api/task-intake/confirm',json=body)).json()
+            assert result['state'] == 'needs_reconciliation' and len(calls) == 1
+            assert (await c.post('/api/task-intake/confirm',json=body)).status_code == 400
+            status = (await c.post('/api/task-intake/status',json=dict(task_id=data['task_id'],session_id='owner'))).json()
+            assert status['run_id'] == result['run_id'] and len(calls) == 1
+            assert (await c.post('/api/task-intake/status',json=dict(task_id=data['task_id'],session_id='other'))).json() == dict(found=False)
     asyncio.run(run())
