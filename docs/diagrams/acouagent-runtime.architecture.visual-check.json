@@ -6,8 +6,8 @@
   "visualReview": "pass",
   "artifact": {
     "path": "docs/diagrams/acouagent-runtime.architecture.html",
-    "sha256": "741140d1d17ac11d155c7685a1b2d0981a7701366ecc2286b5b98e43fdef1615",
-    "bytes": 727143
+    "sha256": "ee181477bebd8b06296057c3ce053abfb4f858dc15fa517201e2ba7ed6b9252d",
+    "bytes": 727089
   },
   "state": {
     "detail": "read",

@@ -223,6 +223,25 @@ def _safe_analysis(analyzed: dict) -> dict:
     )}
 
 
+def _retrieval_parameters(parameters):
+    """Normalize explicit aliases without dropping extras or filling defaults."""
+    from app.skill_store import normalize_parameters
+    if not isinstance(parameters, dict) or not parameters:
+        raise ValueError('simulation_parameters_required')
+    aliases = {'source_kind':'source_type','density':'density_kg_m3','t_end':'t_end_s'}
+    result = {}
+    for name,value in parameters.items():
+        for key,canonical in normalize_parameters({aliases.get(name,name):value}).items():
+            if key in result and result[key] != canonical:
+                raise ValueError('retrieval_parameter_alias_conflict')
+            result[key] = canonical
+    shape = result.get('grid_shape')
+    if 'dimensions' not in result and isinstance(shape,list) and len(shape) in (2,3):
+        # Structural derivation from explicit grid axes, never a physics default.
+        result['dimensions'] = len(shape)
+    return result
+
+
 def _skill_query(extracted: dict) -> tuple[str, str] | None:
     from app import skill_general_library as general
     value = extracted.get("skill_query")
@@ -248,9 +267,17 @@ def _skill_query(extracted: dict) -> tuple[str, str] | None:
     if not isinstance(value, dict) or set(value) != {"scenario_type", "parameters"}:
         return None
     scenario, params = value.get("scenario_type"), value.get("parameters")
-    if not isinstance(scenario, str) or not isinstance(params, dict) or not params:
+    if not isinstance(scenario, str) or scenario != extracted.get('scenario_type') or not isinstance(params, dict) or not params:
         return None
-    encoded = json.dumps(params, ensure_ascii=False, sort_keys=True,
+    try:
+        primary = _retrieval_parameters(extracted.get('simulation_params'))
+        if _retrieval_parameters(params) != primary:
+            return None
+    except (ValueError, TypeError, OverflowError, RecursionError):
+        return None
+    # A model's second copy is only checked for agreement; the actual query is
+    # always constructed from the simulation contract that was validated above.
+    encoded = json.dumps(primary, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":"), allow_nan=False)
     return (scenario, encoded) if len(encoded.encode("utf-8")) <= 4096 else None
 
