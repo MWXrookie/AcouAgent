@@ -15,7 +15,7 @@ function referenceName(item){
  const text=typeof item.state_text==='string'?item.state_text:'',parts=text.split('；');
  const names={initial_pressure_2d:'二维初始压力',plane_wave_2d:'二维平面波',point_source_2d:'二维点声源',point_source_3d:'三维点声源',interface_2d:'介质界面',heterogeneous_2d:'二维异质介质',attenuation_helmholtz_2d:'频域衰减'};
  if(parts.length>1&&parts[0].includes('受控执行器')&&parts.slice(1).join('；').trim())return parts.slice(1).join('；').trim();
- if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选'))return text;
+ if(text&&!text.includes('受控执行器')&&!text.includes('未认证候选')&&text!=='Automatic controlled source')return text;
  const inputs=(item.display_parameters||[]).map(f=>f.label+' '+(Array.isArray(f.value)?f.value.map(n=>Number(n.toPrecision(6))).join('×'):Number(f.value.toPrecision(6)))+(f.unit?' '+f.unit:'')).join('；');
  return (names[item.scenario_type]||item.scenario_type||'声学仿真')+' · '+(item.status==='candidate'?'待验证案例':'仿真方案')+(inputs?' · '+inputs:'');
 }

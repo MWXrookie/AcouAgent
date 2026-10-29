@@ -18,7 +18,7 @@ try{
  for(const [caseId,file] of [['B01','manual-skill.json'],['B02','b02-manual-skill.json'],['B03','b03-manual-skill.json']]){
   const spec=JSON.parse(await readFile('docs/skills-next/examples/'+file,'utf8'));
   const question={scenario_type:spec.scenario_type,simulation_params:spec.parameters,result_spec:spec.result_spec};
-  for(const phase of ['source','reuse']){
+  for(const phase of (caseId==='B01'?['source','reuse','reuse-repeat-2','reuse-repeat-3']:['source','reuse'])){
    await page.goto(base+'/portal');await page.waitForFunction(()=>document.getElementById('model-readiness').dataset.state==='configured');
    await page.evaluate(()=>{window.__prepared=null;window.__final=null;currentRequirement=''});
    // Reorder explicit declarations on reuse; preserve every physical value.
@@ -52,6 +52,31 @@ try{
    console.log(JSON.stringify({case:caseId,phase,status:final.workflow_status,quality:final.quality_level}));await save();
   }
  }
+ // Changed physics cannot inherit the exact-case independent certification.
+ const before=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
+ for(const [caseId,file] of [['B01','manual-skill.json'],['B02','b02-manual-skill.json'],['B03','b03-manual-skill.json']]){
+  const spec=JSON.parse(await readFile('docs/skills-next/examples/'+file,'utf8'));
+  const params=structuredClone(spec.parameters);
+  if(caseId==='B01')params.frequency_hz*=1.01;
+  if(caseId==='B02')params.material_regions[0].sound_speed_m_s=2400;
+  if(caseId==='B03')params.source_index=[33,64];
+  await page.goto(base+'/portal');await page.waitForFunction(()=>document.getElementById('model-readiness').dataset.state==='configured');
+  await page.evaluate(()=>{window.__prepared=null;window.__final=null;currentRequirement=''});
+  await page.locator('#query-input').fill(JSON.stringify({scenario_type:spec.scenario_type,simulation_params:params,result_spec:spec.result_spec}));await page.locator('#ask-btn').click();
+  await page.locator('#task-review[open]').waitFor({timeout:110000});
+  const preview=await page.evaluate(()=>window.__prepared);
+  if(preview.contract.status==='ready_for_confirmation'){
+   for(const c of await page.locator('#task-review fieldset input').all())await c.check();
+   await page.locator('#task-review .primary').click();await page.waitForFunction(()=>window.__final!=null,null,{timeout:90000});
+   const final=await page.evaluate(()=>window.__final);results.push({case:caseId,phase:'changed-physics-negative',final});
+   check(final.workflow_status!=='succeeded'&&!final.execution_reuse_verified&&!final.run_id,caseId+' changed physics cannot silently reuse certified case');
+  }else{
+   check(await page.locator('#task-review .primary').isDisabled(),caseId+' changed physics blocked by explicit contract');
+   await page.getByRole('button',{name:'取消',exact:true}).click();
+  }
+ }
+ const after=await page.evaluate(async()=>(await fetch('/dashboard/api/executions')).json());
+ check(after.stats.total===before.stats.total,'unsupported physics changes cause zero solver dispatches');
  check(errors.length===0,'no browser javascript errors');
 }catch(e){errors.push(e.message);process.exitCode=1;await page.screenshot({path:path.join(out,'failure.png'),animations:'disabled'}).catch(()=>{})}
 finally{await save();await browser.close()}

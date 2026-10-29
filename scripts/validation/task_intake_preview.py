@@ -23,9 +23,13 @@ def main():
     parser.add_argument('--port', type=int, default=18221)
     parser.add_argument('--general-learning',action='store_true',help='Fresh isolated library, real learning worker and independent pinned references')
     parser.add_argument('--reviewed-references',type=Path)
+    parser.add_argument('--manual-authoring',action='store_true',help='Allow original authoring routes only in the fresh learning fixture with an ephemeral admin token')
     args = parser.parse_args()
     if args.general_learning and (not args.execute_workflow or args.skills_copy or not args.reviewed_references):
         parser.error('general learning requires real workflow, reviewed references and an empty isolated store')
+    qa_admin = os.environ.get('SKILL_TEST_ADMIN_TOKEN','') if args.manual_authoring else ''
+    if args.manual_authoring and (not args.general_learning or len(qa_admin)<32):
+        parser.error('manual authoring requires isolated learning and an ephemeral admin token')
     if not 1024 <= args.port <= 65535:
         raise ValueError('invalid_preview_port')
     for key in list(os.environ):
@@ -38,6 +42,8 @@ def main():
     from starlette.routing import Route
     import uvicorn
     from app import portal, config, dashboard, execution
+    if qa_admin:
+        config.PORTAL_ADMIN_TOKEN = qa_admin
     if args.skills_copy:
         if not args.skills_copy.is_file():
             parser.error('skills copy must already exist')
@@ -60,7 +66,7 @@ def main():
         dashboard.init_db()
         from scripts.validation.room_mode_probe import remote_execute
         execution._execute_code = lambda code, timeout, **kw:remote_execute(args.ssh_host,args.gateway_container,code,timeout,managed=args.execute_workflow,**kw)
-    worker = None
+    worker = manual_worker = None
     if args.general_learning:
         from app import skill_library_service
         from app.skill_store import SkillStore
@@ -81,11 +87,19 @@ def main():
         worker = start_worker()
         if worker is None or not worker.is_alive():
             raise RuntimeError('isolated_learning_worker_not_ready')
+        if args.manual_authoring:
+            from app.skill_manual_worker import start_worker as start_manual_worker
+            manual_worker = start_manual_worker()
+            if manual_worker is None or not manual_worker.is_alive():
+                raise RuntimeError('isolated_manual_worker_not_ready')
     class Registry:
         def __init__(self):
             self.routes = []
         def custom_route(self, path, methods):
             def decorate(fn):
+                if args.manual_authoring and path.startswith('/skills/api/v1/'):
+                    self.routes.append(Route(path,fn,methods=methods))
+                    return fn
                 if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or ((args.execute_room or args.execute_workflow) and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}) or ((args.skills_copy or args.general_learning) and methods == ['GET'] and (path.startswith('/skills') or path.startswith('/api/skill'))):
                     self.routes.append(Route(path, fn, methods=methods))
                 return fn
@@ -97,6 +111,8 @@ def main():
     finally:
         if worker is not None:
             worker.stop()
+        if manual_worker is not None:
+            manual_worker.stop()
 
 
 if __name__ == '__main__':

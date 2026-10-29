@@ -28,12 +28,19 @@ def display_parameters(text):
         for names, label, unit in [
             (('frequency_hz','source_frequency'),'频率','Hz'),
             (('sound_speed_m_s','sound_speed'),'声速','m/s'),
+            (('density_kg_m3','density'),'密度','kg/m³'),
             (('grid_shape','domain_N'),'网格',''),
             (('t_end_s',),'结束时间','s')]:
             value = next((params[name] for name in names if name in params), None)
             values = value if isinstance(value,list) else [value]
             if 1 <= len(values) <= 3 and all(type(v) in (int,float) and math.isfinite(v) and v>0 for v in values):
                 result.append(dict(label=label,value=value,unit=unit))
+        regions = params.get('material_regions')
+        if isinstance(regions,list) and 1 <= len(regions) <= 16:
+            for key,label,unit in [('sound_speed_m_s','区域声速','m/s'),('density_kg_m3','区域密度','kg/m³')]:
+                values = sorted(set(r[key] for r in regions if isinstance(r,dict) and type(r.get(key)) in (int,float) and math.isfinite(r[key]) and r[key]>0))
+                if 1<=len(values)<=3:
+                    result.append(dict(label=label,value=values,unit=unit))
         return result
     except (ValueError, TypeError, OverflowError):
         return []
