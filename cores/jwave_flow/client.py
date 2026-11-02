@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from app import config
+from app import config, execution
 
 BASE_URL = config.JWAVE_FLOW_BASE_URL
 BRIDGE_TOKEN = config.JWAVE_FLOW_BRIDGE_TOKEN
@@ -32,6 +32,8 @@ NODE_STAGES = {
     "template": "模板转换",
     "extract": "参数提取",
     "param_check": "参数预检",
+    "skill_resolve": "技能解析",
+    "skill_execute": "固定技能执行",
     "generate": "代码生成",
     "static_check": "静态检查",
     "run_code": "执行仿真",
@@ -102,6 +104,12 @@ def _result(
         payload["error_code"] = error_code
     if state:
         code = state.get("text") or state.get("code_final") or state.get("code") or ""
+        usage = state.get("skill_usage")
+        if not isinstance(usage, list):
+            usage = []
+        analysis = state.get("analysis")
+        if not isinstance(analysis, dict):
+            analysis = {}
         payload.update(
             {
                 "code": _text(code, 40_000),
@@ -118,8 +126,17 @@ def _result(
                 "verified": state.get("verified") is True,
                 "iterations": state.get("iterations"),
                 "elapsed": state.get("elapsed"),
+                "skill_usage": usage[:3],
+                "skill_mode": str(state.get("skill_mode") or "fallback")[:32],
+                "execution_reuse_verified": state.get("execution_reuse_verified") is True,
+                "run_id": _text(state.get("run_id"), 128) or None,
+                "analysis": analysis,
+                "quality_level": analysis.get("quality_level") or state.get("skill_quality_level"),
             }
         )
+        skill_query_json = state.get("skill_query_json")
+        if isinstance(skill_query_json, str) and len(skill_query_json.encode("utf-8")) <= 8192:
+            payload["skill_query_json"] = skill_query_json
     return payload
 
 
@@ -127,14 +144,60 @@ def _report(state: dict[str, Any]) -> tuple[str, str]:
     success = state.get("success") is True
     verified = state.get("verified") is True
     status = "succeeded" if success and verified else "error"
-    lines = [
-        "## jwave_flow 仿真结果",
-        "",
-        f"- 执行状态：{'成功' if success else '失败或未完成'}",
-        f"- 确定性验证：{'通过' if verified else '未通过'}",
-        f"- 迭代次数：{state.get('iterations', 0)}",
-        f"- 用时：{state.get('elapsed', 0)} s",
-    ]
+    analysis = state.get("analysis")
+    if not isinstance(analysis, dict):
+        analysis = {}
+    selfcheck = state.get("selfcheck") if isinstance(state.get("selfcheck"), dict) else {}
+    result = {
+        "exit_code": state.get("exit_code", 0 if success else 1),
+        "timed_out": state.get("timed_out") is True,
+        "duration_ms": state.get("duration_ms"),
+        "stdout": state.get("stdout", ""),
+        "stderr": state.get("stderr", ""),
+        "total_attempts": state.get("iterations") or 1,
+        "image_base64": analysis.get("heatmap_png_base64") or analysis.get("waveform_png_base64"),
+    }
+    code = state.get("text") or state.get("code_final") or state.get("code") or ""
+    report_status = None
+    if success and not verified:
+        report_status = "❌ **验证未通过** — 执行完成，但未通过确定性验证"
+    report = execution._build_report(result, code, status_override=report_status)
+
+    lines = [report, "", "## 确定性物理门", ""]
+    quality = analysis.get("quality_level") or state.get("quality_level")
+    summary = analysis.get("summary")
+    if not summary and selfcheck:
+        summary = (
+            f"自检通过：finite={selfcheck.get('finite')}, "
+            f"abs_max={selfcheck.get('abs_max')}, shape={selfcheck.get('shape')}"
+        )
+    lines.append(f"- 验证状态：{'通过' if verified else '未通过'}")
+    lines.append(f"- 技能模式：{state.get('skill_mode', 'fallback')}")
+    param_report = state.get("param_check_report")
+    if isinstance(param_report, dict) and param_report.get("ok") is not None:
+        lines.append(f"- 参数预检：{'通过' if param_report.get('ok') else '未通过'}")
+    semantic_state = state.get("semantic_verified")
+    if semantic_state is not None:
+        lines.append(f"- 语义数值门：{'通过' if semantic_state else '未通过'}")
+    if summary:
+        lines.append(f"- 分析摘要：{summary}")
+    if quality:
+        lines.append(f"- 质量等级：{quality}")
+    else:
+        lines.append("- 质量等级：未评级（jwave_flow 语义门）")
+
+    usage = state.get("skill_usage")
+    if isinstance(usage, list) and usage:
+        lines.extend(["", "### 技能库", ""])
+        for item in usage[:3]:
+            if isinstance(item, dict):
+                skill_id = str(item.get("skill_id") or "未提供")
+                version = item.get("version", "?")
+                message = str(item.get("message") or "技能处理")
+                lines.append(f"- {message}（{skill_id}，v{version}）")
+
+    if state.get("execution_reuse_verified") is True:
+        lines.append("- 技能复用：固定参考已重新实际执行并通过独立核验")
 
     diagnostics: list[str] = []
     for key in ("param_issues", "static_issues", "semantic_issues"):
@@ -148,39 +211,26 @@ def _report(state: dict[str, Any]) -> tuple[str, str]:
         lines.extend(["", "### 未通过项", ""])
         lines.extend(f"- {item}" for item in diagnostics)
 
-    stdout = _text(state.get("stdout"), 24_000)
-    if stdout:
-        lines.extend(["", "### 程序输出", "", "```text", stdout, "```"])
+    review = state.get("completion_review")
+    lines.extend(["", "## 模型审查（不能覆盖物理门）", ""])
+    if isinstance(review, dict):
+        review_status = "通过" if review.get("completed") is True else "未通过"
+        lines.append(f"- 完成度评审：{review_status}")
+        review_lines = []
+        if review.get("missing_requirements"):
+            review_lines.append("缺失项：" + "；".join(map(str, review["missing_requirements"])))
+        if review.get("feedback"):
+            review_lines.append(str(review["feedback"]))
+        lines.append("\n".join(review_lines) if review_lines else "需求完成度评审：通过")
+    else:
+        lines.append("本次未获得独立的模型审查结果。")
 
-    stderr = _text(state.get("stderr"), 8_000)
-    if stderr:
-        lines.extend(["", "### 标准错误", "", "```text", stderr, "```"])
+    lines.extend(["", "## 物理解读", ""])
+    if summary:
+        lines.append(str(summary))
+    else:
+        lines.append("未获得额外的物理解读；请以执行记录和确定性物理门为准。")
 
-    selfcheck = state.get("selfcheck")
-    if isinstance(selfcheck, dict) and selfcheck:
-        lines.extend(
-            [
-                "",
-                "### 自检数据",
-                "",
-                "```json",
-                json.dumps(selfcheck, ensure_ascii=False, indent=2, default=str),
-                "```",
-            ]
-        )
-
-    code = state.get("text") or state.get("code_final") or state.get("code") or ""
-    if code:
-        lines.extend(
-            [
-                "",
-                "### 最终代码",
-                "",
-                "```python",
-                _text(code, 40_000),
-                "```",
-            ]
-        )
     return "\n".join(lines), status
 
 
@@ -280,6 +330,7 @@ async def jwave_flow_events(
                     or capabilities.get("workflow") is not True
                     or bridge_mode != expected_mode
                     or (expected_mode == "managed") is not bridge_managed
+                    or capabilities.get("skill_port") is not True
                     or any(
                         capabilities.get(capability) is True
                         for capability in (

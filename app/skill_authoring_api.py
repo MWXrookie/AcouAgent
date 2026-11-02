@@ -7,10 +7,10 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, Response
 
 from app import config, skill_library_service as service
+from app.async_utils import await_thread
 from app.skill_api import JSONResponse
 from app.skill_drafts import DraftError, DraftStore, _revision
 from app.skill_spec import SkillSpecError, _decode, prepare_skill_spec
@@ -290,7 +290,7 @@ def register(mcp):
             except PermissionError:
                 raise RequestError("admin_required", 403) from None
             body = await asyncio.wait_for(_body(request), timeout=2) if request.method in ("POST", "PUT") else None
-            result, status = await run_in_threadpool(_operation, request, body)
+            result, status = await await_thread(_operation, request, body)
             if isinstance(result, Response):
                 return result
             return JSONResponse(result, status_code=status)

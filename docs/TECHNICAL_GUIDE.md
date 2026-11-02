@@ -156,8 +156,13 @@ docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
 `JWAVE_FLOW_API_KEY` 和可选的 `JWAVE_FLOW_OPENAI_BASE_URL`）。Dify 始终是 `self`。模型、知识库路径
 和上游 URL 只在对应模式启动时确定；bridge 不暴露知识库、历史、记忆或会话管理接口。
 工作流生成的代码仍提交本项目 `jwave-executor`。`managed` 模式使用统一模型
-profile/BYOK，`self` 模式不使用；两种模式都不使用本项目技能库。接口、健康校验和
-失败边界见 [Agent Backend API v1](API_BACKEND.md#jwave_flow-受限核心)。
+profile/BYOK，`self` 模式不使用。jwave_flow 默认使用 `full` 新流程；可设置
+`JWAVE_FLOW_SKILL_MODE=reference|full`，并提供 `JWAVE_FLOW_SKILL_PORT_TOKEN`
+（为空时回退使用 bridge token）。新流程通过网关内部 SkillPort 做精确固定参考
+复用或同场景受控约束注入，bridge 本身仍不能访问技能数据库。接口、健康校验和
+失败边界见；报告复用 local 的 Markdown 构造器，并明确展示确定性状态和
+完成度评审状态。详见
+[Agent Backend API v1](API_BACKEND.md#jwave_flow-受限核心)。
 
 ## 页面与工具
 

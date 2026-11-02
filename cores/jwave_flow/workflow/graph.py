@@ -13,8 +13,10 @@ that is capped by ``settings.max_iterations``.
 """
 from __future__ import annotations
 
+import json
 import sys
 import time
+import uuid
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -25,6 +27,7 @@ from .executor import BaseExecutor, get_executor
 from .knowledge import build_retriever, render_template_transform
 from .physics import check_params
 from .semantic import RESULT_OUTPUT_CONTRACT, SELFCHECK_CONTRACT, check_semantics
+from .skill_client import SkillClient, SkillClientError
 from .static_check import check_code
 from .llm import (
     GeneratedCode,
@@ -39,6 +42,7 @@ from .prompts import (
     code_generate_prompt,
     param_extract_prompt,
     requirement_analyst_prompt,
+    SKILL_GUIDANCE_CONTRACT,
 )
 from .state import WorkflowState
 
@@ -52,6 +56,76 @@ def _as_text(message: Any) -> str:
     return str(content)
 
 
+def _parse_extraction(text: str) -> tuple[str, str]:
+    """Split the optional skill envelope while preserving legacy raw parameters."""
+    try:
+        value = json.loads(text)
+    except (ValueError, TypeError):
+        return text, ""
+    if not isinstance(value, dict) or "params_json" not in value:
+        return text, ""
+    params = value.get("params_json")
+    if not isinstance(params, dict) or not params:
+        return text, ""
+    try:
+        params_json = json.dumps(
+            params, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+    except (TypeError, ValueError):
+        return text, ""
+    skill_query = value.get("skill_query")
+    if not isinstance(skill_query, dict):
+        return params_json, ""
+    try:
+        skill_query_json = json.dumps(
+            skill_query,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return params_json, ""
+    return params_json, skill_query_json
+
+
+def _skill_query_payload(value: str) -> tuple[str, str] | None:
+    try:
+        query = json.loads(value)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(query, dict) or set(query) - {"scenario_type", "parameters", "result_spec"}:
+        return None
+    scenario_type = query.get("scenario_type")
+    parameters = query.get("parameters")
+    result_spec = query.get("result_spec")
+    if not isinstance(scenario_type, str) or not isinstance(parameters, dict) or not parameters:
+        return None
+    if result_spec is not None and not isinstance(result_spec, dict):
+        return None
+    if result_spec is None:
+        parameters_value = parameters
+    else:
+        parameters_value = {
+            "normalizer_version": "normalizer_v2",
+            "parameters": parameters,
+            "result_spec": result_spec,
+        }
+    try:
+        parameters_json = json.dumps(
+            parameters_value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return None
+    if len(parameters_json.encode("utf-8")) > 4096:
+        return None
+    return scenario_type, parameters_json
+
+
 class SimulationWorkflow:
     """Owns the (reusable) LLM / retriever / executor resources."""
 
@@ -63,12 +137,14 @@ class SimulationWorkflow:
         coder_llm: Any | None = None,
         retriever: Any | None = None,
         executor: BaseExecutor | None = None,
+        skill_client: SkillClient | None = None,
     ):
         self.settings = settings
         self.analyst_llm = analyst_llm or build_chat_model(settings, settings.analyst_model)
         self.coder_llm = coder_llm or build_chat_model(settings, settings.coder_model)
         self.retriever = retriever or build_retriever(settings)
         self.executor = executor or get_executor(settings)
+        self.skill_client = skill_client
         self.graph = self._build()
 
     # -- nodes --------------------------------------------------------- #
@@ -120,7 +196,12 @@ class SimulationWorkflow:
                 )
             ]
         params = _as_text(self.analyst_llm.invoke(messages))
-        return {"params_json": params, "trace": self._log(state, "④ 参数提取 完成")}
+        params_json, skill_query_json = _parse_extraction(params)
+        return {
+            "params_json": params_json,
+            "skill_query_json": skill_query_json,
+            "trace": self._log(state, "④ 参数提取 完成"),
+        }
 
     def n_param_check(self, state: WorkflowState) -> dict:
         """④b 参数物理预检（方案一）——纯算术，不调用模型。"""
@@ -153,7 +234,7 @@ class SimulationWorkflow:
     def _route_after_param_check(self, state: WorkflowState) -> str:
         """不合格就不进入代码生成，先回退到参数提取重试。"""
         if state.get("param_check_ok"):
-            return "generate"
+            return "skill_resolve"
         if int(state.get("param_check_rounds", 0)) >= self.settings.param_check_max_rounds:
             if self.settings.verbose:
                 print(
@@ -163,6 +244,156 @@ class SimulationWorkflow:
                 )
             return "generate"
         return "retry"
+
+    def n_skill_resolve(self, state: WorkflowState) -> dict:
+        fallback = {
+            "skill_mode": "fallback",
+            "skill_ticket": "",
+            "skill_usage": [],
+            "skill_guidance": "",
+            "skill_error": "",
+            "skill_scenario_type": "",
+            "skill_quality_level": "",
+            "execution_reuse_verified": False,
+        }
+        if self.skill_client is None:
+            return {
+                **fallback,
+                "skill_error": "skill_port_unavailable",
+                "trace": self._log(state, "④c 技能端口不可用，回退生成"),
+            }
+        payload = _skill_query_payload(state.get("skill_query_json", ""))
+        if payload is None:
+            return {
+                **fallback,
+                "skill_error": "skill_query_unavailable",
+                "trace": self._log(state, "④c 技能解析 跳过（无可靠合同）"),
+            }
+        scenario_type, parameters_json = payload
+        original_context = state["query"] + "\n\n参数：" + parameters_json
+        try:
+            decision = self.skill_client.resolve(
+                workflow_run_id=state.get("workflow_run_id") or str(uuid.uuid4()),
+                original_context=original_context,
+                scenario_type=scenario_type,
+                parameters_json=parameters_json,
+            )
+        except (SkillClientError, ValueError, TypeError, OSError) as exc:
+            code = exc.code if isinstance(exc, SkillClientError) else "skill_port_invalid_response"
+            return {
+                **fallback,
+                "skill_error": code,
+                "trace": self._log(state, "④c 技能解析 降级（SkillPort 不可用）"),
+            }
+        mode = decision.get("mode", "fallback")
+        usage = decision.get("skill_usage")
+        if not isinstance(usage, list):
+            usage = []
+        skills = decision.get("skills")
+        quality_level = ""
+        if isinstance(skills, list) and skills and isinstance(skills[0], dict):
+            value = skills[0].get("quality_level")
+            if isinstance(value, str):
+                quality_level = value[:16]
+        guidance = decision.get("guidance_context")
+        ticket = decision.get("skill_ticket")
+        note = {
+            "reference": "④c 精确技能命中，准备受控执行",
+            "guided": "④c 技能约束已准备",
+            "fallback": "④c 无可用技能，回退生成",
+        }.get(mode, "④c 无可用技能，回退生成")
+        return {
+            "skill_mode": mode,
+            "skill_ticket": ticket if isinstance(ticket, str) else "",
+            "skill_usage": usage,
+            "skill_guidance": guidance if isinstance(guidance, str) else "",
+            "skill_error": "",
+            "skill_scenario_type": scenario_type,
+            "skill_quality_level": quality_level,
+            "skill_parameters_json": parameters_json,
+            "skill_original_context": original_context,
+            "execution_reuse_verified": False,
+            "trace": self._log(state, note),
+        }
+
+    def _route_after_skill_resolve(self, state: WorkflowState) -> str:
+        return "skill_execute" if state.get("skill_mode") == "reference" else "generate"
+
+    def n_skill_execute(self, state: WorkflowState) -> dict:
+        if self.skill_client is None or not state.get("skill_ticket"):
+            return {
+                "success": False,
+                "verified": False,
+                "semantic_verified": False,
+                "execution_reuse_verified": False,
+                "skill_reference_failed": True,
+                "last_error": "reference_execution_unavailable",
+                "trace": self._log(state, "④d 固定参考执行失败（无有效 ticket）"),
+            }
+        try:
+            outcome = self.skill_client.execute_reference(
+                workflow_run_id=state.get("workflow_run_id") or str(uuid.uuid4()),
+                skill_ticket=state["skill_ticket"],
+                original_context=state.get("skill_original_context", ""),
+                scenario_type=state.get("skill_scenario_type", ""),
+                parameters_json=state.get("skill_parameters_json", ""),
+            )
+        except (SkillClientError, ValueError, TypeError):
+            return {
+                "success": False,
+                "verified": False,
+                "semantic_verified": False,
+                "execution_reuse_verified": False,
+                "skill_reference_failed": True,
+                "last_error": "reference_execution_unavailable",
+                "trace": self._log(state, "④d 固定参考执行失败（SkillPort 异常）"),
+            }
+        verified = outcome.get("execution_reuse_verified") is True
+        result = outcome.get("result") if isinstance(outcome.get("result"), dict) else {}
+        analysis = outcome.get("analysis") if isinstance(outcome.get("analysis"), dict) else {}
+        if verified and not analysis and state.get("skill_quality_level"):
+            analysis = {
+                "quality_level": state["skill_quality_level"],
+                "summary": "固定参考已重新实际执行并通过独立核验",
+            }
+        notices = list(state.get("skill_usage") or [])
+        for notice in notices:
+            if isinstance(notice, dict) and notice.get("stage") == "reference_selected":
+                notice.update(
+                    stage="reference_execution_verified" if verified else "reference_execution_failed",
+                    execution_reuse_verified=verified,
+                    message=(
+                        "固定参考已重新实际执行并通过独立核验"
+                        if verified
+                        else "固定参考执行未通过独立核验"
+                    ),
+                )
+        return {
+            "success": verified,
+            "stdout": str(result.get("stdout") or ""),
+            "stderr": str(result.get("stderr") or ""),
+            "exit_code": result.get("exit_code"),
+            "timed_out": result.get("timed_out") is True,
+            "duration_ms": result.get("duration_ms"),
+            "run_id": str(outcome.get("run_id") or ""),
+            "analysis": analysis,
+            "verified": verified,
+            "semantic_verified": verified,
+            "execution_reuse_verified": verified,
+            "skill_reference_failed": not verified,
+            "last_error": "" if verified else str(outcome.get("reason") or "reference_execution_failed"),
+            "iterations": 0,
+            "skill_usage": notices,
+            "trace": self._log(
+                state,
+                "④d 固定参考执行通过，已跳过代码生成" if verified else "④d 固定参考执行失败",
+            ),
+        }
+
+    def _route_after_skill_execute(self, state: WorkflowState) -> str:
+        if state.get("execution_reuse_verified") is True:
+            return "review"
+        return "finalize"
 
     def n_generate(self, state: WorkflowState) -> dict:
         messages = code_generate_prompt().format_messages(
@@ -178,6 +409,11 @@ class SimulationWorkflow:
             if warnings:
                 extra.append("注意以下参数问题：\n" + "\n".join(f"- {w}" for w in warnings))
             messages = list(messages) + [HumanMessage(content="\n\n".join(extra))]
+        guidance = (state.get("skill_guidance") or "").strip()
+        if guidance:
+            messages = list(messages) + [
+                HumanMessage(content=SKILL_GUIDANCE_CONTRACT.format(guidance=guidance))
+            ]
         completion_feedback = (state.get("completion_feedback") or "").strip()
         if completion_feedback:
             messages = list(messages) + [
@@ -412,7 +648,8 @@ class SimulationWorkflow:
     def n_finalize(self, state: WorkflowState) -> dict:
         semantic_verified = bool(state.get("semantic_verified", state.get("verified")))
         requirement_completed = bool(state.get("requirement_completed", semantic_verified))
-        verified = semantic_verified and requirement_completed
+        parameter_contract_ok = state.get("param_check_ok") is not False
+        verified = semantic_verified and requirement_completed and parameter_contract_ok
         text = state.get("code_final", "")
         marked = False
         if semantic_verified and not requirement_completed:
@@ -426,7 +663,9 @@ class SimulationWorkflow:
             marked = True
         if not verified:
             failure_note = (
-                "未通过语义校验 ⚠️"
+                "参数预检未通过 ⚠️"
+                if not parameter_contract_ok
+                else "未通过语义校验 ⚠️"
                 if not semantic_verified
                 else "需求完成度评审未通过 ⚠️"
             )
@@ -462,6 +701,8 @@ class SimulationWorkflow:
         g.add_node("template", self.n_template)
         g.add_node("extract", self.n_extract)
         g.add_node("param_check", self.n_param_check)
+        g.add_node("skill_resolve", self.n_skill_resolve)
+        g.add_node("skill_execute", self.n_skill_execute)
         g.add_node("generate", self.n_generate)
         g.add_node("static_check", self.n_static_check)
         g.add_node("run_code", self.n_run)
@@ -478,7 +719,17 @@ class SimulationWorkflow:
         g.add_conditional_edges(
             "param_check",
             self._route_after_param_check,
-            {"generate": "generate", "retry": "extract"},
+            {"skill_resolve": "skill_resolve", "retry": "extract", "generate": "generate"},
+        )
+        g.add_conditional_edges(
+            "skill_resolve",
+            self._route_after_skill_resolve,
+            {"skill_execute": "skill_execute", "generate": "generate"},
+        )
+        g.add_conditional_edges(
+            "skill_execute",
+            self._route_after_skill_execute,
+            {"review": "completion_review", "finalize": "finalize"},
         )
         g.add_edge("generate", "static_check")
         g.add_conditional_edges(
@@ -506,10 +757,12 @@ class SimulationWorkflow:
         return g.compile()
 
     # -- public API ---------------------------------------------------- #
-    def invoke(self, query: str, *, conversation_context: str = "", session_id: str = "", **kwargs) -> WorkflowState:
+    def invoke(self, query: str, *, conversation_context: str = "", session_id: str = "",
+               workflow_run_id: str = "", **kwargs) -> WorkflowState:
         start = time.time()
         state: WorkflowState = {
-            "query": query, "conversation_context": conversation_context,
+            "query": query, "workflow_run_id": workflow_run_id or str(uuid.uuid4()),
+            "conversation_context": conversation_context,
             "session_id": session_id, "trace": [], "iterations": 0, "param_check_rounds": 0,
             "static_rounds": 0, "completion_rounds": 0,
             "fix_reason": "", "last_error": "",
@@ -518,9 +771,11 @@ class SimulationWorkflow:
         out["elapsed"] = time.time() - start  # type: ignore[index]
         return out
 
-    def stream(self, query: str, *, conversation_context: str = "", session_id: str = "", **kwargs):
+    def stream(self, query: str, *, conversation_context: str = "", session_id: str = "",
+               workflow_run_id: str = "", **kwargs):
         yield from self.graph.stream(
-            {"query": query, "conversation_context": conversation_context,
+            {"query": query, "workflow_run_id": workflow_run_id or str(uuid.uuid4()),
+             "conversation_context": conversation_context,
              "session_id": session_id, "trace": [], "iterations": 0, "param_check_rounds": 0,
              "static_rounds": 0, "completion_rounds": 0,
              "fix_reason": "", "last_error": ""}, **kwargs

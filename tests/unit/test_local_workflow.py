@@ -49,7 +49,11 @@ def _collect(monkeypatch, analyzed, failed_task=None, error_code="model_transpor
         },
     })
     monkeypatch.setattr(local_workflow.analysis, "analyze_and_record", lambda *args: analyzed)
-    monkeypatch.setattr(local_workflow.execution, "_build_report", lambda result, code: "base report")
+    monkeypatch.setattr(
+        local_workflow.execution,
+        "_build_report",
+        lambda result, code, **kwargs: "base report",
+    )
     async def run():
         return [item async for item in local_workflow.workflow_events("simulate", "session", "fast")]
     return asyncio.run(run())
@@ -270,9 +274,9 @@ def test_failed_direct_reference_delivery_falls_back_with_full_retry_budget(
     monkeypatch.setattr(local_workflow.analysis, "analyze_and_record", analyze)
     report_attempts = []
     original_report = local_workflow.execution._build_report
-    def build_report(result, code):
+    def build_report(result, code, **kwargs):
         report_attempts.append(result["total_attempts"])
-        return original_report(result, code)
+        return original_report(result, code, **kwargs)
     monkeypatch.setattr(local_workflow.execution, "_build_report", build_report)
 
     async def run():
@@ -324,7 +328,11 @@ def test_verified_direct_reference_skips_generation_and_new_execution(monkeypatc
         "rms_pressure": 0.2, "field_shape": [64, 64], "has_signal": True,
         "summary": "verified", "physics_checks": [],
     })
-    monkeypatch.setattr(local_workflow.execution, "_build_report", lambda result, code: "base report")
+    monkeypatch.setattr(
+        local_workflow.execution,
+        "_build_report",
+        lambda result, code, **kwargs: "base report",
+    )
 
     async def run():
         return [item async for item in local_workflow.workflow_events("simulate", "session", "fast")]
@@ -334,3 +342,15 @@ def test_verified_direct_reference_skips_generation_and_new_execution(monkeypatc
     assert events[-1]["workflow_status"] == "succeeded"
     assert events[-1]["quality_level"] == "Q4"
     assert events[-1]["run_id"] == "direct-run"
+
+
+def test_incomplete_parameters_cannot_count_as_successful_execution():
+    result = {"exit_code": 0, "timed_out": False}
+    analyzed = {
+        "verdict": "normal",
+        "quality_level": "Q1",
+        "physics_checks": [
+            {"check_id": "parameters_complete", "passed": False},
+        ],
+    }
+    assert local_workflow._passed(result, analyzed) is False

@@ -11,7 +11,22 @@ from langchain_core.prompts import ChatPromptTemplate
 REQUIREMENT_ANALYST_SYSTEM = ''
 REQUIREMENT_ANALYST_USER = '\n\xa0\xa0\xa0 你是一个声学仿真需求分析师。你的任务是将用户的自然语言输入整理成结构化的仿真需求描述。\n\xa0\xa0\xa0 阅读用户输入：{query}，提取并整理以下信息：\n\xa0\xa0\xa0 1. 仿真类型？\n\xa0\xa0\xa0 2. 涉及介质？\n\xa0\xa0\xa0 3. 声源类型与频率？\n\xa0\xa0\xa0 4. 有无障碍物？\n\xa0\xa0\xa0 5. 仿真区域？\n\xa0\xa0\xa0 6. 期望输出？\n\xa0\xa0\xa0\xa0\xa0\xa0 注意：如果用户没提，请根据常识进行合理猜测，输出一段通顺的需求描述。\n\xa0'  # node 1783990970058 (LLM / 需求分析)
 
-PARAM_EXTRACT_USER = '你是一个 jwave 声学仿真参数提取器。根据用户需求和知识库内容，提取 JSON 参数。\n\xa0\n用户需求：{query}\n知识库参考：{kb_context}\n\xa0\n请严格按照结构化输出中定义的 JSON Schema 输出，只输出 JSON，不要有其他解释。'  # node 1783991048409 (参数提取)
+PARAM_EXTRACT_USER = '''你是一个 jwave 声学仿真参数提取器。根据用户需求和知识库内容，提取 JSON 参数。
+
+用户需求：{query}
+知识库参考：{kb_context}
+
+只输出一个 JSON 对象，格式必须是：
+{{"params_json": {{...原有仿真参数...}}, "skill_query": null 或 {{"scenario_type": "...", "parameters": {{...}}, "result_spec": null 或 {{...}}}}}}
+
+skill_query 仅用于服务端技能检索，必须满足：
+1. scenario_type 只能是 point_source_2d、point_source_3d、plane_wave_2d、initial_pressure_2d、interface_2d、attenuation_helmholtz_2d、heterogeneous_2d。
+2. parameters 使用明确 SI 字段，例如 sound_speed_m_s、density_kg_m3、frequency_hz、source_frequency_hz、dx_m、grid_shape、t_end_s、pml_size。
+3. 频域 Helmholtz 且用户明确结果口径时，result_spec 填写对应字段、分量、单位等；没有足够信息就填 null。
+4. 禁止输出 trusted、quality_level、runtime_approved、code 或批准旗标。
+5. 不能确定场景或参数不完整时，skill_query 必须为 null，不得猜测。
+
+只输出 JSON，不要 Markdown、解释或其他前缀。'''  # node 1783991048409 (参数提取)
 
 CODE_GENERATE_USER = '你是 jwave Python 代码生成器。\n\xa0\n任务：\n\xa0\n根据参考代码生成最终代码。\n\xa0\n规则：\n\xa0\n1. 必须保持参考代码结构不变。\n2. 只允许修改：\n\xa0\xa0 - sound_speed\n\xa0\xa0 - density\n\xa0\xa0 - source_frequency\n\xa0\xa0 - t_end\n\xa0\xa0 - positions\n\xa0\n3. 不允许新增函数。\n4. 不允许删除函数。\n5. 不允许修改变量名称。\n6. 不允许修改参数顺序。\n7. 不允许修改 API 调用方式。\n\xa0\n\xa0\n用户需求：\n\xa0\n{query}\n\n代码参考：\n{code_ref}\n\xa0\n输出要求：\n\xa0\n仅输出完整 Python 代码。\n\xa0\n代码运行时输出要求：\n1. 除机器自检行外，必须用 print 输出用户要求的实际数值结果；自检行不能是唯一输出。\n2. 用户要求二维场、快照或可视化时，必须使用 matplotlib 的 Agg 后端并将图片保存到 outputs/ 目录（调用 savefig，不要只调用 show()），同时 print 图片路径。\n3. 模态分析必须输出排序后的 (nx, ny) 与频率表；不要伪造时域传播变量。\n\xa0\n禁止输出：\n\xa0\n<think>\n</think>\nENDTHINKFLAG\nMarkdown\n解释\n分析\n自然语言\n\xa0\n输出内容必须从代码第一行开始，到代码最后一行结束。'  # node 1783991079665 (代码生成)
 
@@ -46,6 +61,15 @@ COMPLETION_REVIEW_USER = '''你是仿真需求完成度评审器。你只检查�
    feedback 只能针对这些条目，不能提出新的要求。'''
 
 TEMPLATE_TRANSFORM = '{% for item in arg1 %}\r\n{{ item.content }}\r\n{% endfor %}\r\n'  # node 1783990989034 (模板转换)
+
+SKILL_GUIDANCE_CONTRACT = '''以下是网关返回的同场景技能约束，仅用于避免参数和实现偏离已验证范围。
+- 不得声称已经复用技能代码或完成技能核验。
+- 不得把约束中的参数改写成与用户明确要求冲突的值。
+- 不得读取或输出数据库路径、可信旗标或内部 token。
+- 最终结果仍必须通过 AST、executor 和确定性数值门。
+
+受控技能约束：
+{guidance}'''
 
 
 

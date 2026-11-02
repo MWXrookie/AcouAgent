@@ -242,7 +242,7 @@ def test_fixed_reference_report_uses_analyzed_heatmap_without_mutating_history(m
         "verdict": "normal", "quality_level": "Q2", "summary": "checked", "heatmap_png_base64": "test-heatmap"})
     observed = []
     monkeypatch.setattr(local_workflow.execution, "_build_report",
-                        lambda result, code: (observed.append(result) or "report"))
+                        lambda result, code, **kwargs: (observed.append(result) or "report"))
     async def collect():
         return [e async for e in local_workflow.workflow_events("explicit: "+json.dumps(p), "session", "test")]
     assert asyncio.run(collect())[-1]["workflow_status"] == "succeeded"

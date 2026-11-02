@@ -145,6 +145,103 @@ def _shortlist(store, db, scenario_type, parameters, limit):
     return selected
 
 
+def _guidance_capsule(row, parameters):
+    """Return bounded, non-authorizing metadata for one same-scenario skill."""
+    from app.skill_store import validate_preconditions
+
+    try:
+        bounds = validate_preconditions(json.loads(row["preconditions"]))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+    # Exact parameter hashes are reusable only through the reference consumer.
+    if not bounds or "parameters_sha256" in bounds:
+        return None
+
+    shape = parameters.get("grid_shape")
+    dimensions = parameters.get("dimensions")
+    if dimensions is None and type(shape) is list:
+        dimensions = len(shape)
+    for key, actual in (
+        ("dimensions", dimensions),
+        ("solver_mode", parameters.get("solver_mode")),
+        ("medium_type", parameters.get("medium_type")),
+    ):
+        if key not in bounds or actual is None:
+            continue
+        if type(actual) is not type(bounds[key]) or actual != bounds[key]:
+            return None
+    for key in ("frequency_hz", "dx_m"):
+        expected = bounds.get(key)
+        actual = parameters.get(key)
+        if expected is None or actual is None:
+            continue
+        values = actual if key == "dx_m" and type(actual) is list else [actual]
+        if any(type(value) not in (int, float) or not expected[0] <= value <= expected[1]
+               for value in values):
+            return None
+
+    constraints = {
+        key: value
+        for key, value in bounds.items()
+        if key in {"dimensions", "solver_mode", "medium_type", "frequency_hz", "dx_m"}
+    }
+    if not constraints:
+        return None
+    return {
+        "skill_id": row["skill_id"],
+        "version": row["version"],
+        "scenario_type": row["scenario_type"],
+        "quality_level": row["quality_level"],
+        "constraints": constraints,
+    }
+
+
+def guidance_context(scenario_type, parameters_json, limit=3):
+    """Return same-scenario Q3/Q4 parameter bounds, never code or trust."""
+    result = {"available": False, "context": "", "skills": [],
+              "reason": "guidance_unavailable"}
+    if (config.SKILL_LIBRARY_ENABLED is not True
+            or config.SKILL_RETRIEVAL_ENABLED is not True
+            or config.SKILL_INJECTION_ENABLED is not True
+            or type(limit) is not int or not 1 <= limit <= 3):
+        return dict(result, reason="injection_disabled")
+    try:
+        parameters = _request(scenario_type, parameters_json, limit)
+        from app import skill_general_library as general
+        if general.is_general_query(parameters):
+            return dict(result, reason="exact_reference_required")
+        from app import skill_deadline
+        with skill_deadline.limited(2), skill_library_service.STORE._read_db() as db:
+            rows = db.execute(
+                """SELECT skill_id,scenario_type,quality_level,substr(preconditions,1,4097) preconditions,
+                    (SELECT MAX(version) FROM skill_versions v WHERE v.skill_id=s.skill_id) version
+                    FROM simulation_skills s
+                    WHERE scenario_type=? AND status='active'
+                    AND quality_level IN ('Q3','Q4') AND archived=0
+                    ORDER BY CASE quality_level WHEN 'Q4' THEN 0 ELSE 1 END,updated_at DESC,skill_id
+                    LIMIT 50""",
+                (scenario_type,),
+            ).fetchall()
+        skills = []
+        for row in rows:
+            capsule = _guidance_capsule(row, parameters)
+            if capsule is not None:
+                skills.append(capsule)
+            if len(skills) == limit:
+                break
+        if not skills:
+            return dict(result, reason="no_applicable_guidance")
+        encoded = json.dumps({"mode": "metadata_only", "skills": skills},
+                             ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if len(encoded.encode("utf-8")) > 8192:
+            return dict(result, reason="guidance_budget")
+        return {"available": True, "context": encoded, "skills": skills,
+                "reason": "same_scenario_guidance"}
+    except (ValueError, TypeError, UnicodeError, OverflowError, sqlite3.Error, OSError,
+            RecursionError, TimeoutError, ImportError):
+        return result
+
+
 def search(scenario_type, parameters_json, limit=3):
     parameters = _request(scenario_type, parameters_json, limit)
     result = {"skills": [], "fallback": True, "trusted_run": False,

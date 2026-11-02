@@ -11,8 +11,9 @@ class FakeWorkflow:
     def __init__(self):
         self.closed = False
 
-    def stream(self, query):
+    def stream(self, query, *, workflow_run_id=""):
         assert query == "仿真 2 MHz 点声源"
+        assert workflow_run_id
         yield {"analyze": {"requirement": "二维点源", "kb_docs": [{"private": "hidden"}]}}
         yield {
             "run_code": {
@@ -50,6 +51,13 @@ def test_bridge_health_exposes_model_config_mode(monkeypatch):
     assert capabilities["history"] is False
     assert capabilities["memory"] is False
     assert capabilities["sessions"] is False
+    assert capabilities["skill_port"] is True
+    assert capabilities["skill_guidance"] is True
+
+    monkeypatch.setenv("JWAVE_FLOW_SKILL_MODE", "full")
+    enabled = bridge.health_payload()["capabilities"]
+    assert enabled["skill_port"] is True
+    assert enabled["skill_guidance"] is True
 
 
 def test_bridge_stream_keeps_only_the_workflow_state():
@@ -117,6 +125,17 @@ def test_bridge_configuration_is_explicit_and_env_only(monkeypatch, tmp_path):
     monkeypatch.setenv("MODEL_CONFIG_MODE", "managed")
     managed_config = bridge.BridgeConfig.from_env()
     assert managed_config.model_config_mode == "managed"
+
+    monkeypatch.setenv("JWAVE_FLOW_SKILL_MODE", "full")
+    monkeypatch.setenv("JWAVE_FLOW_SKILL_PORT_URL", "http://dify-mcp:8001/internal/jwave-flow/skills")
+    monkeypatch.setenv("JWAVE_FLOW_SKILL_PORT_TOKEN", "e" * 32)
+    skill_config = bridge.BridgeConfig.from_env()
+    assert skill_config.skill_mode == "full"
+    assert skill_config.skill_port_token == "e" * 32
+
+    monkeypatch.setenv("JWAVE_FLOW_SKILL_MODE", "off")
+    with pytest.raises(RuntimeError, match="reference or full"):
+        bridge.BridgeConfig.from_env()
 
 
 def test_bridge_image_copies_no_management_or_frontend_modules():

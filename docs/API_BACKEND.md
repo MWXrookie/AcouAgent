@@ -41,7 +41,7 @@ Link: </api/v1/agent/...>; rel="successor-version"
 
 - `local` 支持聊天、模型 profile、BYOK 和连接预检。
 - `dify` 支持聊天、流式事件和技能提示；模型由 Dify 管理，因此 `model_profiles`、`byok`、`model_preflight` 为 `false`。
-- `jwave_flow` 默认使用统一模型配置（`model_config_mode=managed`）；设置 `MODEL_CONFIG_MODE=self` 后改用 bridge 固定模型配置，并关闭 profile/BYOK/preflight 能力。
+- `jwave_flow` 默认使用统一模型配置（`model_config_mode=managed`）；设置 `MODEL_CONFIG_MODE=self` 后改用 bridge 固定模型配置，并关闭 profile/BYOK/preflight 能力。`skill_usage` 在 bridge 声明 SkillPort 能力时为 true。
 - `model_config_mode=managed` 表示核心消费网关模型 profile；`self` 表示核心在自身边界内管理模型，前端不得把门户凭据注入该核心。
 - 不具备某项能力时返回 HTTP `501` 和 `capability_not_supported`。
 - 未知或不可启动的后端返回 HTTP `503` 和 `backend_unavailable`。
@@ -119,6 +119,10 @@ Link: </api/v1/agent/...>; rel="successor-version"
 ```bash
 ORCHESTRATION_BACKEND=jwave_flow
 JWAVE_FLOW_BRIDGE_TOKEN=<至少 32 字节的独立随机值>
+JWAVE_FLOW_SKILL_MODE=full
+JWAVE_FLOW_SKILL_PORT_URL=http://dify-mcp:8001/internal/jwave-flow/skills
+JWAVE_FLOW_SKILL_PORT_TOKEN=<可留空，留空时复用 JWAVE_FLOW_BRIDGE_TOKEN>
+JWAVE_FLOW_SKILL_TIMEOUT_SECONDS=2
 MODEL_CONFIG_MODE=managed
 docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
 ```
@@ -146,7 +150,16 @@ Bridge 镜像只复制 `cores/jwave_flow/` 中的智能体工作流模块和只�
 - jwave_flow 保留需求分析、检索、参数检查、代码生成、静态检查、语义检查、
   完成度评审和纠错这些智能体节点；执行代码送到本项目现有 `jwave-executor`，
   不启动 jwave_flow 本地 subprocess 执行器。
-- 不使用本项目的技能库或技能复用声明；`skill_usage` 事件不会伪造。
+- `JWAVE_FLOW_SKILL_MODE=reference` 只复用精确 Q3/Q4 固定参考；默认
+  `full` 还允许同场景 Q3/Q4 的白名单参数范围作为生成约束。
+- 技能库权威和实际固定参考执行留在网关；bridge 只调用受独立 token 保护的内部
+  SkillPort，不挂载技能数据库。`skill_usage` 会区分参考复用、约束注入和回退，
+  只有产生新 run 并由服务端独立核验后才返回 `execution_reuse_verified=true`。
+- 生成路径成功且现有学习开关全部开启时，服务端只排队既有 Q2 自动学习流程；
+  不会由 bridge 自报结果直接授予 Q3/Q4。
+- 输出报告复用 local 的执行报告构造器，包含执行状态、耗时/尝试次数、程序输出、
+  错误/警告、图像、确定性物理门、技能模式、模型审查和物理解读。完成度评审
+  仍按其原有规则执行，报告只更清晰地展示通过、未通过和缺失项。
 - `managed` 模式接受请求中的 `model_profile`，由网关解析并校验 endpoint、凭据和
   BYOK 有效期；`self` 模式忽略/拒绝网关 profile，不把凭据转发给 bridge。
 - `JWAVE_FLOW_BASE_URL` 必须是精确的 http(s) URL，且健康响应必须声明

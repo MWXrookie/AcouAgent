@@ -54,7 +54,7 @@ def flow(monkeypatch):
         return copy.deepcopy(outcome)
     source.execute_source = execute_source
     monkeypatch.setattr(workflow.dashboard, "get_execution_by_run_id", lambda run: copy.deepcopy(history) if run == history["run_id"] else None)
-    def report(result, code):
+    def report(result, code, **kwargs):
         reports.append(copy.deepcopy(result))
         assert "full-binary-field" not in result["stdout"]
         return "source execution report"

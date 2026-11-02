@@ -17,6 +17,7 @@ ALIASES = {
     "t_end_s": "t_end",
     "source_type": "source_kind",
     "frequency_hz": "source_frequency",
+    "source_frequency_hz": "source_frequency",
 }
 
 

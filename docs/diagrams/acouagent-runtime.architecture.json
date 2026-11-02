@@ -48,9 +48,10 @@
         "focus": [
           "core_port",
           "jwave_flow_core",
-          "model_provider"
+          "model_provider",
+          "jwave_skill_port"
         ],
-        "note": "ORCHESTRATION_BACKEND=jwave_flow 时，仅通过带共享令牌和健康能力校验的 Agent Bridge 连接。model_config_mode=managed 时使用网关统一模型 profile，self 时使用 bridge 启动时固定模型；Dify 固定 self。工作流和只读 KB 已迁移到本仓库 cores/jwave_flow，Bridge 排除前端、TUI、历史、记忆、会话存储及知识库管理接口；生成代码进入本项目 jwave-executor。"
+        "note": "ORCHESTRATION_BACKEND=jwave_flow 时，仅通过带共享令牌和健康能力校验的 Agent Bridge 连接。model_config_mode=managed 时使用网关统一模型 profile，self 时使用 bridge 启动时固定模型；Dify 固定 self。工作流和只读 KB 已迁移到本仓库 cores/jwave_flow，Bridge 排除前端、TUI、历史、记忆、会话存储及知识库管理接口；生成代码进入本项目 jwave-executor。可选 SkillPort 仅由带独立内部令牌的 bridge 调用，负责精确 Q3/Q4 固定参考执行、同场景受控约束和 Q2 学习排队，bridge 不挂载或读取技能数据库。"
       },
       {
         "id": "isolation-boundary",
@@ -330,6 +331,20 @@
         64
       ],
       "tag": "不重构边界"
+    },
+    {
+      "id": "jwave_skill_port",
+      "type": "backend",
+      "label": "jwave_flow SkillPort",
+      "sublabel": "内部 token / 检索 / 固定参考执行 / Q2 排队",
+      "pos": [
+        390,
+        460
+      ],
+      "size": [
+        185,
+        64
+      ]
     }
   ],
   "boundaries": [
@@ -359,7 +374,8 @@
         "skill_bootstrap",
         "model_preflight",
         "legacy_aliases",
-        "skill_maintenance"
+        "skill_maintenance",
+        "jwave_skill_port"
       ]
     },
     {
@@ -550,6 +566,20 @@
       "to": "state_store",
       "label": "技能 / 知识库审计",
       "variant": "dashed"
+    },
+    {
+      "id": "jwave-flow-to-skill-port",
+      "from": "jwave_flow_core",
+      "to": "jwave_skill_port",
+      "label": "内部 SkillPort / 受控技能决策",
+      "variant": "emphasis"
+    },
+    {
+      "id": "skill-port-to-pipeline",
+      "from": "jwave_skill_port",
+      "to": "simulation_pipeline",
+      "label": "复用现有技能、执行与 Q2 学习",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -562,7 +592,8 @@
         "Canonical /api/v1/agent/*；旧聊天和模型路径为带 Deprecation 的兼容别名",
         "能力矩阵驱动前端降级；Dify 不伪造模型 profile 或 BYOK",
         "提取后先分类问题；解析/不支持请求不进入 jwave 参数合同或 executor",
-        "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话"
+        "门户密钥仅存网关内存；连接预检不回显模型正文或可重放会话",
+        "jwave_flow 技能默认关闭；启用后只经内部 SkillPort 消费技能，不直连技能库"
       ]
     },
     {
@@ -572,7 +603,8 @@
         "生成代码继续通过原 executor 沙箱执行",
         "模型审查不能覆盖确定性物理门",
         "重核固定配方可直达；升级只归档精确旧配方；普通运行最多进入 Q2 candidate",
-        "看板按 run_id 关联分析摘要，首次轮询直达最新事件；管理操作要求临时令牌"
+        "看板按 run_id 关联分析摘要，首次轮询直达最新事件；管理操作要求临时令牌",
+        "固定参考由网关重新执行并独立核验，只有真实新 run 才声明技能复用"
       ]
     },
     {

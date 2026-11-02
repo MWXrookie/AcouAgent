@@ -47,6 +47,11 @@ class Settings:
 
     completion_max_rounds: int = 3
     max_iterations: int = 10
+
+    skill_mode: str = "full"
+    skill_port_url: str = ""
+    skill_port_token: str = ""
+    skill_timeout: float = 2.0
     verbose: bool = False
 
     def resolved_kb_path(self) -> Path:

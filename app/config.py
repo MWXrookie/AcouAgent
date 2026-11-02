@@ -23,6 +23,18 @@ JWAVE_FLOW_READ_TIMEOUT_SECONDS = float(
 JWAVE_FLOW_MAX_EVENT_BYTES = int(
     os.environ.get("JWAVE_FLOW_MAX_EVENT_BYTES", str(8 * 1024 * 1024))
 )
+JWAVE_FLOW_SKILL_MODE = os.environ.get("JWAVE_FLOW_SKILL_MODE", "full").strip().lower()
+JWAVE_FLOW_SKILL_PORT_URL = os.environ.get(
+    "JWAVE_FLOW_SKILL_PORT_URL",
+    "http://dify-mcp:8001/internal/jwave-flow/skills",
+).strip().rstrip("/")
+JWAVE_FLOW_SKILL_PORT_TOKEN = (
+    os.environ.get("JWAVE_FLOW_SKILL_PORT_TOKEN", "").strip()
+    or os.environ.get("JWAVE_FLOW_BRIDGE_TOKEN", "").strip()
+)
+JWAVE_FLOW_SKILL_TIMEOUT_SECONDS = float(
+    os.environ.get("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS", "2")
+)
 
 
 def _allowed_origins(raw: str) -> tuple[str, ...]:
@@ -48,7 +60,7 @@ def _allowed_origins(raw: str) -> tuple[str, ...]:
     return tuple(origins)
 
 
-def _http_base_url(raw: str) -> str:
+def _http_base_url(raw: str, name: str = "JWAVE_FLOW_BASE_URL") -> str:
     """Validate an operator-supplied HTTP service base without rewriting paths."""
     if not raw:
         return ""
@@ -61,7 +73,7 @@ def _http_base_url(raw: str) -> str:
         or parsed.query
         or parsed.fragment
     ):
-        raise RuntimeError("JWAVE_FLOW_BASE_URL must be an exact http(s) service URL")
+        raise RuntimeError(f"{name} must be an exact http(s) service URL")
     return raw.rstrip("/")
 
 
@@ -79,6 +91,9 @@ def effective_model_config_mode() -> str:
 
 PORTAL_ALLOWED_ORIGINS = _allowed_origins(os.environ.get("PORTAL_ALLOWED_ORIGINS", ""))
 JWAVE_FLOW_BASE_URL = _http_base_url(JWAVE_FLOW_BASE_URL)
+JWAVE_FLOW_SKILL_PORT_URL = _http_base_url(
+    JWAVE_FLOW_SKILL_PORT_URL, "JWAVE_FLOW_SKILL_PORT_URL"
+)
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"
@@ -104,6 +119,17 @@ def validate() -> None:
         raise RuntimeError("MCP_AUTH_TOKEN must be set and at least 32 characters long")
     if not EXECUTOR_SHARED_TOKEN or len(EXECUTOR_SHARED_TOKEN) < 32:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
+    if JWAVE_FLOW_SKILL_MODE not in {"reference", "full"}:
+        raise RuntimeError("JWAVE_FLOW_SKILL_MODE must be reference or full")
+    if not 0 < JWAVE_FLOW_SKILL_TIMEOUT_SECONDS <= 10:
+        raise RuntimeError("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS must be greater than 0 and at most 10")
+    if ORCHESTRATION_BACKEND == "jwave_flow":
+        if not JWAVE_FLOW_SKILL_PORT_URL:
+            raise RuntimeError("JWAVE_FLOW_SKILL_PORT_URL is required when skills are enabled")
+        if len(JWAVE_FLOW_SKILL_PORT_TOKEN) < 32:
+            raise RuntimeError(
+                "JWAVE_FLOW_SKILL_PORT_TOKEN must be at least 32 characters when skills are enabled"
+            )
     if ORCHESTRATION_BACKEND not in {"dify", "local", "jwave_flow"}:
         raise RuntimeError("ORCHESTRATION_BACKEND must be dify, local or jwave_flow")
     if MODEL_CONFIG_MODE not in {"managed", "self"}:

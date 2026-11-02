@@ -11,6 +11,7 @@ def _overwrite(_old, new):  # last-write-wins reducer (explicit, avoids surprise
 class WorkflowState(TypedDict, total=False):
     # --- inputs ---------------------------------------------------------
     query: str
+    workflow_run_id: str
     session_id: str
     conversation_context: str
 
@@ -23,6 +24,7 @@ class WorkflowState(TypedDict, total=False):
 
     # --- ④ 参数提取 ------------------------------------------------------
     params_json: str
+    skill_query_json: str
 
     # --- ④b 参数物理预检（方案一，非 Dify 原生节点）---------------------
     param_check_ok: bool
@@ -31,6 +33,24 @@ class WorkflowState(TypedDict, total=False):
     param_warnings: Annotated[list[str], _overwrite]
     param_constraints: Annotated[list[str], _overwrite]
     param_check_report: Annotated[dict, _overwrite]
+
+    # --- ④c 技能解析 / 固定参考执行 -------------------------------------
+    skill_mode: str
+    skill_ticket: str
+    skill_usage: Annotated[list[dict], _overwrite]
+    skill_guidance: str
+    skill_error: str
+    skill_scenario_type: str
+    skill_quality_level: str
+    skill_parameters_json: str
+    skill_original_context: str
+    execution_reuse_verified: bool
+    skill_reference_failed: bool
+    run_id: str
+    analysis: Annotated[dict, _overwrite]
+    exit_code: int | None
+    timed_out: bool
+    duration_ms: float | None
 
     # --- ⑤ 代码生成 ------------------------------------------------------
     code: str

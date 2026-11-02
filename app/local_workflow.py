@@ -5,7 +5,6 @@ analysis decides success; model review can explain but cannot override it.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import uuid
@@ -14,6 +13,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from app import analysis, cache_store, dashboard, execution, llm, model_client, model_profiles
+from app.async_utils import await_thread
 
 MAX_QUERY_BYTES = 65536
 MAX_CODE_BYTES = 20000
@@ -318,6 +318,13 @@ async def _commentary_model(profile_id, task, prompt, run_id, extracted_response
 
 
 def _passed(result: dict | None, analyzed: dict) -> bool:
+    checks = analyzed.get("physics_checks")
+    if isinstance(checks, list):
+        for check in checks:
+            if (isinstance(check, dict)
+                    and check.get("check_id") == "parameters_complete"
+                    and check.get("passed") is not True):
+                return False
     return bool(result and result.get("exit_code") == 0 and result.get("timed_out") is False
                 and analyzed.get("verdict") == "normal"
                 and analyzed.get("quality_level") in {"Q1", "Q2", "Q3", "Q4"})
@@ -472,7 +479,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         query_data = _skill_query(extracted)
         if query_data is not None:
             from app.skill_retrieval import generation_context
-            generation = await asyncio.to_thread(generation_context, original_context,
+            generation = await await_thread(generation_context, original_context,
                 scenario_type=query_data[0], parameters_json=query_data[1], _existing_store=True)
             notices = _skill_notices(generation.get("skill_usage", {}))
             for notice in notices:
@@ -482,14 +489,14 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         result, direct_outcome, code = None, None, ""
         used_auto_source, learning_status = False, None
         if query_data is not None:
-            result, direct_outcome = await asyncio.to_thread(_direct_reference,
+            result, direct_outcome = await await_thread(_direct_reference,
                 generation.get("skill_usage", {}), query_data[0], query_data[1], original_context)
         if ("result_spec" in extracted and query_data is not None and result is None
                 and not (direct_outcome or {}).get("run_id") and _auto_source_enabled()):
             yield {"event": "progress", "stage": "本地编排：受控首次求解与自动学习", "request_id": request_id,
                    "workflow_run_id": workflow_run_id}
             from app.skill_auto_source import execute_source
-            direct_outcome = await asyncio.to_thread(execute_source, scenario_type=query_data[0],
+            direct_outcome = await await_thread(execute_source, scenario_type=query_data[0],
                 parameters_json=query_data[1], request_key=request_id)
             if (isinstance(direct_outcome, dict) and direct_outcome.get("source_execution_verified") is True
                     and isinstance(direct_outcome.get("analysis"), dict)):
@@ -528,7 +535,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             if result is None:
                 yield {"event": "progress", "stage": f"本地编排：沙箱执行 {attempt + 1}/{MAX_RETRIES + 1}",
                        "request_id": request_id, "workflow_run_id": workflow_run_id}
-                result = await asyncio.to_thread(_tool_functions()["run_jwave_code"],
+                result = await await_thread(_tool_functions()["run_jwave_code"],
                                                  code, 30, "", scenario, params_json)
             if used_auto_source:
                 # First execution and later validation are distinct runs. A newly
@@ -553,7 +560,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
             if pending_cache_update is not None:
                 signature, fix_hint = pending_cache_update
                 try:
-                    await asyncio.to_thread(
+                    await await_thread(
                         cache_store._update_cache, signature, fix_hint, was_successful=passed
                     )
                 except Exception:
@@ -609,7 +616,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         display_image = analyzed.get("heatmap_png_base64") or analyzed.get("waveform_png_base64")
         if not report_result.get("image_base64") and display_image:
             report_result["image_base64"] = display_image
-        report = execution._build_report(report_result, first_code or code)
+        passed = _passed(result, analyzed)
+        report_status = None if passed else "❌ **验证未通过** — 执行完成，但未通过确定性验证"
+        report = execution._build_report(
+            report_result, first_code or code, status_override=report_status
+        )
         if not parameter_extraction_available:
             report += "\n\n参数提取模型暂不可用；本次仅按用户原始JSON进行参数校验、技能检索和实际执行，未补猜参数。"
         if cache_queries:
@@ -628,7 +639,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None) -> Asyn
         report += ("\n\n---\n\n本次本地编排模型：`" + review["profile_id"] + "` / `"
                    + review["model"] + "`。")
         yield {"event": "result", "report": report,
-               "workflow_status": "succeeded" if _passed(result, analyzed) else "error",
+               "workflow_status": "succeeded" if passed else "error",
                "request_id": request_id, "workflow_run_id": workflow_run_id,
                "skill_usage": notices, "model_profile": review["profile_id"],
                "model": review["model"], "orchestration_backend": "local",

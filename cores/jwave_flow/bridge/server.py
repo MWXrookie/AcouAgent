@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,7 @@ from urllib.parse import urlparse
 from ..workflow.config import Settings
 from ..workflow.executor import BaseExecutor, ExecutionResult
 from ..workflow.graph import SimulationWorkflow
+from ..workflow.skill_client import SkillClient
 
 MAX_BODY_BYTES = 65_536
 MAX_TEXT_CHARS = 200_000
@@ -64,6 +66,20 @@ PUBLIC_STATE_FIELDS = {
     "requirement_completed",
     "completion_feedback",
     "completion_rounds",
+    "workflow_run_id",
+    "skill_mode",
+    "skill_usage",
+    "skill_error",
+    "skill_query_json",
+    "skill_scenario_type",
+    "skill_parameters_json",
+    "execution_reuse_verified",
+    "skill_reference_failed",
+    "run_id",
+    "analysis",
+    "exit_code",
+    "timed_out",
+    "duration_ms",
 }
 logger = logging.getLogger(__name__)
 
@@ -80,6 +96,10 @@ class BridgeConfig:
     bridge_token: str
     top_k: int = 4
     exec_timeout: int = 30
+    skill_mode: str = "full"
+    skill_port_url: str = ""
+    skill_port_token: str = ""
+    skill_timeout: float = 2.0
 
     @classmethod
     def from_env(cls) -> "BridgeConfig":
@@ -88,6 +108,17 @@ class BridgeConfig:
         model_config_mode = os.environ.get("MODEL_CONFIG_MODE", "managed").strip().lower()
         bridge_token = os.environ.get("JWAVE_FLOW_BRIDGE_TOKEN", "").strip()
         executor_token = os.environ.get("EXECUTOR_SHARED_TOKEN", "").strip()
+        skill_mode = os.environ.get("JWAVE_FLOW_SKILL_MODE", "full").strip().lower()
+        skill_port_url = os.environ.get(
+            "JWAVE_FLOW_SKILL_PORT_URL",
+            "http://dify-mcp:8001/internal/jwave-flow/skills",
+        ).strip().rstrip("/")
+        skill_port_token = os.environ.get("JWAVE_FLOW_SKILL_PORT_TOKEN", "").strip()
+        skill_port_token = skill_port_token or bridge_token
+        try:
+            skill_timeout = float(os.environ.get("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS", "2"))
+        except ValueError:
+            raise RuntimeError("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS must be numeric") from None
         kb_path = Path(os.environ.get("JWAVE_FLOW_KB_PATH", str(DEFAULT_KB_PATH))).expanduser()
         executor_url = os.environ.get(
             "JWAVE_FLOW_EXECUTOR_URL", "http://jwave-executor:8010"
@@ -95,6 +126,10 @@ class BridgeConfig:
         base_url = os.environ.get("JWAVE_FLOW_OPENAI_BASE_URL", "").strip() or None
         if model_config_mode not in MODEL_CONFIG_MODES:
             raise RuntimeError("MODEL_CONFIG_MODE must be managed or self")
+        if skill_mode not in {"reference", "full"}:
+            raise RuntimeError("JWAVE_FLOW_SKILL_MODE must be reference or full")
+        if not 0 < skill_timeout <= 10:
+            raise RuntimeError("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS must be greater than 0 and at most 10")
         if model_config_mode == "self" and (not model or not api_key):
             raise RuntimeError(
                 "JWAVE_FLOW_MODEL and JWAVE_FLOW_API_KEY are required "
@@ -114,6 +149,18 @@ class BridgeConfig:
             raise RuntimeError("JWAVE_FLOW_EXECUTOR_URL must be an exact http(s) URL")
         if not kb_path.is_file():
             raise RuntimeError("JWAVE_FLOW_KB_PATH must point to a readable knowledge base")
+        parsed_skill = urlparse(skill_port_url)
+        if (
+            parsed_skill.scheme not in {"http", "https"}
+            or not parsed_skill.netloc
+            or parsed_skill.username
+            or parsed_skill.password
+            or parsed_skill.query
+            or parsed_skill.fragment
+        ):
+            raise RuntimeError("JWAVE_FLOW_SKILL_PORT_URL must be an exact http(s) URL")
+        if len(skill_port_token) < 32:
+            raise RuntimeError("JWAVE_FLOW_SKILL_PORT_TOKEN must be at least 32 characters")
         return cls(
             model_config_mode=model_config_mode,
             model=model,
@@ -127,6 +174,10 @@ class BridgeConfig:
             exec_timeout=max(
                 1, min(int(os.environ.get("JWAVE_FLOW_EXEC_TIMEOUT", "30")), 30)
             ),
+            skill_mode=skill_mode,
+            skill_port_url=skill_port_url,
+            skill_port_token=skill_port_token,
+            skill_timeout=skill_timeout,
         )
 
 
@@ -134,6 +185,9 @@ def health_payload() -> dict[str, Any]:
     mode = os.environ.get("MODEL_CONFIG_MODE", "managed").strip().lower()
     if mode not in MODEL_CONFIG_MODES:
         mode = "managed"
+    skill_mode = os.environ.get("JWAVE_FLOW_SKILL_MODE", "full").strip().lower()
+    if skill_mode not in {"reference", "full"}:
+        skill_mode = "full"
     return {
         "status": "ok",
         "service": "jwave-flow-agent-bridge",
@@ -147,6 +201,8 @@ def health_payload() -> dict[str, Any]:
             "history": False,
             "memory": False,
             "sessions": False,
+            "skill_port": True,
+            "skill_guidance": skill_mode == "full",
         },
     }
 
@@ -160,9 +216,10 @@ def _public_state(state: dict[str, Any]) -> dict[str, Any]:
         if key in {"text", "code", "code_final", "stdout", "stderr"} and isinstance(value, str):
             result[key] = value[:MAX_TEXT_CHARS]
         elif key in {"trace", "param_issues", "param_warnings", "param_constraints",
-                     "static_issues", "semantic_issues", "results", "outputs", "new_files"}:
+                     "static_issues", "semantic_issues", "results", "outputs", "new_files",
+                     "skill_usage"}:
             result[key] = list(value or [])[:80]
-        elif key == "selfcheck" and isinstance(value, dict):
+        elif key in {"selfcheck", "analysis"} and isinstance(value, dict):
             result[key] = value
         else:
             result[key] = value
@@ -255,9 +312,20 @@ def _build_workflow(config: BridgeConfig, model_config: dict[str, Any] | None):
         retrieval_backend="bm25",
         top_k=config.top_k,
         exec_timeout=config.exec_timeout,
+        skill_mode=config.skill_mode,
+        skill_port_url=config.skill_port_url,
+        skill_port_token=config.skill_port_token,
+        skill_timeout=config.skill_timeout,
         verbose=False,
     )
-    return SimulationWorkflow(settings, executor=_sandbox_executor(config))
+    skill_client = SkillClient(
+        config.skill_port_url, config.skill_port_token, config.skill_timeout
+    )
+    return SimulationWorkflow(
+        settings,
+        executor=_sandbox_executor(config),
+        skill_client=skill_client,
+    )
 
 
 def _run_stream(
@@ -271,9 +339,10 @@ def _run_stream(
         lambda: _build_workflow(BridgeConfig.from_env(), model_config)
     )
     workflow = factory()
+    workflow_run_id = str(uuid.uuid4())
     state: dict[str, Any] = {}
     try:
-        for update in workflow.stream(query):
+        for update in workflow.stream(query, workflow_run_id=workflow_run_id):
             if not isinstance(update, dict):
                 continue
             for node, patch in update.items():

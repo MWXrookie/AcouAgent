@@ -37,18 +37,18 @@ from .config import Settings
 # 别名表：键名 -> 规范名。会递归匹配嵌套结构（如 {"medium": {"sound_speed": ...}}）
 # --------------------------------------------------------------------------- #
 ALIASES: dict[str, tuple[str, ...]] = {
-    "sound_speed": ("sound_speed", "soundspeed", "speed_of_sound", "c0", "c", "声速"),
-    "density": ("density", "rho0", "rho", "密度"),
+    "sound_speed": ("sound_speed", "sound_speed_m_s", "soundspeed", "speed_of_sound", "c0", "c", "声速"),
+    "density": ("density", "density_kg_m3", "rho0", "rho", "密度"),
     "frequency": (
-        "source_frequency", "frequency", "freq", "f0", "center_frequency",
+        "source_frequency", "source_frequency_hz", "frequency_hz", "frequency", "freq", "f0", "center_frequency",
         "centre_frequency", "信号频率", "中心频率", "频率", "声源频率",
     ),
     "t_end": (
-        "t_end", "simulation_time", "total_time", "duration", "time_length",
+        "t_end", "t_end_s", "simulation_time", "total_time", "duration", "time_length",
         "仿真时长", "仿真时间", "总时长",
     ),
-    "grid_size": ("grid_size", "grid_shape", "shape", "n", "domain_size", "网格尺寸", "网格大小"),
-    "dx": ("dx", "grid_spacing", "spacing", "cell_size", "网格间距", "空间步长"),
+    "grid_size": ("grid_size", "grid_shape", "grid_shape_xy", "domain_N", "shape", "n", "domain_size", "网格尺寸", "网格大小"),
+    "dx": ("dx", "dx_m", "domain_dx_m", "grid_spacing", "spacing", "step_m", "cell_size", "网格间距", "空间步长"),
     "pml_size": ("pml_size", "pml", "pml_thickness", "pml_width", "pml吸收层"),
     "positions": ("positions", "source_position", "source_positions", "location", "位置", "坐标"),
     "cfl": ("cfl", "courant", "courant_number"),
@@ -103,11 +103,12 @@ def extract_scalars(params: Any) -> dict[str, Any]:
     if not isinstance(params, dict):
         return {}
 
-    lowered: dict[str, tuple[str, Any]] = {}
+    lowered: dict[str, list[Any]] = {}
     for key, value in _walk(params):
-        lowered.setdefault(key.strip().lower().replace(" ", "_"), value)
+        normalized_key = key.strip().lower().replace(" ", "_")
+        lowered.setdefault(normalized_key, []).append(value)
 
-    found: dict[str, Any] = {}
+    found: dict[str, list[Any]] = {}
     for canonical, names in ALIASES.items():
         for name in names:
             if name.lower() in lowered:
@@ -115,20 +116,36 @@ def extract_scalars(params: Any) -> dict[str, Any]:
                 break
 
     out: dict[str, Any] = {}
-    for key in ("sound_speed", "density", "frequency", "t_end", "dx", "pml_size", "cfl"):
-        num = _to_float(found.get(key))
-        if num is not None:
-            out[key] = num
+    for key in ("sound_speed", "density"):
+        values = [value for value in (_to_float(v) for v in found.get(key, [])) if value is not None]
+        if values:
+            out[key] = min(values)
+    for key in ("frequency",):
+        values = [value for value in (_to_float(v) for v in found.get(key, [])) if value is not None and value > 0]
+        if values:
+            out[key] = max(values)
+    for key in ("t_end", "pml_size", "cfl"):
+        values = [value for value in (_to_float(v) for v in found.get(key, [])) if value is not None]
+        if values:
+            out[key] = max(values)
+    dx_values = [value for value in (_to_float(v) for v in found.get("dx", [])) if value is not None and value > 0]
+    if dx_values:
+        out["dx"] = min(dx_values)
     for key in ("grid_size",):
-        size = _to_size_list(found.get(key))
-        if size:
-            out[key] = size
-    if "dimension" in found:
-        dim = _to_float(found["dimension"])
+        for value in found.get(key, []):
+            size = _to_size_list(value)
+            if size:
+                out[key] = size
+                break
+    for value in found.get("dimension", []):
+        dim = _to_float(value)
         if dim is not None:
             out["dimension"] = int(dim)
-    if "positions" in found:
-        out["positions"] = found["positions"]
+            break
+    for value in found.get("positions", []):
+        if value is not None:
+            out["positions"] = value
+            break
     return out
 
 

@@ -1,3 +1,39 @@
+## 2026-11-02 · jwave_flow 技能库增强候选
+
+新增 `jwave_flow` 默认技能接入；`JWAVE_FLOW_SKILL_MODE` 已取消 `off` 选项，
+支持 `reference` 和默认 `full`。网关增加受独立 token 保护的内部
+SkillPort：`reference` 模式复用精确 Q3/Q4 固定参考并由网关产生新 run、重新核验；
+`full` 模式增加同场景 Q3/Q4 白名单约束注入。无命中、技能关闭或 SkillPort 异常
+继续走原有生成链路；固定参考派发失败后不重放、不静默改用生成。bridge 只调用
+SkillPort，不挂载或读取技能数据库。
+
+生成路径成功且现有学习开关满足时，经服务端队列进入既有 Q2 自动学习流程；不会
+由 bridge 自报结果直接授予 Q3/Q4。新增 `JWAVE_FLOW_SKILL_MODE`、
+`JWAVE_FLOW_SKILL_PORT_URL`、`JWAVE_FLOW_SKILL_PORT_TOKEN` 和
+`JWAVE_FLOW_SKILL_TIMEOUT_SECONDS` 配置，Compose bridge 与网关保持同一内部
+token。删除测试环境中的 `asyncio.to_thread`/Starlette threadpool 依赖，改为有界
+线程 helper，避免 Python 3.14 重复 event loop 下卡死。
+
+验证：`conda jw` 定向技能/`jwave_flow` 回归 206 项通过；全量（排除无法在沙箱
+创建本地 socket 的 loopback 测试和 Python 3.14 TestClient 卡住的两文件）为
+2081 passed、1 skipped；Docker 两镜像构建成功，默认 full 能力矩阵和本地
+SkillPort 真实 Q4 resolve 均通过，真实固定参考执行返回新 run 且
+`execution_reuse_verified=true`；executor 保持 `RestartCount=0`（验证窗口内容器
+启动时间由外部运行态变化，不能声明未被重建）。架构 JSON 已同步，Archify CLI
+和 ruff 当前环境不可用，HTML/visual-check 与 ruff 未执行。详见
+`validation/JWAVE_FLOW_SKILLS_2026-11-02.md`。
+
+随后修复复杂 3D 输入的两个共同缺陷：jwave_flow 参数预检现在识别
+`sound_speed_m_s`、`density_kg_m3`、`frequency_hz` 以及 `materials` 嵌套结构；
+local 物理门在评级前先做显式 SI 别名归一化。参数不完整时，local 和
+jwave_flow 都不再以成功状态收口；jwave_flow 仍允许参数预检重试。复测中 local
+返回 Q2，jwave_flow 返回 `param_check_ok=true` 且最终 `success=true`、
+`verified=true`。对应回归 203 项通过。
+
+输出层随后改为复用 local 的 `execution._build_report`，并补齐确定性物理门、
+技能模式、模型审查和物理解读段落。评审逻辑未改，只优化状态提示；新增报告结构
+和参数失败终态回归；定向回归最终 308 项通过。
+
 ## 2026-10-29 · jwave_flow 受限后端接入
 
 新增可选 `ORCHESTRATION_BACKEND=jwave_flow`。适配器按 `CoreBackend` 合同实现
