@@ -9,6 +9,7 @@ flowchart TD
   BUS --> SEL{ORCHESTRATION_BACKEND}
   SEL -->|local| LOCAL[LocalCoreAdapter]
   SEL -->|dify| DIFY[DifyCoreAdapter]
+  SEL -->|jwave_flow| JWAVE[JwaveFlowCoreAdapter<br/>受限工作流 Bridge]
   LOCAL --> MODEL[模型 profile / BYOK / preflight]
   LOCAL --> EXTRACT[参数提取 / problem_kind]
   EXTRACT --> CONTRACT[参数合同 / 共享校验]
@@ -21,6 +22,15 @@ flowchart TD
   DIFY --> DSTREAM[Dify 工作流 SSE]
   DSTREAM --> NORMALIZE[事件归一化<br/>outputs → report]
   NORMALIZE --> EVENTS
+  JWAVE --> JSTREAM[受限 Agent Bridge<br/>只含工作流 / 固定模型与 KB]
+  JWAVE --> JMODE{model_config_mode}
+  JMODE -->|managed| MODEL
+  JMODE -->|self| JSTREAM
+  MODEL --> JSTREAM
+  JSTREAM --> JEXEC[本项目 jwave-executor<br/>共享执行边界]
+  JEXEC --> JGATE[jwave_flow 参数 / 静态 / 语义 / 完成度门]
+  JGATE --> JNORMALIZE[事件归一化<br/>node / complete → progress / result]
+  JNORMALIZE --> EVENTS
   EVENTS --> AC
   AC --> FE
   FE --> SIDE[技能 / 知识库维护<br/>/skills/api/v1]

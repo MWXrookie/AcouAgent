@@ -91,10 +91,13 @@ AgentApiError.code = workflow_incomplete
 
 ```js
 const info = await client.info();
-const canManageModels = info.capabilities.model_profiles && info.capabilities.byok;
+const canManageModels = info.capabilities.model_config_mode === 'managed'
+  && info.capabilities.model_profiles
+  && info.capabilities.byok;
 ```
 
-- `model_profiles=false` 或 `byok=false`：隐藏模型设置按钮，显示“模型由当前平台工作流管理”。
+- `model_config_mode=managed`：显示统一模型 profile/BYOK 设置。
+- `model_config_mode=self`：隐藏模型设置按钮；Dify 显示“模型由 Dify 管理”，jwave_flow 显示“模型由当前核心管理”。
 - `chat` 始终必须为 true；否则显示后端不可用。
 - 不应根据 `backend_id` 写死前端分支；只使用 capabilities。
 
@@ -113,7 +116,7 @@ acouagent_byok_profile (sessionStorage)
 
 - `session_id`：当前对话 ID；
 - `requirement`：上一轮完整需求；
-- `model_profile`：当前选择的服务端 profile id，可为空。
+- `model_profile`：只有 `model_config_mode=managed` 时发送，表示当前选择的服务端 profile id，可为空。
 
 后端不新增聊天历史数据库。替换前端时需要自行保持或丢弃浏览器历史，但要继续发送相同的 `ChatRequest` 字段。
 

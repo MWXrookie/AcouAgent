@@ -431,7 +431,8 @@
             "type": "string",
             "examples": [
               "local",
-              "dify"
+              "dify",
+              "jwave_flow"
             ]
           },
           "backend_label": {
@@ -445,7 +446,8 @@
               "model_profiles",
               "byok",
               "model_preflight",
-              "skill_usage"
+              "skill_usage",
+              "model_config_mode"
             ],
             "properties": {
               "chat": {
@@ -465,6 +467,13 @@
               },
               "skill_usage": {
                 "type": "boolean"
+              },
+              "model_config_mode": {
+                "type": "string",
+                "enum": [
+                  "managed",
+                  "self"
+                ]
               }
             }
           }

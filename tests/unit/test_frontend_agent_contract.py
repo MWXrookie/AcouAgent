@@ -17,3 +17,9 @@ def test_static_chat_assets_are_present_and_keep_api_base_configurable():
     assert "/assets/agent-client.js" in html
     assert "/assets/chat.js" in html
     assert (ROOT / "app/web/chat.css").is_file()
+
+
+def test_chat_uses_model_config_mode_instead_of_backend_name():
+    source = (ROOT / "app/web/chat.js").read_text(encoding="utf-8")
+    assert "model_config_mode" in source
+    assert "state.orchestration_backend !== 'local'" not in source

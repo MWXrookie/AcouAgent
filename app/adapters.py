@@ -7,7 +7,6 @@ web layer importing their internals.
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,6 @@ from app import (
 )
 from app.contracts import (
     AgentApiError,
-    BackendCapabilities,
     BackendInfo,
     ChatRequest,
     WorkflowEvent,
@@ -41,9 +39,10 @@ from app.dashboard import (
     record_admin_event,
     record_execution,
 )
-from app.workflow_client import workflow_events as dify_workflow_events
-
-VALID_WORKFLOW_EVENTS = frozenset({"progress", "skill_usage", "result"})
+from cores.dify.adapter import DifyCoreAdapter
+from cores.events import normalize_workflow_events as _normalize_workflow_events
+from cores.jwave_flow.adapter import JwaveFlowCoreAdapter
+from cores.local.adapter import LocalCoreAdapter
 
 
 class ModelAdapter:
@@ -108,128 +107,13 @@ class ExecutionAdapter:
         return execution._shrink_field_in_stdout(stdout, max_chars=max_chars)
 
 
-def _extract_report(output: Any) -> str:
-    """Return a Markdown report from known workflow output shapes."""
-    if isinstance(output, str):
-        return output
-    if isinstance(output, list) and output:
-        first = output[0]
-        if isinstance(first, str):
-            return first
-        if isinstance(first, dict):
-            return (
-                first.get("result", "")
-                or first.get("report", "")
-                or json.dumps(first, ensure_ascii=False)
-            )
-    if isinstance(output, dict):
-        return (
-            output.get("result", "")
-            or output.get("report", "")
-            or output.get("text", "")
-            or json.dumps(output, ensure_ascii=False)
-        )
-    return ""
-
-
-class LocalCoreAdapter:
-    """Core port implementation backed by the native local workflow."""
-
-    @staticmethod
-    def info() -> BackendInfo:
-        return BackendInfo(
-            backend_id="local",
-            backend_label="本地编排",
-            capabilities=BackendCapabilities(
-                chat=True,
-                streaming=True,
-                model_profiles=True,
-                byok=True,
-                model_preflight=True,
-                skill_usage=True,
-            ),
-        )
-
-    @staticmethod
-    async def events(request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
-        source = local_workflow.workflow_events(
-            request.requirement,
-            f"portal-{request.session_id}" if request.session_id else "portal",
-            request.model_profile,
-        )
-        async for item in _normalize_workflow_events(source):
-            yield item
-
-    @staticmethod
-    def model_profiles() -> dict[str, Any]:
-        return model_profiles.public_profiles()
-
-    @staticmethod
-    def create_model_session(payload: object) -> dict[str, Any]:
-        return model_profiles.register_session_profile(payload)
-
-    @staticmethod
-    async def test_model_profile(profile_id: str) -> dict[str, Any]:
-        return await model_preflight.run(profile_id)
-
-    @staticmethod
-    def remove_model_session(profile_id: object) -> bool:
-        return model_profiles.remove_session_profile(profile_id)
-
-
-class DifyCoreAdapter:
-    """Core port implementation backed by the optional Dify workflow API."""
-
-    @staticmethod
-    def info() -> BackendInfo:
-        return BackendInfo(
-            backend_id="dify",
-            backend_label="Dify 兼容工作流",
-            capabilities=BackendCapabilities(
-                chat=True,
-                streaming=True,
-                model_profiles=False,
-                byok=False,
-                model_preflight=False,
-                skill_usage=True,
-            ),
-        )
-
-    @staticmethod
-    async def events(request: ChatRequest) -> AsyncIterator[WorkflowEvent]:
-        source = dify_workflow_events(
-            request.requirement,
-            f"portal-{request.session_id}" if request.session_id else "portal",
-            config.DIFY_API_KEY,
-        )
-        async for item in _normalize_workflow_events(source):
-            yield item
-
-
-async def _normalize_workflow_events(source) -> AsyncIterator[WorkflowEvent]:
-    """Validate and normalize backend events before they cross the API edge."""
-    async for item in source:
-        if not isinstance(item, dict):
-            raise ValueError("workflow_event_must_be_object")
-        event = item.get("event")
-        if event not in VALID_WORKFLOW_EVENTS:
-            raise ValueError("workflow_event_invalid_name")
-        data = {key: value for key, value in item.items() if key != "event"}
-        if event == "result":
-            if "outputs" in data:
-                outputs = data.pop("outputs")
-                data["report"] = _extract_report(outputs)
-            elif "report" not in data:
-                data["report"] = ""
-        yield WorkflowEvent(event=event, data=data)
-
-
 class WorkflowAdapter:
     """Selects a core port without exposing backend details to HTTP handlers."""
 
     _backends = {
         "local": LocalCoreAdapter,
         "dify": DifyCoreAdapter,
+        "jwave_flow": JwaveFlowCoreAdapter,
     }
 
     @staticmethod
@@ -256,43 +140,6 @@ class WorkflowAdapter:
         backend = WorkflowAdapter._selected_backend()
         async for event in backend.events(request):
             yield event
-
-    @staticmethod
-    def _model_backend():
-        backend = WorkflowAdapter._selected_backend()
-        capabilities = backend.info().capabilities
-        if not capabilities.model_profiles or not all(
-            hasattr(backend, name)
-            for name in (
-                "model_profiles",
-                "create_model_session",
-                "test_model_profile",
-                "remove_model_session",
-            )
-        ):
-            raise AgentApiError(
-                "capability_not_supported",
-                "当前后端不支持模型配置。",
-                status_code=501,
-            )
-        return backend
-
-    @staticmethod
-    def model_profiles() -> dict[str, Any]:
-        return WorkflowAdapter._model_backend().model_profiles()
-
-    @staticmethod
-    def create_model_session(payload: object) -> dict[str, Any]:
-        return WorkflowAdapter._model_backend().create_model_session(payload)
-
-    @staticmethod
-    async def test_model_profile(profile_id: str) -> dict[str, Any]:
-        return await WorkflowAdapter._model_backend().test_model_profile(profile_id)
-
-    @staticmethod
-    def remove_model_session(profile_id: object) -> bool:
-        return WorkflowAdapter._model_backend().remove_model_session(profile_id)
-
 
 class AnalysisAdapter:
     @staticmethod
@@ -401,6 +248,8 @@ __all__ = [
     "WorkflowAdapter",
     "LocalCoreAdapter",
     "DifyCoreAdapter",
+    "JwaveFlowCoreAdapter",
+    "_normalize_workflow_events",
     "AnalysisAdapter",
     "SkillAdapter",
     "DashboardAdapter",

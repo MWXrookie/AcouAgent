@@ -21,10 +21,19 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["app"]
+packages = [
+    "app",
+    "cores",
+    "cores.local",
+    "cores.dify",
+    "cores.jwave_flow",
+    "cores.jwave_flow.workflow",
+    "cores.jwave_flow.bridge",
+]
 
 [tool.setuptools.package-data]
 app = ["web/*.html"]
+cores.jwave_flow = ["kb/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -68,14 +68,23 @@ function updateModelReadiness(data) {
   var detail = document.getElementById('model-readiness-detail');
   var state = portalModelState;
   var handle = getModelProfile();
+  var managed = Boolean(state && state.capabilities && state.capabilities.model_config_mode === 'managed');
+  var headerSettings = document.getElementById('model-settings-btn');
+  var readinessSettings = document.getElementById('model-readiness-settings');
+  if (headerSettings) headerSettings.hidden = state ? !managed : false;
+  if (readinessSettings) readinessSettings.hidden = state ? !managed : false;
   if (!state) {
     box.dataset.state = 'error';
     title.textContent = '模型配置暂不可读取';
     detail.textContent = '打开模型设置重试；你的输入会保留。';
-  } else if (state.orchestration_backend !== 'local') {
+  } else if (state.capabilities && state.capabilities.model_config_mode === 'self') {
     box.dataset.state = 'configured';
-    title.textContent = '使用平台工作流中的模型';
-    detail.textContent = '模型由 Dify 配置；此处的自带模型配置不接管平台模型。';
+    title.textContent = state.orchestration_backend === 'dify'
+      ? '模型由 Dify 管理'
+      : '模型由当前核心管理';
+    detail.textContent = state.orchestration_backend === 'dify'
+      ? '模型由 Dify 配置；此处的自带模型配置不接管平台模型。'
+      : '当前核心使用自身固定模型配置；切换为统一模型配置后可在此选择 profile。';
   } else if (handle && handle.startsWith('byok-')) {
     box.dataset.state = 'configured';
     title.textContent = byokRegistrationConfirmed ? '本次会话模型已配置' : '已选择本次会话模型';
@@ -147,9 +156,9 @@ async function loadModelProfiles() {
     select.appendChild(byok);
     if (!select.value && data.default_profile) select.value = data.default_profile;
     if (!select.value) select.value = '__byok__';
-    detail.textContent = data.orchestration_backend === 'local'
-      ? 'BYOK 会用于参数提取、代码生成、审查、解释和重试。公网端点默认要求 HTTPS；本地模型地址需由部署者显式开启。'
-      : '当前是 Dify 兼容模式，BYOK 无法接管 Dify 内部模型。请把 ORCHESTRATION_BACKEND 设为 local。';
+    detail.textContent = data.capabilities && data.capabilities.model_config_mode === 'managed'
+      ? '统一模型配置会用于当前核心的参数提取、生成、审查、解释和重试。公网端点默认要求 HTTPS；本地模型地址需由部署者显式开启。'
+      : '当前核心自行管理模型，BYOK 不会接管核心内部模型。';
     toggleByokFields();
   } catch(e) {
     detail.textContent = '无法读取模型配置：' + String(e);

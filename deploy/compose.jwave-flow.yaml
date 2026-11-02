@@ -1,0 +1,48 @@
+# Optional isolated core overlay. It copies only the jwave_flow agent modules
+# from the sibling checkout; no management UI, history, memory or session store.
+# Usage:
+#   docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
+services:
+  jwave-flow-core:
+    image: ${ACOUAGENT_JWAVE_FLOW_IMAGE:-local/acouagent-jwave-flow-core:source}
+    build:
+      context: .
+      dockerfile: deploy/jwave-flow-core.Dockerfile
+    container_name: acouagent-jwave-flow-core
+    restart: unless-stopped
+    environment:
+      MODEL_CONFIG_MODE: ${MODEL_CONFIG_MODE:-managed}
+      JWAVE_FLOW_MODEL: ${JWAVE_FLOW_MODEL:-}
+      JWAVE_FLOW_API_KEY: ${JWAVE_FLOW_API_KEY:-}
+      JWAVE_FLOW_OPENAI_BASE_URL: ${JWAVE_FLOW_OPENAI_BASE_URL:-}
+      JWAVE_FLOW_BRIDGE_TOKEN: ${JWAVE_FLOW_BRIDGE_TOKEN:?JWAVE_FLOW_BRIDGE_TOKEN is required}
+      EXECUTOR_SHARED_TOKEN: ${EXECUTOR_SHARED_TOKEN}
+      JWAVE_FLOW_KB_PATH: /app/cores/jwave_flow/kb/jwave_kb_organized.md
+      JWAVE_FLOW_EXECUTOR_URL: http://jwave-executor:8010
+      JWAVE_FLOW_TOP_K: ${JWAVE_FLOW_TOP_K:-4}
+      JWAVE_FLOW_EXEC_TIMEOUT: ${JWAVE_FLOW_EXEC_TIMEOUT:-30}
+    networks:
+      - gateway_frontend
+      - executor_internal
+    depends_on:
+      jwave-executor:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 512m
+
+  dify-mcp:
+    depends_on:
+      jwave-flow-core:
+        condition: service_healthy
+    environment:
+      ORCHESTRATION_BACKEND: jwave_flow
+      MODEL_CONFIG_MODE: ${MODEL_CONFIG_MODE:-managed}
+      JWAVE_FLOW_BASE_URL: http://jwave-flow-core:8765
+      JWAVE_FLOW_BRIDGE_TOKEN: ${JWAVE_FLOW_BRIDGE_TOKEN}

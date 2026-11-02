@@ -113,6 +113,7 @@ class BackendCapabilities:
     byok: bool = False
     model_preflight: bool = False
     skill_usage: bool = True
+    model_config_mode: str = "self"
 
     def to_dict(self) -> dict[str, bool]:
         return {
@@ -122,6 +123,7 @@ class BackendCapabilities:
             "byok": self.byok,
             "model_preflight": self.model_preflight,
             "skill_usage": self.skill_usage,
+            "model_config_mode": self.model_config_mode,
         }
 
 

@@ -32,7 +32,8 @@ Link: </api/v1/agent/...>; rel="successor-version"
       "model_profiles": true,
       "byok": true,
       "model_preflight": true,
-      "skill_usage": true
+      "skill_usage": true,
+      "model_config_mode": "managed"
     }
   }
 }
@@ -40,6 +41,8 @@ Link: </api/v1/agent/...>; rel="successor-version"
 
 - `local` 支持聊天、模型 profile、BYOK 和连接预检。
 - `dify` 支持聊天、流式事件和技能提示；模型由 Dify 管理，因此 `model_profiles`、`byok`、`model_preflight` 为 `false`。
+- `jwave_flow` 默认使用统一模型配置（`model_config_mode=managed`）；设置 `MODEL_CONFIG_MODE=self` 后改用 bridge 固定模型配置，并关闭 profile/BYOK/preflight 能力。
+- `model_config_mode=managed` 表示核心消费网关模型 profile；`self` 表示核心在自身边界内管理模型，前端不得把门户凭据注入该核心。
 - 不具备某项能力时返回 HTTP `501` 和 `capability_not_supported`。
 - 未知或不可启动的后端返回 HTTP `503` 和 `backend_unavailable`。
 
@@ -106,6 +109,53 @@ Link: </api/v1/agent/...>; rel="successor-version"
 3. `result` 必须出现且只能出现一次，并且是最后一行。
 
 适配层负责把 Dify 的 `outputs.text` 归一化为 `report`；新前端不应依赖内部 `outputs`。
+
+### jwave_flow 受限核心
+
+`ORCHESTRATION_BACKEND=jwave_flow` 时，`JwaveFlowCoreAdapter` 只连接本项目的
+受限 bridge。核心代码已经迁移到本仓库 `cores/jwave_flow/`，不存在跨项目构建
+路径。构建和启动：
+
+```bash
+ORCHESTRATION_BACKEND=jwave_flow
+JWAVE_FLOW_BRIDGE_TOKEN=<至少 32 字节的独立随机值>
+MODEL_CONFIG_MODE=managed
+docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
+```
+
+`MODEL_CONFIG_MODE=managed` 时，门户模型 profile/BYOK 会解析为一次请求级模型配置并传入受限
+bridge，不写入 bridge 环境或持久存储；`MODEL_CONFIG_MODE=self` 时才要求
+`JWAVE_FLOW_MODEL` 与 `JWAVE_FLOW_API_KEY`（以及可选的
+`JWAVE_FLOW_OPENAI_BASE_URL`），模型只在 bridge 进程启动时确定。
+
+Bridge 的公开接口只有：
+
+```text
+GET  /health
+POST /v1/run   {"query": "本轮完整需求", "model_config": {...}}  # managed
+POST /v1/run   {"query": "本轮完整需求"}                         # self
+```
+
+Bridge 镜像只复制 `cores/jwave_flow/` 中的智能体工作流模块和只读知识库，不复制
+普通前端、TUI、历史、记忆、会话存储、配置编辑器或知识库管理页面。
+固定模型、KB 路径和 executor 地址只在进程启动时从专用环境变量读取；运行中
+没有切换模型、修改知识库或增加新会话的接口。
+
+边界说明：
+
+- jwave_flow 保留需求分析、检索、参数检查、代码生成、静态检查、语义检查、
+  完成度评审和纠错这些智能体节点；执行代码送到本项目现有 `jwave-executor`，
+  不启动 jwave_flow 本地 subprocess 执行器。
+- 不使用本项目的技能库或技能复用声明；`skill_usage` 事件不会伪造。
+- `managed` 模式接受请求中的 `model_profile`，由网关解析并校验 endpoint、凭据和
+  BYOK 有效期；`self` 模式忽略/拒绝网关 profile，不把凭据转发给 bridge。
+- `JWAVE_FLOW_BASE_URL` 必须是精确的 http(s) URL，且健康响应必须声明
+  `service=jwave-flow-agent-bridge`、`api_version=v1`、匹配的
+  `model_config_mode` 和对应 `model_configuration` 能力；不符合即拒绝执行。
+- 事件大小、单事件解析和总执行期限分别受
+  `JWAVE_FLOW_MAX_EVENT_BYTES`、`JWAVE_FLOW_READ_TIMEOUT_SECONDS` 和
+  `JWAVE_FLOW_DEADLINE_SECONDS` 限制。超时、HTTP 错误或事件流非法只返回脱敏
+  terminal error，不转发 traceback、模型凭据或内部管理数据。
 
 ## 3. 模型管理
 
@@ -231,7 +281,7 @@ PORTAL_ALLOWED_ORIGINS=https://frontend.example
    - `events(ChatRequest) -> AsyncIterator[WorkflowEvent]`
 2. 在适配器注册表中登记后端 ID，并让 `ORCHESTRATION_BACKEND` 选择它。
 3. 只返回允许的 `progress`、`skill_usage`、`result` 事件；`result` 必须是 terminal event。
-4. 若不拥有模型 profile/BYOK，不要在 capabilities 中声明相关能力；不要伪造本地模型。
+4. 明确声明 `model_config_mode`：核心使用网关统一 profile/BYOK 时为 `managed`；核心自行管理模型时为 `self`。不要在 self 模式声明模型管理能力。
 5. 运行 `tests/unit/test_agent_contracts.py`、`test_agent_api.py` 和全量回归。
 6. 前端通过 `GET /info` 自动降级，不需要为每个后端维护分支。
 

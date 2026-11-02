@@ -3,7 +3,13 @@ import asyncio
 import pytest
 
 from app import config
-from app.adapters import DifyCoreAdapter, LocalCoreAdapter, WorkflowAdapter, _normalize_workflow_events
+from app.adapters import (
+    DifyCoreAdapter,
+    JwaveFlowCoreAdapter,
+    LocalCoreAdapter,
+    WorkflowAdapter,
+    _normalize_workflow_events,
+)
 from app.contracts import AgentApiError, ChatRequest, WorkflowEvent
 
 
@@ -13,9 +19,57 @@ def test_local_and_dify_capability_matrices_are_explicit():
     assert local.backend_id == "local"
     assert local.capabilities.model_profiles is True
     assert local.capabilities.byok is True
+    assert local.capabilities.model_config_mode == "managed"
     assert dify.backend_id == "dify"
     assert dify.capabilities.chat is True
     assert dify.capabilities.model_profiles is False
+    assert dify.capabilities.model_config_mode == "self"
+
+
+def test_jwave_flow_uses_managed_model_config_by_default(monkeypatch):
+    info = JwaveFlowCoreAdapter.info()
+    assert info.backend_id == "jwave_flow"
+    assert info.capabilities.chat is True
+    assert info.capabilities.streaming is True
+    assert info.capabilities.model_profiles is True
+    assert info.capabilities.byok is True
+    assert info.capabilities.model_preflight is True
+    assert info.capabilities.skill_usage is False
+    assert info.capabilities.model_config_mode == "managed"
+
+    monkeypatch.setattr(config, "ORCHESTRATION_BACKEND", "jwave_flow")
+    assert WorkflowAdapter.info().backend_id == "jwave_flow"
+
+
+def test_jwave_flow_can_select_self_managed_model_config(monkeypatch):
+    monkeypatch.setattr(config, "MODEL_CONFIG_MODE", "self")
+    info = JwaveFlowCoreAdapter.info()
+    assert info.capabilities.model_profiles is False
+    assert info.capabilities.byok is False
+    assert info.capabilities.model_config_mode == "self"
+
+
+def test_jwave_flow_configuration_requires_an_exact_service_url(monkeypatch):
+    monkeypatch.setattr(config, "MCP_AUTH_TOKEN", "a" * 32)
+    monkeypatch.setattr(config, "EXECUTOR_SHARED_TOKEN", "b" * 32)
+    monkeypatch.setattr(config, "ORCHESTRATION_BACKEND", "jwave_flow")
+    monkeypatch.setattr(config, "JWAVE_FLOW_BASE_URL", "")
+    with pytest.raises(RuntimeError, match="JWAVE_FLOW_BASE_URL is required"):
+        config.validate()
+
+    monkeypatch.setattr(config, "JWAVE_FLOW_BASE_URL", "http://bridge.test")
+    monkeypatch.setattr(config, "JWAVE_FLOW_BRIDGE_TOKEN", "short")
+    with pytest.raises(RuntimeError, match="JWAVE_FLOW_BRIDGE_TOKEN"):
+        config.validate()
+
+
+def test_local_core_rejects_self_managed_model_mode(monkeypatch):
+    monkeypatch.setattr(config, "MCP_AUTH_TOKEN", "a" * 32)
+    monkeypatch.setattr(config, "EXECUTOR_SHARED_TOKEN", "b" * 32)
+    monkeypatch.setattr(config, "ORCHESTRATION_BACKEND", "local")
+    monkeypatch.setattr(config, "MODEL_CONFIG_MODE", "self")
+    with pytest.raises(RuntimeError, match="local orchestration requires"):
+        config.validate()
 
 
 def test_chat_request_enforces_public_size_limits():

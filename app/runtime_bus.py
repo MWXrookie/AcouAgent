@@ -21,7 +21,7 @@ from app.adapters import (
     SKILL_ADAPTER,
     WORKFLOW_ADAPTER,
 )
-from app.contracts import BackendInfo, ChatRequest, CoreBackend, PortalCommand
+from app.contracts import AgentApiError, BackendInfo, ChatRequest, CoreBackend, PortalCommand
 
 
 class RuntimeBus:
@@ -38,35 +38,53 @@ class RuntimeBus:
         return WORKFLOW_ADAPTER.info()
 
     @staticmethod
+    def _require_managed_model_config() -> None:
+        capabilities = WORKFLOW_ADAPTER.info().capabilities
+        if capabilities.model_config_mode != "managed":
+            raise AgentApiError(
+                "capability_not_supported",
+                "当前核心自行管理模型配置，不接受网关模型 profile。",
+                status_code=501,
+            )
+
+    @staticmethod
     def model_profiles() -> dict[str, Any]:
-        return WORKFLOW_ADAPTER.model_profiles()
+        RuntimeBus._require_managed_model_config()
+        return MODEL_ADAPTER.public_profiles()
 
     @staticmethod
     def create_model_session(payload: object) -> dict[str, Any]:
-        return WORKFLOW_ADAPTER.create_model_session(payload)
+        RuntimeBus._require_managed_model_config()
+        return MODEL_ADAPTER.register_session_profile(payload)
 
     @staticmethod
     async def test_model_profile(profile_id: str) -> dict[str, Any]:
-        return await WORKFLOW_ADAPTER.test_model_profile(profile_id)
+        RuntimeBus._require_managed_model_config()
+        return await MODEL_ADAPTER.preflight(profile_id)
 
     @staticmethod
     def remove_model_session(profile_id: object) -> bool:
-        return WORKFLOW_ADAPTER.remove_model_session(profile_id)
+        RuntimeBus._require_managed_model_config()
+        return MODEL_ADAPTER.remove_session_profile(profile_id)
 
     @staticmethod
     def public_profiles() -> dict[str, Any]:
+        RuntimeBus._require_managed_model_config()
         return MODEL_ADAPTER.public_profiles()
 
     @staticmethod
     def register_session_profile(body: dict[str, Any]) -> dict[str, Any]:
+        RuntimeBus._require_managed_model_config()
         return MODEL_ADAPTER.register_session_profile(body)
 
     @staticmethod
     def remove_session_profile(profile_id: str | None) -> bool:
+        RuntimeBus._require_managed_model_config()
         return MODEL_ADAPTER.remove_session_profile(profile_id)
 
     @staticmethod
     async def model_preflight(profile_id: str) -> dict[str, Any]:
+        RuntimeBus._require_managed_model_config()
         return await MODEL_ADAPTER.preflight(profile_id)
 
     @staticmethod

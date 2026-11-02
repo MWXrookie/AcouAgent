@@ -18,7 +18,7 @@
 <div class="header">
   <h1>声学仿真<span>自然语言多轮对话</span></h1>
   <button class="reset-btn" onclick="resetChat()">新对话</button>
-  <button class="model-btn" onclick="openModelSettings()">模型设置</button>
+  <button class="model-btn" id="model-settings-btn" onclick="openModelSettings()">模型设置</button>
 </div>
 
 <div class="modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
@@ -62,7 +62,7 @@
 <div class="chat-log" id="chat-log"></div>
 
 <div class="input-bar">
-  <div class="model-readiness" id="model-readiness" data-state="loading" role="status" aria-live="polite"><div><strong id="model-readiness-title">正在读取模型配置</strong><span id="model-readiness-detail">配置就绪后即可提交仿真需求。</span></div><button type="button" onclick="openModelSettings()">配置模型</button></div>
+  <div class="model-readiness" id="model-readiness" data-state="loading" role="status" aria-live="polite"><div><strong id="model-readiness-title">正在读取模型配置</strong><span id="model-readiness-detail">配置就绪后即可提交仿真需求。</span></div><button type="button" id="model-readiness-settings" onclick="openModelSettings()">配置模型</button></div>
   <div class="input-wrap">
     <textarea id="query-input" rows="3" placeholder="描述声学仿真问题，或继续修改参数…" aria-label="声学仿真需求" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();ask()}"></textarea>
     <button id="ask-btn" onclick="ask()">发送</button>

@@ -139,6 +139,26 @@ docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 
 通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify，并把 `ORCHESTRATION_BACKEND=dify`。此模式中门户 profile 只负责多轮需求合并，Dify 内部模型仍由 Dify 配置。
 
+若要把已迁移到 `cores/jwave_flow/` 的 LangGraph 智能体逻辑作为聊天后端，使用
+受限 bridge overlay。它只复制工作流模块和只读知识库，不复制普通 Web 前端、
+TUI、历史、记忆、会话存储或知识库管理能力：
+
+```bash
+cat >> .env <<'EOF'
+JWAVE_FLOW_BRIDGE_TOKEN=<至少 32 字节的独立随机值>
+MODEL_CONFIG_MODE=managed
+EOF
+docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
+```
+
+`MODEL_CONFIG_MODE=managed` 时，jwave_flow 使用当前网关的模型 profile；只有
+`self` 模式才使用 bridge 自己的固定模型环境（额外设置 `JWAVE_FLOW_MODEL`、
+`JWAVE_FLOW_API_KEY` 和可选的 `JWAVE_FLOW_OPENAI_BASE_URL`）。Dify 始终是 `self`。模型、知识库路径
+和上游 URL 只在对应模式启动时确定；bridge 不暴露知识库、历史、记忆或会话管理接口。
+工作流生成的代码仍提交本项目 `jwave-executor`。`managed` 模式使用统一模型
+profile/BYOK，`self` 模式不使用；两种模式都不使用本项目技能库。接口、健康校验和
+失败边界见 [Agent Backend API v1](API_BACKEND.md#jwave_flow-受限核心)。
+
 ## 页面与工具
 
 默认门户：`http://127.0.0.1:8001/portal`（绑定地址按 `DIFY_MCP_BIND_IP` 配置）。

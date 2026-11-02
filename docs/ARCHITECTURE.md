@@ -2,7 +2,7 @@
 
 > ⚠️ **2026-10-29**：本文档中的早期阶段图、旧节点数和旧前端描述仅作历史参考；当前接口、运行时和验收边界以 [Agent 后端接口](API_BACKEND.md)、[前端接入契约](API_FRONTEND.md)、[当前状态](CURRENT_STATUS.md) 与架构 JSON/HTML 为准。
 
-> **2026-10-29 当前接口运行时**：静态 `chat.html` 通过 `agent-client.js` 只依赖 `/api/v1/agent/*`；后端以 `CoreBackend` + `RuntimeBus` 选择本地或 Dify，模型管理能力由 `/api/v1/agent/info` 的能力矩阵声明。知识库、技能库、看板和 executor 的既有维护边界保持不变。旧 `/chat`、`/api/v1/chat` 和模型接口作为渐进弃用别名保留。当前架构事实图见 `diagrams/acouagent-runtime.architecture.html`，完整工作流见 `diagrams/acouagent-workflow-flow.mmd`。下文 DeepSeek、Dify 节点和旧 Gradio 段落仅作历史参考。
+> **2026-10-29 当前接口运行时**：静态 `chat.html` 通过 `agent-client.js` 只依赖 `/api/v1/agent/*`；后端以 `CoreBackend` + `RuntimeBus` 选择本地、Dify 或已迁移到 `cores/jwave_flow/` 的核心，模型管理能力由 `/api/v1/agent/info` 的 `model_config_mode` 能力矩阵声明。`managed` 使用网关统一 profile/BYOK，`self` 由核心管理模型，Dify 固定 self。知识库、技能库、看板和 executor 的既有维护边界保持不变。旧 `/chat`、`/api/v1/chat` 和模型接口作为渐进弃用别名保留。当前架构事实图见 `diagrams/acouagent-runtime.architecture.html`，完整工作流见 `diagrams/acouagent-workflow-flow.mmd`。下文 DeepSeek、Dify 节点和旧 Gradio 段落仅作历史参考。
 
 > 版本 v1.0 | 2026-08-08 | 关联: AGENTS.md, PRD.md
 
@@ -45,7 +45,13 @@ RuntimeBus ───── capability gate
         │       ├── 代码生成 / 缓存纠错
         │       ├── jwave executor（隔离边界）
         │       └── 分析 / 确定性物理门 / 审查解释
-        └── DifyCoreAdapter ── Dify workflow SSE → 事件归一化
+        ├── DifyCoreAdapter ── Dify workflow SSE → 事件归一化
+                └── JwaveFlowCoreAdapter ── 受限 Agent Bridge / NDJSON → 事件归一化
+                ├── 仅复制 jwave_flow 工作流模块 + 只读 KB
+                ├── 无前端 / 历史 / 记忆 / 会话 / KB 管理 / 模型切换接口
+                ├── managed: 网关统一模型 profile / BYOK
+                ├── self: bridge 启动时固定模型；Dify 固定 self
+                └── 生成代码进入本项目 jwave-executor
 
 旧接口兼容层：/chat、/api/v1/chat、/api/model-profiles、/api/byok/session
         └── 旧响应形状 + Deprecation: true + successor Link

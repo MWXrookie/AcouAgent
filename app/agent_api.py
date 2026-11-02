@@ -137,21 +137,30 @@ def _chat_contract(payload: dict[str, Any]) -> ChatRequest:
 
 async def _chat_events(request: ChatRequest) -> AsyncIterator[dict[str, Any]]:
     """Merge the turn and yield normalized events with a terminal result."""
+    model_config_mode = RUNTIME_BUS.agent_info().capabilities.model_config_mode
+    selected_profile = request.model_profile if model_config_mode == "managed" else None
     if request.requirement:
-        full_requirement = await RUNTIME_BUS.merge_requirement(
-            request.requirement,
-            request.message,
-            request.model_profile,
-        )
-        merge_used = True
+        if model_config_mode == "managed":
+            full_requirement = await RUNTIME_BUS.merge_requirement(
+                request.requirement,
+                request.message,
+                selected_profile,
+            )
+            merge_used = True
+            merge_mode = "model"
+        else:
+            full_requirement = f"{request.requirement}；{request.message}"
+            merge_used = False
+            merge_mode = "concatenate"
     else:
         full_requirement = request.message
         merge_used = False
+        merge_mode = "none"
     full_request = ChatRequest(
         message=request.message,
         requirement=full_requirement,
         session_id=request.session_id,
-        model_profile=request.model_profile,
+        model_profile=selected_profile,
         stream=request.stream,
     )
     async for event in RUNTIME_BUS.chat_events(full_request):
@@ -160,6 +169,8 @@ async def _chat_events(request: ChatRequest) -> AsyncIterator[dict[str, Any]]:
             item.update(
                 requirement=full_requirement,
                 merge_used=merge_used,
+                merge_mode=merge_mode,
+                model_config_mode=model_config_mode,
                 orchestration_backend=item.get(
                     "orchestration_backend",
                     config.ORCHESTRATION_BACKEND,

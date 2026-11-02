@@ -90,6 +90,97 @@ def test_agent_chat_business_failure_remains_http_200(monkeypatch):
     asyncio.run(run())
 
 
+def test_self_managed_core_does_not_use_gateway_model_profile(monkeypatch):
+    captured = {}
+
+    async def fake_events(request):
+        captured["request"] = request
+        yield WorkflowEvent(
+            "result",
+            {"report": "ok", "workflow_status": "succeeded", "skill_usage": []},
+        )
+
+    monkeypatch.setattr(
+        RUNTIME_BUS,
+        "agent_info",
+        lambda: BackendInfo(
+            "dify",
+            "Dify 兼容工作流",
+            BackendCapabilities(model_config_mode="self"),
+        ),
+    )
+    monkeypatch.setattr(RUNTIME_BUS, "chat_events", fake_events)
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=_app()), base_url="http://isolated"
+        ) as client:
+            response = await client.post(
+                "/api/v1/agent/chat",
+                json={
+                    "message": "改成 3 MHz",
+                    "requirement": "仿真 2 MHz",
+                    "model_profile": "byok-stale",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()["data"]
+            assert data["merge_mode"] == "concatenate"
+            assert data["model_config_mode"] == "self"
+            assert captured["request"].requirement == "仿真 2 MHz；改成 3 MHz"
+            assert captured["request"].model_profile is None
+
+    asyncio.run(run())
+
+
+def test_managed_core_uses_selected_gateway_model_profile(monkeypatch):
+    captured = {}
+
+    async def merge(requirement, message, profile):
+        captured["merge"] = (requirement, message, profile)
+        return f"{requirement} / {message}"
+
+    async def fake_events(request):
+        captured["request"] = request
+        yield WorkflowEvent(
+            "result",
+            {"report": "ok", "workflow_status": "succeeded", "skill_usage": []},
+        )
+
+    monkeypatch.setattr(
+        RUNTIME_BUS,
+        "agent_info",
+        lambda: BackendInfo(
+            "jwave_flow",
+            "jwave_flow LangGraph 核心",
+            BackendCapabilities(model_config_mode="managed"),
+        ),
+    )
+    monkeypatch.setattr(RUNTIME_BUS, "merge_requirement", merge)
+    monkeypatch.setattr(RUNTIME_BUS, "chat_events", fake_events)
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=_app()), base_url="http://isolated"
+        ) as client:
+            response = await client.post(
+                "/api/v1/agent/chat",
+                json={
+                    "message": "改成 3 MHz",
+                    "requirement": "仿真 2 MHz",
+                    "model_profile": "byok-selected",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()["data"]
+            assert data["merge_mode"] == "model"
+            assert data["model_config_mode"] == "managed"
+            assert captured["merge"][2] == "byok-selected"
+            assert captured["request"].model_profile == "byok-selected"
+
+    asyncio.run(run())
+
+
 def test_agent_chat_invalid_and_oversized_requests_are_safe_envelopes(monkeypatch):
     monkeypatch.setattr(RUNTIME_BUS, "agent_info", lambda: BackendInfo("local", "本地编排", BackendCapabilities()))
 
@@ -148,6 +239,10 @@ def test_openapi_documents_the_canonical_agent_paths():
         "/model-sessions/{profile_id}",
         "/model-profiles/{profile_id}/test",
     }
+    required = spec["components"]["schemas"]["BackendInfo"]["properties"][
+        "capabilities"
+    ]["required"]
+    assert "model_config_mode" in required
 
 
 def test_cors_whitelist_allows_only_configured_origin():

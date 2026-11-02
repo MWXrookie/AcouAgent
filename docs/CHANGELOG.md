@@ -1,3 +1,35 @@
+## 2026-10-29 · jwave_flow 受限后端接入
+
+新增可选 `ORCHESTRATION_BACKEND=jwave_flow`。适配器按 `CoreBackend` 合同实现
+`info/events`，只发布聊天和流式能力；bridge 请求严格只接受 `query`，模型、知识库
+路径和 executor 地址在进程启动时固定，不提供前端、TUI、历史、记忆、会话、知识库
+管理或运行中模型切换接口。生成代码仍进入本项目既有 `jwave-executor`，不启动外部
+项目的本地 executor。
+
+新增 `cores/` 结构：本地、Dify、jwave_flow 三类核心的适配器分别位于
+`cores/local/`、`cores/dify/`、`cores/jwave_flow/`。工作流模块和只读 KB 已迁移
+到 `cores/jwave_flow/`，移除 `.env` 加载、环境变量选模和本地 executor 实现；
+原 `auxiliary/reference/jwave-dify-langchain/` 重复参考目录已移除，避免同一核心
+同时存在运行副本和旁路副本。
+`deploy/compose.jwave-flow.yaml` 不再使用 external build context。普通 Web 前端、
+TUI、`history.py`、`memory.py`、`session_store.py`、`panels.py` 不进入 bridge
+镜像。未部署正式环境、未重启现有容器。
+
+模型配置所有权新增 `MODEL_CONFIG_MODE=managed|self`：本地固定 managed，Dify 固定
+self，jwave_flow 可切换。managed 时网关统一解析 profile/BYOK 并以每请求模型配置传入
+受限 bridge；self 时使用 bridge 启动时固定模型，前端隐藏模型设置。`/api/v1/agent/info`
+新增 `model_config_mode`，多轮需求合并在 self 模式改为确定性拼接，不调用网关模型。
+验证：`conda jw` 73 项通过；Docker managed 模式在 bridge 无固定模型时启动并从网关
+接收 profile，Docker self 模式只使用 bridge 固定模型；两种模式的 `/info` 能力矩阵
+与失败收口均通过。详见
+[模型配置所有权验证](validation/MODEL_CONFIG_OWNERSHIP_2026-10-30.md)。
+
+验证：`conda jw` 定向 49 项通过；bridge 镜像构建成功，镜像内核心可导入且管理模块
+均不存在；临时 bridge 健康能力均为只读/禁用，管理路由 404；临时 FastMCP 网关确认
+`/info` 能力矩阵、模型 profile 拒绝和上游失败脱敏 terminal result。真实模型科学
+矩阵、Archify HTML/delivery/visual-check 尚未完成，详见
+[受限后端验证](validation/JWAVE_FLOW_BACKEND_2026-10-29.md)。
+
 ## 2026-10-29 · Agent v1 通用接口与可替换静态前端
 
 将聊天路由从 `portal.py` 拆到 `agent_api.py`，新增 `/api/v1/agent/info`、`/api/v1/agent/chat`、模型 profile、临时 BYOK 会话和连接预检接口。`RuntimeBus` 现在提供 backend capability declaration；local 与 Dify 通过 `CoreBackend` 适配器区分能力，Dify 不伪造本地模型管理。旧 `/chat`、`/api/v1/chat`、`/api/model-profiles`、`/api/byok/session` 和 `/api/model-profiles/test` 保留历史响应形状并增加 `Deprecation` 与 successor `Link`。

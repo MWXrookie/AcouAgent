@@ -43,6 +43,16 @@
         "note": "Dify先用共享校验器校验原始初压，失败即停。提取失败仅可按已校验的用户显式声明继续，不补参；报告标记可用性，说明失败保留真实物理结论。无完整声明仍失败；Reasoner低强度有界预算、截断拒绝，按run_id有界回查。"
       },
       {
+        "id": "external-core",
+        "label": "受限工作流核心",
+        "focus": [
+          "core_port",
+          "jwave_flow_core",
+          "model_provider"
+        ],
+        "note": "ORCHESTRATION_BACKEND=jwave_flow 时，仅通过带共享令牌和健康能力校验的 Agent Bridge 连接。model_config_mode=managed 时使用网关统一模型 profile，self 时使用 bridge 启动时固定模型；Dify 固定 self。工作流和只读 KB 已迁移到本仓库 cores/jwave_flow，Bridge 排除前端、TUI、历史、记忆、会话存储及知识库管理接口；生成代码进入本项目 jwave-executor。"
+      },
+      {
         "id": "isolation-boundary",
         "label": "隔离边界",
         "focus": [
@@ -115,7 +125,7 @@
       "id": "core_port",
       "type": "backend",
       "label": "Agent API v1 / RuntimeBus",
-      "sublabel": "ChatRequest / WorkflowEvent / capabilities",
+      "sublabel": "ChatRequest / WorkflowEvent / model_config_mode",
       "pos": [
         350,
         300
@@ -155,6 +165,21 @@
         64
       ],
       "tag": "可选兼容"
+    },
+    {
+      "id": "jwave_flow_core",
+      "type": "cloud",
+      "label": "jwave_flow Agent Bridge",
+      "sublabel": "仅工作流 / 固定模型与只读 KB",
+      "pos": [
+        150,
+        460
+      ],
+      "size": [
+        185,
+        64
+      ],
+      "tag": "可选 · 无管理接口"
     },
     {
       "id": "model_preflight",
@@ -310,6 +335,13 @@
   "boundaries": [
     {
       "kind": "region",
+      "label": "jwave_flow 迁移核心（本仓库）",
+      "wraps": [
+        "jwave_flow_core"
+      ]
+    },
+    {
+      "kind": "region",
       "label": "Dify 兼容编排层（可选）",
       "wraps": [
         "dify_workflow"
@@ -381,6 +413,22 @@
       "variant": "dashed"
     },
     {
+      "id": "port-to-jwave-flow",
+      "from": "core_port",
+      "to": "jwave_flow_core",
+      "label": "JwaveFlowCoreAdapter / NDJSON",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "variant": "dashed"
+    },
+    {
+      "id": "jwave-flow-to-model",
+      "from": "jwave_flow_core",
+      "to": "model_provider",
+      "label": "managed profile / BYOK",
+      "variant": "dashed"
+    },
+    {
       "id": "portal-to-preflight",
       "from": "web_portal",
       "to": "model_preflight",
@@ -436,6 +484,13 @@
       "from": "simulation_pipeline",
       "to": "jwave_sandbox",
       "label": "POST /execute",
+      "variant": "emphasis"
+    },
+    {
+      "id": "jwave-bridge-to-sandbox",
+      "from": "jwave_flow_core",
+      "to": "jwave_sandbox",
+      "label": "受限代码执行 / 共享 token",
       "variant": "emphasis"
     },
     {
