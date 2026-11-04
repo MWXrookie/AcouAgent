@@ -1,5 +1,5 @@
 # Optional isolated core overlay. It copies only the jwave_flow agent modules
-# from the sibling checkout; no management UI, history, memory or session store.
+# from this repository; no management UI, history, memory or session store.
 # Usage:
 #   docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
 services:
