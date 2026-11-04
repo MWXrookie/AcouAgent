@@ -262,3 +262,27 @@ def test_cors_whitelist_allows_only_configured_origin():
             assert "access-control-allow-origin" not in denied.headers
 
     asyncio.run(run())
+
+
+def test_all_chat_routes_enforce_confirmation_before_merge_or_execution(monkeypatch):
+    monkeypatch.setattr(config, "TASK_CONFIRMATION_ENABLED", True)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unconfirmed task reached merge or execution")
+    monkeypatch.setattr(RUNTIME_BUS, "merge_requirement", forbidden)
+    monkeypatch.setattr(RUNTIME_BUS, "chat_events", forbidden)
+    monkeypatch.setattr(RUNTIME_BUS, "agent_info", lambda: BackendInfo("local", "local", BackendCapabilities(model_config_mode="managed")))
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app()), base_url="http://isolated") as client:
+            for route in ["/chat", "/api/v1/chat", "/api/v1/agent/chat"]:
+                for stream in [False, True]:
+                    response=await client.post(route,json=dict(message="水中100kHz点声源",requirement="保持声源位置",session_id="owner",stream=stream))
+                    assert response.status_code==200
+                    if stream:
+                        value=json.loads(response.text.strip())
+                    else:
+                        value=response.json()
+                        if route=="/api/v1/agent/chat":value=value["data"]
+                    assert value["error_code"]=="task_confirmation_required"
+                    assert value["execution_performed"] is False
+                    assert value["requirement"]=="保持声源位置\n水中100kHz点声源"
+    asyncio.run(run())

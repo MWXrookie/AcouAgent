@@ -1,4 +1,5 @@
 """Default-disabled skill APIs. No activation, code execution or learning."""
+import asyncio
 import json
 import sqlite3
 
