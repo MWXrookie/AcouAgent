@@ -20,7 +20,7 @@ def node(script):
 
 
 def test_report_reference_is_clickable_without_enabling_script_links_or_html():
-    source = (ROOT/'app/dashboard.py').read_text(encoding='utf-8')
+    source = (ROOT/'app/dashboard.py').read_text(encoding='utf-8')+'\n'+(ROOT/'app/web/chat.js').read_text(encoding='utf-8')
     functions = re.findall(r'function renderMarkdown\(md\) \{.*?(?=\nfunction )',source,re.S)
     escape = re.search(r'function esc\(s\) \{[^\n]+', source)[0]
     assert len(functions) == 2

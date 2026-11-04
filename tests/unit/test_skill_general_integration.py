@@ -104,7 +104,7 @@ def test_workflow_displays_verified_general_field_without_legacy_reanalysis(monk
     def forbidden(*a,**kw):raise AssertionError("verified complex field must not enter legacy parser")
     monkeypatch.setattr(workflow.analysis,"analyze_and_record",forbidden)
     monkeypatch.setattr(workflow,"_tool_functions",forbidden)
-    def report(result, code):
+    def report(result, code, **kwargs):
         assert 'binary-export' not in result['stdout'] and '__SKILL_PROBE_START__' not in result['stdout']
         assert 'binary-export' in raw_output  # presentation filtering preserves the source
         return 'execution report'

@@ -270,7 +270,12 @@ def _timing_report_note(stdout: str) -> str:
     return note
 
 
-def _build_report(result: dict[str, Any], original_code: str) -> str:
+def _build_report(
+    result: dict[str, Any],
+    original_code: str,
+    *,
+    status_override: str | None = None,
+) -> str:
     """Build a human-readable Markdown report from execution results."""
     exit_code = result.get("exit_code")
     timed_out = result.get("timed_out", False)
@@ -311,7 +316,9 @@ def _build_report(result: dict[str, Any], original_code: str) -> str:
         stdout = stdout.encode("utf-8")[:12000].decode("utf-8", errors="ignore") + "\n[显示内容已截断；完整原始输出保留在执行记录中，供物理分析。]"
 
     # Status
-    if timed_out:
+    if status_override:
+        status = status_override
+    elif timed_out:
         status = "⏱ **超时** — 计算量超过资源限制"
     elif exit_code == 0:
         status = ('执行完成；是否通过验证及其等级请看下方物理门。' if confirmed_time_display or frequency_display

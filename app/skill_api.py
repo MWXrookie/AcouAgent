@@ -1,12 +1,12 @@
 """Default-disabled skill APIs. No activation, code execution or learning."""
 import json
-import asyncio
 import sqlite3
 
 from pathlib import Path
 from app.ui_chrome import render_page
 from starlette.responses import HTMLResponse, JSONResponse as _JSONResponse
 from app import config, dashboard, skill_library_service as service
+from app.async_utils import await_thread
 
 
 class JSONResponse(_JSONResponse):
@@ -51,16 +51,15 @@ def register(mcp):
         # Read-only metadata, no learning/action/admin side effect.
         if config.SKILL_LIBRARY_ENABLED is not True:
             return JSONResponse({"error":"disabled"},status_code=404)
-        import asyncio
-        from starlette.concurrency import run_in_threadpool
         from app import skill_retrieval
         try:
+            import asyncio
             body=await asyncio.wait_for(_small_json(request),timeout=2)
             if not {"scenario_type","parameters"}<=set(body) or not set(body)<={"scenario_type","parameters","limit"}:
                 raise ValueError("search_fields")
             if type(body["parameters"]) is not dict:
                 raise ValueError("parameters_object")
-            result=await run_in_threadpool(skill_retrieval.search,body["scenario_type"],
+            result=await await_thread(skill_retrieval.search,body["scenario_type"],
                 json.dumps(body["parameters"],sort_keys=True,separators=(",",":"),allow_nan=False),
                 body.get("limit",3))
             return JSONResponse(result)

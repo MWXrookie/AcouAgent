@@ -1,0 +1,1 @@
+"""Optional Dify compatibility core."""

@@ -5,7 +5,7 @@ import httpx
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from app import config, local_workflow, model_preflight, model_profiles, portal
+from app import agent_api, config, local_workflow, model_client, model_preflight, model_profiles, portal
 
 
 class Registry:
@@ -21,6 +21,7 @@ class Registry:
 
 def _app():
     registry = Registry()
+    agent_api.register(registry)
     portal.register(registry)
     return Starlette(routes=registry.routes)
 
@@ -165,7 +166,7 @@ def test_model_preflight_route_is_bounded_and_returns_no_store(monkeypatch):
 
 def test_model_preflight_transport_error_is_sanitized(monkeypatch):
     async def fake_run(_profile_id):
-        raise portal.model_client.ModelCallError("model_transport_failed")
+        raise model_client.ModelCallError("model_transport_failed")
 
     monkeypatch.setattr(model_preflight, "run", fake_run)
 

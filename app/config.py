@@ -4,6 +4,7 @@
 """
 
 import os
+from urllib.parse import urlparse
 
 MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN")
 EXECUTOR_SHARED_TOKEN = os.environ.get("EXECUTOR_SHARED_TOKEN")
@@ -18,6 +19,87 @@ ROOM_MODAL_ENABLED = os.environ.get("ROOM_MODAL_ENABLED", "").lower() == "true"
 ROOM_MODAL_RUNS_PATH = os.environ.get("ROOM_MODAL_RUNS_PATH", "/app/data/room_modal_runs.db")
 TASK_CONFIRMATION_ENABLED = os.environ.get('TASK_CONFIRMATION_ENABLED','').lower() == 'true'
 TASK_CONFIRMATION_RUNS_PATH = os.environ.get('TASK_CONFIRMATION_RUNS_PATH','/app/data/confirmed_workflow_runs.db')
+MODEL_CONFIG_MODE = os.environ.get("MODEL_CONFIG_MODE", "managed").strip().lower()
+JWAVE_FLOW_BASE_URL = os.environ.get("JWAVE_FLOW_BASE_URL", "").strip().rstrip("/")
+JWAVE_FLOW_BRIDGE_TOKEN = os.environ.get("JWAVE_FLOW_BRIDGE_TOKEN", "").strip()
+JWAVE_FLOW_DEADLINE_SECONDS = float(os.environ.get("JWAVE_FLOW_DEADLINE_SECONDS", "900"))
+JWAVE_FLOW_READ_TIMEOUT_SECONDS = float(
+    os.environ.get("JWAVE_FLOW_READ_TIMEOUT_SECONDS", "660")
+)
+JWAVE_FLOW_MAX_EVENT_BYTES = int(
+    os.environ.get("JWAVE_FLOW_MAX_EVENT_BYTES", str(8 * 1024 * 1024))
+)
+JWAVE_FLOW_SKILL_MODE = os.environ.get("JWAVE_FLOW_SKILL_MODE", "full").strip().lower()
+JWAVE_FLOW_SKILL_PORT_URL = os.environ.get(
+    "JWAVE_FLOW_SKILL_PORT_URL",
+    "http://dify-mcp:8001/internal/jwave-flow/skills",
+).strip().rstrip("/")
+JWAVE_FLOW_SKILL_PORT_TOKEN = (
+    os.environ.get("JWAVE_FLOW_SKILL_PORT_TOKEN", "").strip()
+    or os.environ.get("JWAVE_FLOW_BRIDGE_TOKEN", "").strip()
+)
+JWAVE_FLOW_SKILL_TIMEOUT_SECONDS = float(
+    os.environ.get("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS", "2")
+)
+
+
+def _allowed_origins(raw: str) -> tuple[str, ...]:
+    """Parse exact browser origins for the optional cross-origin frontend mode."""
+    origins: list[str] = []
+    for item in raw.split(","):
+        value = item.strip().rstrip("/")
+        if not value:
+            continue
+        parsed = urlparse(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise RuntimeError("PORTAL_ALLOWED_ORIGINS must contain exact http(s) origins")
+        normalized = f"{parsed.scheme}://{parsed.netloc}"
+        if normalized not in origins:
+            origins.append(normalized)
+    return tuple(origins)
+
+
+def _http_base_url(raw: str, name: str = "JWAVE_FLOW_BASE_URL") -> str:
+    """Validate an operator-supplied HTTP service base without rewriting paths."""
+    if not raw:
+        return ""
+    parsed = urlparse(raw)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError(f"{name} must be an exact http(s) service URL")
+    return raw.rstrip("/")
+
+
+def effective_model_config_mode() -> str:
+    """Return the model ownership mode for the selected core.
+
+    Dify owns its model configuration internally. Local and jwave_flow use the
+    gateway's unified profile layer by default; jwave_flow may explicitly opt
+    into its own fixed bridge environment.
+    """
+    if ORCHESTRATION_BACKEND == "dify":
+        return "self"
+    return MODEL_CONFIG_MODE
+
+
+PORTAL_ALLOWED_ORIGINS = _allowed_origins(os.environ.get("PORTAL_ALLOWED_ORIGINS", ""))
+JWAVE_FLOW_BASE_URL = _http_base_url(JWAVE_FLOW_BASE_URL)
+JWAVE_FLOW_SKILL_PORT_URL = _http_base_url(
+    JWAVE_FLOW_SKILL_PORT_URL, "JWAVE_FLOW_SKILL_PORT_URL"
+)
 
 # jwave-executor 沙箱内部地址（executor_internal 网络）
 EXECUTOR_URL = "http://jwave-executor:8010"
@@ -43,8 +125,27 @@ def validate() -> None:
         raise RuntimeError("MCP_AUTH_TOKEN must be set and at least 32 characters long")
     if not EXECUTOR_SHARED_TOKEN or len(EXECUTOR_SHARED_TOKEN) < 32:
         raise RuntimeError("EXECUTOR_SHARED_TOKEN must be set and at least 32 characters long")
-    if ORCHESTRATION_BACKEND not in {"dify", "local"}:
-        raise RuntimeError("ORCHESTRATION_BACKEND must be dify or local")
+    if ORCHESTRATION_BACKEND not in {"dify", "local", "jwave_flow"}:
+        raise RuntimeError("ORCHESTRATION_BACKEND must be dify, local or jwave_flow")
+    if MODEL_CONFIG_MODE not in {"managed", "self"}:
+        raise RuntimeError("MODEL_CONFIG_MODE must be managed or self")
+    if ORCHESTRATION_BACKEND == "local" and MODEL_CONFIG_MODE != "managed":
+        raise RuntimeError("local orchestration requires MODEL_CONFIG_MODE=managed")
+    if ORCHESTRATION_BACKEND == "jwave_flow" and not JWAVE_FLOW_BASE_URL:
+        raise RuntimeError("JWAVE_FLOW_BASE_URL is required for jwave_flow backend")
+    if ORCHESTRATION_BACKEND == "jwave_flow" and len(JWAVE_FLOW_BRIDGE_TOKEN) < 32:
+        raise RuntimeError("JWAVE_FLOW_BRIDGE_TOKEN must be at least 32 characters")
+    if JWAVE_FLOW_SKILL_MODE not in {"reference", "full"}:
+        raise RuntimeError("JWAVE_FLOW_SKILL_MODE must be reference or full")
+    if not 0 < JWAVE_FLOW_SKILL_TIMEOUT_SECONDS <= 10:
+        raise RuntimeError("JWAVE_FLOW_SKILL_TIMEOUT_SECONDS must be greater than 0 and at most 10")
+    if ORCHESTRATION_BACKEND == "jwave_flow":
+        if not JWAVE_FLOW_SKILL_PORT_URL:
+            raise RuntimeError("JWAVE_FLOW_SKILL_PORT_URL is required when skills are enabled")
+        if len(JWAVE_FLOW_SKILL_PORT_TOKEN) < 32:
+            raise RuntimeError(
+                "JWAVE_FLOW_SKILL_PORT_TOKEN must be at least 32 characters when skills are enabled"
+            )
     if TASK_CONFIRMATION_ENABLED and ORCHESTRATION_BACKEND != 'local':
         raise RuntimeError('TASK_CONFIRMATION_ENABLED requires local orchestration')
 

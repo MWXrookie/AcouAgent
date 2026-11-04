@@ -45,7 +45,7 @@ def test_physics_notation_and_protected_content(source, expected):
 
 
 def test_real_markdown_renderers_escape_formula_html_and_preserve_code_and_links():
-    source = (ROOT/'app/dashboard.py').read_text(encoding='utf-8')
+    source = (ROOT/'app/dashboard.py').read_text(encoding='utf-8')+'\n'+(ROOT/'app/web/chat.js').read_text(encoding='utf-8')
     escape = re.search(r'function esc\(s\) \{[^\n]+', source)[0]
     functions = re.findall(r'function renderMarkdown\(md\) \{.*?(?=\nfunction )', source, re.S)
     values = [r'$\rho_0=1.21\ \mathrm{kg/m}^3$',
