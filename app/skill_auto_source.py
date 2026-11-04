@@ -11,6 +11,7 @@ import json
 import math
 from pathlib import Path
 import re
+import sqlite3
 import threading
 import time
 import uuid
@@ -289,6 +290,36 @@ def _analysis(library, manifest):
                 field_shape=view["shape"], has_signal=True, units=view["units"],
                 summary="Controlled first execution: finite nonzero full complex field. Independent admission is a separate new validation run.",
                 heatmap_png_base64=base64.b64encode(buffer.getvalue()).decode("ascii"))
+
+
+def queue_source(*, scenario_type, parameters_json, request_key):
+    """Queue one server-owned first execution without running it inline."""
+    denied = {"queued": False, "job_id": None, "state": None,
+              "quality_level": None, "reason": "learning_disabled"}
+    if not enabled():
+        return denied
+    try:
+        query = normalize_query(scenario_type, parameters_json)
+        spec = dict(
+            schema_version="skill-spec.v1",
+            name="Automatic controlled source",
+            description="Server structured physical request",
+            scenario_type=scenario_type,
+            parameters=query["parameters"],
+            result_spec=query["result_spec"],
+            code_template="pass\n",
+            validation_request={"policy": "server_required"},
+        )
+        job = start_source(spec, request_key=request_key, library=get_library())
+        return {
+            "queued": job.get("state") == "queued",
+            "job_id": job.get("job_id"),
+            "state": job.get("state"),
+            "quality_level": None,
+            "reason": "source_queued" if job.get("state") == "queued" else "source_existing",
+        }
+    except (DraftError, ValueError, TypeError, KeyError, OSError, sqlite3.Error, TimeoutError):
+        return dict(denied, reason="learning_queue_unavailable")
 
 
 def execute_source(*, scenario_type, parameters_json, request_key):

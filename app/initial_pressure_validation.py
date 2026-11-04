@@ -1,10 +1,9 @@
 """Physical preflight for explicit initial-pressure contracts; no trust elevation."""
 import math
 
+from app.parameter_contract import canonicalize_parameters
+
 INITIAL_SOURCES = {"modal_initial_pressure", "gaussian_initial_pressure"}
-ALIASES = {"sound_speed_m_s": "sound_speed", "density_kg_m3": "density",
-           "grid_shape": "domain_N", "dx_m": "domain_dx", "t_end_s": "t_end",
-           "source_type": "source_kind", "frequency_hz": "source_frequency"}
 
 
 def is_initial(params):
@@ -16,13 +15,9 @@ def validate_initial(params):
     errors = []
     def error(field, message):
         errors.append({"field": field, "message": message})
-    normalized = {}
-    for key, value in params.items():
-        target = ALIASES.get(key, key)
-        if target in normalized and normalized[target] != value:
-            error(target, f"{target} 的别名值冲突")
-        normalized[target] = value
-    p = normalized
+    p, conflicts = canonicalize_parameters(params)
+    for target in conflicts:
+        error(target, f"{target} 的别名值冲突")
     def number(field, value, positive=True):
         try:
             finite = type(value) in (int, float) and math.isfinite(value)

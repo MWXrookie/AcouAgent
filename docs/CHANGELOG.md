@@ -1,3 +1,7 @@
+## 2026-11-04 队友分支整合候选
+
+2026-11-04 队友分支整合仍为当前优先目标。PR41（integration/desperate-functions-main）已建草稿，9个冲突已解决；新API保留参数确认前置守卫与冻结合同，静态聊天保留公式显示。3a00a6c隔离Linux全量2329通过/28环境跳过，浏览器历史17/确认14/技能115、前端契约3项通过，干净安装检查通过；网关及可选核心镜像构建与bridge健康检查通过。Linux首次缺可选依赖、后续Dify历史快照预期及技能写接口遗漏asyncio均已修复，失败记录保留。GitHub官方确认Git Operations/PR事故，修复推送多次5xx失败；远程候选仍830be60，main仍9338e9e，未合并或部署。恢复后先推候选并完成该SHA的CI，再合并及部署验收；完成前不推进后续技能库。桌面目标继续暂停。
+
 ## 公式普通文本显示
 
 2026-10-29 公式纯文本显示已部署：f1aa295已合入main；历史会话正文/标题、结果正文、技能名称与说明、看板摘要及参数依据中的常见LaTeX改为普通数学和单位。分数括号、数值及上下标保留；原始请求、确认绑定、JSON、代码和未知复杂命令不改。37项相关回归、隔离历史17项、确认预览14项、技能副本115项；正式服务历史17项、技能114项和其他页面25项全部通过。Linux全套CI及镜像构建成功，185运行文件匹配main，正式三库全部逻辑摘要未变（861条执行），executor未重启。最初副本加载与旧LaTeX验收预期的失败保留，修复后复验通过；Windows全套缺Linux依赖的收集失败不算通过。
@@ -79,6 +83,89 @@ Windows全量测试因Linux专用resource与缺失FastMCP在收集阶段中止�
 ## 2026-10-29 · 保留技能列表的介质和模态区别
 
 正式服务只读核对20条技能、21个版本，相同指纹重复行0。发现列表标题函数无条件删除第一个“；”前的内容，恰好删掉15种固定周期案例的介质/模态名称，全部变成相同的后缀。改为仅移除明确的“受控执行器”前缀；新增从实际目录取得15个标题并执行真实前端函数的回归，保留候选与执行器前缀显示规则。此次不修改任何已有技能、参数、版本或验证证据；尚未部署正式服务。参数案例数量不应被解释为不同技能家族数量。
+## 2026-11-02 · jwave_flow 技能库增强候选
+
+新增 `jwave_flow` 默认技能接入；`JWAVE_FLOW_SKILL_MODE` 已取消 `off` 选项，
+支持 `reference` 和默认 `full`。网关增加受独立 token 保护的内部
+SkillPort：`reference` 模式复用精确 Q3/Q4 固定参考并由网关产生新 run、重新核验；
+`full` 模式增加同场景 Q3/Q4 白名单约束注入。无命中、技能关闭或 SkillPort 异常
+继续走原有生成链路；固定参考派发失败后不重放、不静默改用生成。bridge 只调用
+SkillPort，不挂载或读取技能数据库。
+
+生成路径成功且现有学习开关满足时，经服务端队列进入既有 Q2 自动学习流程；不会
+由 bridge 自报结果直接授予 Q3/Q4。新增 `JWAVE_FLOW_SKILL_MODE`、
+`JWAVE_FLOW_SKILL_PORT_URL`、`JWAVE_FLOW_SKILL_PORT_TOKEN` 和
+`JWAVE_FLOW_SKILL_TIMEOUT_SECONDS` 配置，Compose bridge 与网关保持同一内部
+token。删除测试环境中的 `asyncio.to_thread`/Starlette threadpool 依赖，改为有界
+线程 helper，避免 Python 3.14 重复 event loop 下卡死。
+
+验证：`conda jw` 定向技能/`jwave_flow` 回归 206 项通过；全量（排除无法在沙箱
+创建本地 socket 的 loopback 测试和 Python 3.14 TestClient 卡住的两文件）为
+2081 passed、1 skipped；Docker 两镜像构建成功，默认 full 能力矩阵和本地
+SkillPort 真实 Q4 resolve 均通过，真实固定参考执行返回新 run 且
+`execution_reuse_verified=true`；executor 保持 `RestartCount=0`（验证窗口内容器
+启动时间由外部运行态变化，不能声明未被重建）。架构 JSON 已同步，Archify CLI
+和 ruff 当前环境不可用，HTML/visual-check 与 ruff 未执行。详见
+`validation/JWAVE_FLOW_SKILLS_2026-11-02.md`。
+
+随后修复复杂 3D 输入的两个共同缺陷：jwave_flow 参数预检现在识别
+`sound_speed_m_s`、`density_kg_m3`、`frequency_hz` 以及 `materials` 嵌套结构；
+local 物理门在评级前先做显式 SI 别名归一化。参数不完整时，local 和
+jwave_flow 都不再以成功状态收口；jwave_flow 仍允许参数预检重试。复测中 local
+返回 Q2，jwave_flow 返回 `param_check_ok=true` 且最终 `success=true`、
+`verified=true`。对应回归 203 项通过。
+
+输出层随后改为复用 local 的 `execution._build_report`，并补齐确定性物理门、
+技能模式、模型审查和物理解读段落。评审逻辑未改，只优化状态提示；新增报告结构
+和参数失败终态回归；定向回归最终 308 项通过。
+
+## 2026-10-29 · jwave_flow 受限后端接入
+
+新增可选 `ORCHESTRATION_BACKEND=jwave_flow`。适配器按 `CoreBackend` 合同实现
+`info/events`，只发布聊天和流式能力；bridge 请求严格只接受 `query`，模型、知识库
+路径和 executor 地址在进程启动时固定，不提供前端、TUI、历史、记忆、会话、知识库
+管理或运行中模型切换接口。生成代码仍进入本项目既有 `jwave-executor`，不启动外部
+项目的本地 executor。
+
+新增 `cores/` 结构：本地、Dify、jwave_flow 三类核心的适配器分别位于
+`cores/local/`、`cores/dify/`、`cores/jwave_flow/`。工作流模块和只读 KB 已迁移
+到 `cores/jwave_flow/`，移除 `.env` 加载、环境变量选模和本地 executor 实现；
+原 `auxiliary/reference/jwave-dify-langchain/` 重复参考目录已移除，避免同一核心
+同时存在运行副本和旁路副本。
+`deploy/compose.jwave-flow.yaml` 不再使用 external build context。普通 Web 前端、
+TUI、`history.py`、`memory.py`、`session_store.py`、`panels.py` 不进入 bridge
+镜像。未部署正式环境、未重启现有容器。
+
+模型配置所有权新增 `MODEL_CONFIG_MODE=managed|self`：本地固定 managed，Dify 固定
+self，jwave_flow 可切换。managed 时网关统一解析 profile/BYOK 并以每请求模型配置传入
+受限 bridge；self 时使用 bridge 启动时固定模型，前端隐藏模型设置。`/api/v1/agent/info`
+新增 `model_config_mode`，多轮需求合并在 self 模式改为确定性拼接，不调用网关模型。
+验证：`conda jw` 73 项通过；Docker managed 模式在 bridge 无固定模型时启动并从网关
+接收 profile，Docker self 模式只使用 bridge 固定模型；两种模式的 `/info` 能力矩阵
+与失败收口均通过。详见
+[模型配置所有权验证](validation/MODEL_CONFIG_OWNERSHIP_2026-10-30.md)。
+
+验证：`conda jw` 定向 49 项通过；bridge 镜像构建成功，镜像内核心可导入且管理模块
+均不存在；临时 bridge 健康能力均为只读/禁用，管理路由 404；临时 FastMCP 网关确认
+`/info` 能力矩阵、模型 profile 拒绝和上游失败脱敏 terminal result。真实模型科学
+矩阵、Archify HTML/delivery/visual-check 尚未完成，详见
+[受限后端验证](validation/JWAVE_FLOW_BACKEND_2026-10-29.md)。
+
+## 2026-10-29 · Agent v1 通用接口与可替换静态前端
+
+将聊天路由从 `portal.py` 拆到 `agent_api.py`，新增 `/api/v1/agent/info`、`/api/v1/agent/chat`、模型 profile、临时 BYOK 会话和连接预检接口。`RuntimeBus` 现在提供 backend capability declaration；local 与 Dify 通过 `CoreBackend` 适配器区分能力，Dify 不伪造本地模型管理。旧 `/chat`、`/api/v1/chat`、`/api/model-profiles`、`/api/byok/session` 和 `/api/model-profiles/test` 保留历史响应形状并增加 `Deprecation` 与 successor `Link`。
+
+聊天页已从 `dashboard.py` 内嵌 HTML 拆为 `app/web/chat.html`、`chat.css`、`chat.js` 和 `agent-client.js`；静态客户端只使用 canonical `/api/v1/agent/*`，通过 API base meta 和 `PORTAL_ALLOWED_ORIGINS` 支持同源或显式白名单跨域，并按 `/info` capability 隐藏不支持的模型设置。Compose 默认绑定恢复为 `127.0.0.1`。
+
+新增 `docs/API_BACKEND.md`、`docs/API_FRONTEND.md`、`docs/openapi.agent.v1.json` 和 `docs/diagrams/acouagent-workflow-flow.mmd`，同步架构 JSON 与现有页面/测试 seam。`conda jw` 定向契约测试通过；在 `a7368f2` 基线叠加本次改动的干净 Docker 快照上全量回归为 2150 passed、2 skipped。当前工作区另有既存参数合同暂存改动导致 2 项 Dify guard fixture 漂移，未在本轮修改。Archify HTML/visual-check 仍待具备工具的环境补跑；未自动部署或重启 executor。脱敏验证记录见 [AGENT_API_2026-10-29](validation/AGENT_API_2026-10-29.md)。
+
+## 2026-10-29 · 解析题路由与显式 SI 参数合同修复
+
+截图中的矩形房间刚性壁模态题是解析计算请求，却进入驱动源仿真校验，最终被报为缺少 `sound_speed / density / source_frequency / domain_N / domain_dx`。参数提取模型实际成功调用，失败发生在参数合同而非模型连接；旧执行记录也未新增 jwave run。根因是提取提示词同时输出历史字段和显式 SI 字段，但共享校验器只有在识别初压 `source_type` 时才做别名归一化，且系统没有解析题/仿真题路由。
+
+新增 `problem_kind=simulation|analytical|unsupported`：非仿真请求在参数校验前 fail closed，返回 `analytical_question_not_supported` 或 `unsupported_problem`，明确“未执行 jwave”，不再输出底层缺参；只有 simulation 进入技能检索与数值执行。新增共享参数合同，对 `sound_speed_m_s`、`density_kg_m3`、`grid_shape`、`dx_m`、`t_end_s`、`frequency_hz` 等别名做确定性归一化，同义字段冲突直接拒绝，不补猜缺失值。
+
+验证：新增 2 项解析题路由回归与 3 项 SI 别名/冲突回归通过；参数流水线 25 项通过；修改文件 Python 语法检查通过。完整初压测试文件仍被既有检索集成用例在本机超时阻塞，未冒充全量通过。架构 JSON 已同步，但当前环境没有 Archify CLI，生成 HTML、`validate --quality showcase`、`deliver` 和 `visual-check` 仍需在具备工具的环境补跑。
 
 ## 2026-10-28 · 执行看板 UI 优化与主题闪烁修复
 

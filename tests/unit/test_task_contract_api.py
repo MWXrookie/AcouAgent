@@ -86,8 +86,8 @@ def test_direct_chat_cannot_bypass_room_capability_guard_with_local_or_dify(monk
     from app import config, portal, local_workflow
     def forbidden(*args, **kwargs):
         raise AssertionError('guarded room request must not merge or dispatch')
-    monkeypatch.setattr(portal, '_merge_requirement', forbidden)
-    monkeypatch.setattr(portal, 'workflow_events', forbidden)
+    monkeypatch.setattr(portal.RUNTIME_BUS, 'merge_requirement', forbidden)
+    monkeypatch.setattr(portal.RUNTIME_BUS, 'chat_events', forbidden)
     monkeypatch.setattr(local_workflow, 'workflow_events', forbidden)
     async def run():
         class Registry:
@@ -178,8 +178,8 @@ def test_new_confirmation_feature_blocks_legacy_chat_before_merge_or_dispatch(mo
     # Avoid a real persistence store at registration in this route-guard test.
     monkeypatch.setattr(config,'ORCHESTRATION_BACKEND','dify')
     def forbidden(*args,**kwargs): raise AssertionError('unconfirmed input must not dispatch or merge')
-    monkeypatch.setattr(portal,'_merge_requirement',forbidden)
-    monkeypatch.setattr(portal,'workflow_events',forbidden)
+    monkeypatch.setattr(portal.RUNTIME_BUS,'merge_requirement',forbidden)
+    monkeypatch.setattr(portal.RUNTIME_BUS,'chat_events',forbidden)
     monkeypatch.setattr(local_workflow,'workflow_events',forbidden)
     class Registry:
         def __init__(self): self.routes=[]

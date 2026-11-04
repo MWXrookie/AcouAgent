@@ -50,7 +50,12 @@ def test_success_is_unchanged_and_status_note_cannot_raise_quality():
 
 
 def graph():
-    return json.loads((ROOT / "docs/dify_workflow_backup/2026-10-26-initial-guard/candidate-after.json").read_text(encoding="utf-8"))
+    value = json.loads((ROOT / "docs/dify_workflow_backup/2026-10-26-initial-guard/candidate-after.json").read_text(encoding="utf-8"))
+    # The historical export intentionally keeps its original validator. Exercise
+    # routing against today's shared guard without rewriting that backup.
+    guard = next(n for n in value["nodes"] if n["id"] == module.GUARD_ID)
+    guard["data"]["code"] = module.guard_source()
+    return value
 
 
 def test_real_graph_routes_success_and_error_and_labels_both_end_reports():
@@ -98,3 +103,9 @@ def test_ambiguous_or_drifted_graph_never_silently_changes(case):
     with pytest.raises(ValueError):
         module.patch(value, **bindings)
     assert value == before
+
+
+def test_historical_guard_requires_explicit_refresh():
+    original = json.loads((ROOT / "docs/dify_workflow_backup/2026-10-26-initial-guard/candidate-after.json").read_text(encoding="utf-8"))
+    with pytest.raises(ValueError, match="shared_guard_required"):
+        module.patch(original, **BINDINGS)

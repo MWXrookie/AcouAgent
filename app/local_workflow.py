@@ -5,7 +5,6 @@ analysis decides success; model review can explain but cannot override it.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import uuid
@@ -14,10 +13,12 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from app import analysis, cache_store, dashboard, execution, llm, model_client, model_profiles
+from app.async_utils import await_thread
 
 MAX_QUERY_BYTES = 65536
 MAX_CODE_BYTES = 20000
 MAX_RETRIES = 2
+PROBLEM_KINDS = {"simulation", "analytical", "unsupported"}
 
 
 class LocalWorkflowError(RuntimeError):
@@ -70,6 +71,13 @@ def _json_object(text: str) -> dict:
     raise LocalWorkflowError("model_json_invalid")
 
 
+def _problem_kind(extracted: dict) -> str:
+    value = extracted.get("problem_kind", "simulation")
+    if not isinstance(value, str) or value not in PROBLEM_KINDS:
+        raise LocalWorkflowError("problem_kind_invalid")
+    return value
+
+
 def _knowledge() -> str:
     root = Path(__file__).resolve().parents[1] / "docs"
     parts = []
@@ -82,9 +90,14 @@ def _extraction_prompt(query: str) -> str:
     return f"""你是 jwave 0.2.1 声学仿真参数提取器。只输出一个 JSON 对象，不输出解释。
 用户需求：{query}
 输出结构：
-{{"scenario_type":"point_source_2d|plane_wave_2d|interface_2d|heterogeneous_2d|initial_pressure_2d|attenuation_2d|point_source_3d|initial_pressure_3d",
-"simulation_params":{{"完整的物理参数键":"对应值"}},
-"skill_query":{{"scenario_type":"同上","parameters":{{}}}},"description":"完整需求摘要"}}
+{{"problem_kind":"simulation|analytical|unsupported",
+"scenario_type":"simulation 时为场景枚举，否则为 null",
+"simulation_params":"simulation 时为完整参数对象，否则为 null",
+"skill_query":"simulation 时为对象或 null，否则为 null","description":"完整需求摘要"}}
+problem_kind=simulation 仅用于用户要求运行 jwave/数值仿真、给出场/波形/图像，或明确需要数值执行的问题。
+problem_kind=analytical 用于只要求解析公式、理论推导、手算或模态频率列表，且没有要求运行仿真的问题。
+problem_kind=unsupported 用于超出当前声学数值仿真范围的问题。
+problem_kind 不是 simulation 时，scenario_type、simulation_params 和 skill_query 必须为 null；不得伪造仿真参数。
 simulation_params 必须包含完整物理合同，不能只把激励信息放入 skill_query。
 驱动源需要 sound_speed、density、source_frequency、domain_N、domain_dx、t_end、cfl、pml_size。
 时域点源还必须保留用户明确的 solver_mode、medium_type、source_type、source_geometry、source_index、
@@ -340,6 +353,13 @@ async def _commentary_model(profile_id, task, prompt, run_id, extracted_response
 
 
 def _passed(result: dict | None, analyzed: dict) -> bool:
+    checks = analyzed.get("physics_checks")
+    if isinstance(checks, list):
+        for check in checks:
+            if (isinstance(check, dict)
+                    and check.get("check_id") == "parameters_complete"
+                    and check.get("passed") is not True):
+                return False
     return bool(result and result.get("exit_code") == 0 and result.get("timed_out") is False
                 and analyzed.get("verdict") == "normal"
                 and analyzed.get("quality_level") in {"Q1", "Q2", "Q3", "Q4"})
@@ -411,6 +431,8 @@ async def extract_parameters(query, profile_id, workflow_run_id):
             profile_id=profile.audit_profile_id(), model=profile.model)
         parameter_extraction_available = False
     extracted = _json_object(extracted_response["content"])
+    if frequency is None and declared is None and _problem_kind(extracted) != "simulation":
+        return extracted, extracted_response, parameter_extraction_available
     scenario, params = extracted.get("scenario_type"), extracted.get("simulation_params")
     if not isinstance(scenario, str) or not isinstance(params, dict):
         raise LocalWorkflowError("parameter_schema_invalid")
@@ -464,6 +486,15 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
             import copy
             extracted, extracted_response = copy.deepcopy(_confirmed.extracted),dict(_confirmed.audit)
             parameter_extraction_available = _confirmed.parameter_extraction_available
+        problem_kind = _problem_kind(extracted)
+        if problem_kind != "simulation":
+            yield dict(event="result", workflow_status="error", quality_level="Q0",
+                error_code="analytical_question_not_supported" if problem_kind=="analytical" else "unsupported_problem",
+                problem_kind=problem_kind, request_id=request_id, workflow_run_id=workflow_run_id,
+                skill_usage=[], orchestration_backend="local", model_profile=extracted_response["profile_id"],
+                model_parameter_extraction_available=parameter_extraction_available,
+                report="未执行 jwave：解析推导或不支持的问题不进入数值仿真合同。")
+            return
         scenario, params = extracted["scenario_type"], extracted["simulation_params"]
         params_json = json.dumps(params, ensure_ascii=False, sort_keys=True,
                                  separators=(",", ":"), allow_nan=False)
@@ -489,7 +520,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
         query_data = _skill_query(extracted)
         if query_data is not None:
             from app.skill_retrieval import generation_context
-            generation = await asyncio.to_thread(generation_context, original_context,
+            generation = await await_thread(generation_context, original_context,
                 scenario_type=query_data[0], parameters_json=query_data[1], _existing_store=True)
             notices = _skill_notices(generation.get("skill_usage", {}))
             for notice in notices:
@@ -499,14 +530,14 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
         result, direct_outcome, code = None, None, ""
         used_auto_source, learning_status = False, None
         if query_data is not None:
-            result, direct_outcome = await asyncio.to_thread(_direct_reference,
+            result, direct_outcome = await await_thread(_direct_reference,
                 generation.get("skill_usage", {}), query_data[0], query_data[1], original_context)
         if ("result_spec" in extracted and query_data is not None and result is None
                 and not (direct_outcome or {}).get("run_id") and _auto_source_enabled()):
             yield {"event": "progress", "stage": "本地编排：受控首次求解与自动学习", "request_id": request_id,
                    "workflow_run_id": workflow_run_id}
             from app.skill_auto_source import execute_source
-            direct_outcome = await asyncio.to_thread(execute_source, scenario_type=query_data[0],
+            direct_outcome = await await_thread(execute_source, scenario_type=query_data[0],
                 parameters_json=query_data[1], request_key=request_id)
             if (isinstance(direct_outcome, dict) and direct_outcome.get("source_execution_verified") is True
                     and isinstance(direct_outcome.get("analysis"), dict)):
@@ -545,7 +576,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
             if result is None:
                 yield {"event": "progress", "stage": f"本地编排：沙箱执行 {attempt + 1}/{MAX_RETRIES + 1}",
                        "request_id": request_id, "workflow_run_id": workflow_run_id}
-                result = await asyncio.to_thread(_tool_functions()["run_jwave_code"],
+                result = await await_thread(_tool_functions()["run_jwave_code"],
                                                  code, 30, "", scenario, params_json)
             # Persist the physical execution association before optional review,
             # correction or explanation can fail. This does not grant quality.
@@ -576,7 +607,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
             if pending_cache_update is not None:
                 signature, fix_hint = pending_cache_update
                 try:
-                    await asyncio.to_thread(
+                    await await_thread(
                         cache_store._update_cache, signature, fix_hint, was_successful=passed
                     )
                 except Exception:
@@ -634,7 +665,11 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
         display_image = analyzed.get("heatmap_png_base64") or analyzed.get("waveform_png_base64")
         if not report_result.get("image_base64") and display_image:
             report_result["image_base64"] = display_image
-        report = execution._build_report(report_result, first_code or code)
+        passed = _passed(result, analyzed)
+        report_status = None if passed else "❌ **验证未通过** — 执行完成，但未通过确定性验证"
+        report = execution._build_report(
+            report_result, first_code or code, status_override=report_status
+        )
         if _confirmed is not None and _confirmed.extraction_origin == 'explicit_declaration':
             report += '\n\n本次参数直接来自用户明确的完整声明，无需调用参数提取模型；确认后的参数未重新识别。'
         elif not parameter_extraction_available:
@@ -655,7 +690,7 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
         report += ("\n\n---\n\n本次本地编排模型：`" + review["profile_id"] + "` / `"
                    + review["model"] + "`。")
         yield {"event": "result", "report": report,
-               "workflow_status": "succeeded" if _passed(result, analyzed) else "error",
+               "workflow_status": "succeeded" if passed else "error",
                "request_id": request_id, "workflow_run_id": workflow_run_id,
                "skill_usage": notices, "model_profile": review["profile_id"],
                "model": review["model"], "orchestration_backend": "local",

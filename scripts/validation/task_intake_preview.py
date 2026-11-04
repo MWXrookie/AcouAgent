@@ -100,7 +100,7 @@ def main():
                 if args.manual_authoring and path.startswith('/skills/api/v1/'):
                     self.routes.append(Route(path,fn,methods=methods))
                     return fn
-                if path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or ((args.execute_room or args.execute_workflow) and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}) or ((args.skills_copy or args.general_learning) and methods == ['GET'] and (path.startswith('/skills') or path.startswith('/api/skill'))):
+                if (methods == ['GET'] and (path.startswith('/assets/') or path in {'/api/v1/agent/info','/api/v1/agent/model-profiles'})) or path in {'/', '/portal', '/health', '/api/model-profiles', '/api/task-intake', '/api/task-intake/confirm', '/api/task-intake/cancel', '/api/task-intake/status', '/skills/api'} or ((args.execute_room or args.execute_workflow) and methods == ['GET'] and path in {'/dashboard', '/dashboard/api/executions', '/dashboard/api/executions/by-run/{run_id}'}) or ((args.skills_copy or args.general_learning) and methods == ['GET'] and (path.startswith('/skills') or path.startswith('/api/skill'))):
                     self.routes.append(Route(path, fn, methods=methods))
                 return fn
             return decorate

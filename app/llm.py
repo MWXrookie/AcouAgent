@@ -1,10 +1,10 @@
 """模型无关的自动纠错：根据执行失败结果返回修正代码。"""
 
-import asyncio
 import sqlite3
 from typing import Any
 
 from app import cache_store, model_client
+from app.async_utils import await_thread
 
 
 _CACHE_LOOKUP_UNSET = object()
@@ -154,7 +154,7 @@ async def fix_code(
     error_signature = cache_store._extract_error_signature(
         result.get("stderr", ""), result.get("exit_code"), result.get("stdout", "")
     )
-    cache_hint = await asyncio.to_thread(_safe_query_cache, error_signature)
+    cache_hint = await await_thread(_safe_query_cache, error_signature)
     prompt, error_signature = _fix_prompt(
         code,
         result,

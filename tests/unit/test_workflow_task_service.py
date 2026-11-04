@@ -27,7 +27,7 @@ def test_confirmed_workflow_does_not_extract_parameters_again(monkeypatch):
         validate_simulation_params=lambda raw:dict(valid=True,errors=[]),
         run_jwave_code=lambda *a:dict(exit_code=0,timed_out=False,stdout='unit-only',stderr='',run_id='unit-only-run')))
     monkeypatch.setattr(local_workflow.analysis,'analyze_and_record',lambda *a:dict(verdict='normal',quality_level='Q2',summary='unit-only'))
-    monkeypatch.setattr(local_workflow.execution,'_build_report',lambda *a:'unit report')
+    monkeypatch.setattr(local_workflow.execution,'_build_report',lambda *a,**kw:'unit report')
     async def run():
         return [event async for event in local_workflow.workflow_events(value['source_text'],'owner','profile',_confirmed=frozen)]
     result = asyncio.run(run())[-1]

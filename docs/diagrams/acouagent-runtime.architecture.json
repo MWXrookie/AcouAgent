@@ -25,7 +25,7 @@
           "mcp_gateway",
           "simulation_pipeline"
         ],
-        "note": "房间模态经原沙箱执行并独立核对；通用任务预览保留原文来源，缺项与模型建议显式确认后冻结，检索须与实际参数一致。持久账本记录真实run，解释中断可查且不重复提交；新确认入口默认关闭。"
+        "note": "统一Agent API与兼容路由经RuntimeBus选择local、Dify或jwave_flow。参数确认守卫先于模型合并和派发，确认后冻结合同。技能检索绑定实际参数，新run经原沙箱和独立物理门核对。"
       },
       {
         "id": "quality-loop",
@@ -74,7 +74,7 @@
           "skill_bootstrap",
           "jwave_sandbox"
         ],
-        "note": "先Doctor与BYOK连接预检；可选技能扩展须显式备份三库，核对固定参考双摘要和真实运行时后准备18，再设置开关。参考不进入executor；完整安装由实际验收矩阵确认。"
+        "note": "local默认统一管理模型；Dify自行管理；jwave_flow支持两种模式。bridge通过内部SkillPort访问技能，不直连数据库；代码仍由原沙箱执行。新装先Doctor并准备独立参考。"
       }
     ]
   },
@@ -126,8 +126,8 @@
     {
       "id": "dify_workflow",
       "type": "cloud",
-      "label": "Dify 兼容工作流",
-      "sublabel": "原始声明守卫 / 69 节点",
+      "label": "可选工作流核心",
+      "sublabel": "Dify / jwave_flow bridge",
       "pos": [
         150,
         570
@@ -186,8 +186,8 @@
     {
       "id": "mcp_gateway",
       "type": "security",
-      "label": "FastMCP 网关",
-      "sublabel": "鉴权 / 技能读工具 / 执行报告",
+      "label": "Agent API / 网关",
+      "sublabel": "RuntimeBus / 核心选择 / 兼容接口",
       "pos": [
         630,
         300

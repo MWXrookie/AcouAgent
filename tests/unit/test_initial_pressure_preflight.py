@@ -68,6 +68,34 @@ def test_driven_source_still_requires_frequency(validate):
     assert not result["valid"] and result["errors"][0]["field"] == "source_frequency"
 
 
+def test_explicit_si_aliases_are_canonicalized_before_driven_source_checks(validate):
+    p = {
+        "sound_speed_m_s": 1500.,
+        "density_kg_m3": 1000.,
+        "frequency_hz": 1_000_000.,
+        "grid_shape": [64, 64],
+        "dx_m": [.0002, .0002],
+        "t_end_s": .0001,
+        "cfl": .3,
+        "pml_size": 10,
+    }
+    assert validate(json.dumps(p))["valid"]
+
+
+def test_conflicting_explicit_si_aliases_fail_closed(validate):
+    p = {
+        "sound_speed": 1500.,
+        "sound_speed_m_s": 1600.,
+        "density": 1000.,
+        "source_frequency": 1_000_000.,
+        "domain_N": [64, 64],
+        "domain_dx": [.0002, .0002],
+    }
+    result = validate(json.dumps(p))
+    assert not result["valid"]
+    assert result["errors"] == [{"field": "sound_speed", "message": "sound_speed 的别名值冲突"}]
+
+
 def test_initial_preflight_does_not_promote_failed_or_unverified_output():
     good = dict(verdict="normal", has_signal=True, max_pressure=1., rms_pressure=.5, field_shape=[64, 64])
     kwargs = dict(exit_code=0, timed_out=False, analysis=good, params_json=json.dumps(air()))
@@ -214,7 +242,7 @@ def test_fixed_reference_report_uses_analyzed_heatmap_without_mutating_history(m
         "verdict": "normal", "quality_level": "Q2", "summary": "checked", "heatmap_png_base64": "test-heatmap"})
     observed = []
     monkeypatch.setattr(local_workflow.execution, "_build_report",
-                        lambda result, code: (observed.append(result) or "report"))
+                        lambda result, code, **kwargs: (observed.append(result) or "report"))
     async def collect():
         return [e async for e in local_workflow.workflow_events("explicit: "+json.dumps(p), "session", "test")]
     assert asyncio.run(collect())[-1]["workflow_status"] == "succeeded"
