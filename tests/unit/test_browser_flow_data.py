@@ -67,7 +67,8 @@ def test_dashboard_rerun_records_own_receipt_and_analysis(monkeypatch):
     import httpx
     from starlette.applications import Starlette
     from starlette.routing import Route
-    from app import portal
+    from app import agent_api, config, portal
+    from app.runtime_bus import RUNTIME_BUS
     class Registry:
         def __init__(self): self.routes = []
         def custom_route(self, path, methods):
@@ -75,21 +76,21 @@ def test_dashboard_rerun_records_own_receipt_and_analysis(monkeypatch):
                 self.routes.append(Route(path, fn, methods=methods))
                 return fn
             return decorate
-    monkeypatch.setattr(portal.config, "PORTAL_ADMIN_TOKEN", "test-rerun-admin")
-    monkeypatch.setattr(portal, "record_admin_event", lambda *args, **kwargs: None)
-    monkeypatch.setattr(portal, "get_execution", lambda id: {"code": "import json"})
+    monkeypatch.setattr(config, "PORTAL_ADMIN_TOKEN", "test-rerun-admin")
+    monkeypatch.setattr(RUNTIME_BUS, "require_admin_record", lambda *args, **kwargs: None)
+    monkeypatch.setattr(RUNTIME_BUS, "get_execution_row", lambda id: {"code": "import json"})
     result = {"exit_code": 0, "timed_out": False, "duration_ms": 1,
               "stdout": "raw field", "stderr": "", "execution_evidence": {"matched": True}}
-    monkeypatch.setattr(portal.execution, "_execute_code", lambda *args: dict(result))
-    monkeypatch.setattr(portal.execution, "_shrink_field_in_stdout", lambda text: "shrunken")
-    monkeypatch.setattr(portal.execution, "_normalize_result_artifacts", lambda result: None)
+    monkeypatch.setattr(RUNTIME_BUS, "execute_remote", lambda *args, **kwargs: dict(result))
+    monkeypatch.setattr(RUNTIME_BUS, "shrink_field_in_stdout", lambda text: "shrunken")
+    monkeypatch.setattr(RUNTIME_BUS, "normalize_result_artifacts", lambda result: None)
     recorded, analyzed = [], []
-    monkeypatch.setattr(portal, "record_execution", lambda **kwargs: recorded.append(kwargs))
+    monkeypatch.setattr(RUNTIME_BUS, "execution_record", lambda **kwargs: recorded.append(kwargs))
     def analyze(stdout, stderr, exit_code, params, run_id):
         analyzed.append((stdout, params, run_id))
         return {"verdict": "normal", "quality_level": "Q1", "max_pressure": 1}
-    monkeypatch.setattr(portal.analysis, "analyze_and_record", analyze)
-    registry = Registry(); portal.register(registry)
+    monkeypatch.setattr(RUNTIME_BUS, "analyze_and_record", analyze)
+    registry = Registry(); agent_api.register(registry); portal.register(registry)
     async def run():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=Starlette(routes=registry.routes)),
                                      base_url="http://isolated") as client:

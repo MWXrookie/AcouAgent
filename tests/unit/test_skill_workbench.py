@@ -5,7 +5,8 @@ import httpx
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from app import config, portal, skill_library_service as service
+from app import agent_api, config, portal, skill_library_service as service
+from app.runtime_bus import RUNTIME_BUS
 
 
 class Registry:
@@ -24,20 +25,20 @@ def test_dashboard_api_adds_only_server_verified_skill_version_link(monkeypatch)
     skill_id="22222222-2222-4222-8222-222222222222"
     row={"id":1,"run_id":run_id,"timed_out":False,"code":"pass"}
     monkeypatch.setattr(config,"SKILL_LIBRARY_ENABLED",True)
-    monkeypatch.setattr(portal,"get_executions",lambda **kwargs:[dict(row)])
-    monkeypatch.setattr(portal,"get_latest_analysis_by_run_ids",lambda ids, **kwargs:{run_id:{
+    monkeypatch.setattr(RUNTIME_BUS,"dashboard_executions",lambda **kwargs:[dict(row)])
+    monkeypatch.setattr(RUNTIME_BUS,"get_latest_analysis_by_run_ids",lambda ids, **kwargs:{run_id:{
         "run_id":run_id,"verdict":"normal","max_pressure":1.0,"rms_pressure":0.2,
         "field_shape":[64,64],"has_signal":True,"summary":"finite field"}})
-    monkeypatch.setattr(portal,"get_analysis_updates",lambda **kwargs:[{
+    monkeypatch.setattr(RUNTIME_BUS,"dashboard_analysis_updates",lambda **kwargs:[{
         "analysis_id":7,"run_id":run_id,"verdict":"normal","max_pressure":1.0,
         "rms_pressure":0.2,"field_shape":[64,64],"has_signal":True,
         "summary":"finite field"}])
-    monkeypatch.setattr(portal,"get_stats",lambda:{"total":1})
+    monkeypatch.setattr(RUNTIME_BUS,"dashboard_stats",lambda:{"total":1})
     monkeypatch.setattr(service.STORE,"read_execution_links",lambda ids:{run_id:{
         "skill_id":skill_id,"version":3,"stage":"recipe_execution_verified",
         "execution_reuse_verified":True,"actual_use_authenticated":False,
         "model_adoption_authenticated":False}})
-    registry=Registry();portal.register(registry);app=Starlette(routes=registry.routes)
+    registry=Registry();agent_api.register(registry);portal.register(registry);app=Starlette(routes=registry.routes)
     async def run():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url="http://isolated") as client:
             response=await client.get("/dashboard/api/executions")

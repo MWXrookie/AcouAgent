@@ -103,9 +103,13 @@ MODEL_PROFILES_JSON={"cloud-a":{"label":"Cloud A","provider":"openai-compatible"
 
 费用默认记录为 `0`，含义是未知。部署者可以按所用货币配置每百万 token 单价：`MODEL_PRICE_INPUT`、`MODEL_PRICE_INPUT_CACHE`、`MODEL_PRICE_OUTPUT`。
 
-## Dify 兼容模式
+## 核心模型配置所有权
 
-完整 BYOK 只作用于 `ORCHESTRATION_BACKEND=local`。`dify` 模式保留给既有部署，其中模型由 Dify 工作流自行管理。
+- `local` 固定使用 `model_config_mode=managed`，支持统一 profile、BYOK 和预检。
+- `jwave_flow` 默认 `managed`，可由部署者设置 `MODEL_CONFIG_MODE=self` 改用 bridge 固定模型环境；两种模式不会同时接管模型。
+- `dify` 固定 `self`，模型由 Dify 工作流自行管理，门户模型设置不可用。
+
+HTTP API 在 `/api/v1/agent/info` 的 capabilities 中发布 `model_config_mode`。managed 模式下，多轮需求合并、审查和解释与核心模型选择使用同一个网关 profile；self 模式下不调用网关模型做需求合并，改为确定性文本拼接。
 
 ## 审计边界
 

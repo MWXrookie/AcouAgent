@@ -156,6 +156,9 @@ def test_verified_execution_is_linked_to_exact_skill_version_for_workbench(ready
     assert link=={"skill_id":admitted["skill_id"],"version":1,
         "stage":"recipe_execution_verified","execution_reuse_verified":True,
         "actual_use_authenticated":False,"model_adoption_authenticated":False}
+    organization = store.list_metadata()['organization']
+    assert organization['case_count'] == organization['version_count'] == 1
+    assert organization['reexecution_count'] == 1 and organization['trust_verified'] is False
     assert store.read_execution_links(["missing-run"])=={}
     with pytest.raises(ValueError):store.read_execution_links(["x"]*501)
 
@@ -165,3 +168,4 @@ def test_failed_execution_is_not_exposed_as_verified_workbench_evidence(ready,mo
     result=runner.execute_reference(**args())
     assert result["recorded"] and not result["execution_reuse_verified"]
     assert store.read_execution_links([result["run_id"]])=={}
+    assert store.list_metadata()['organization']['reexecution_count'] == 0

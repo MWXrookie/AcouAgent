@@ -1,2 +1,5 @@
 -r requirements.lock.txt
 pytest==9.1.0
+
+# Exercise optional jwave_flow core in the full regression image.
+-r deploy/jwave-flow-core.requirements.txt

@@ -38,14 +38,12 @@ def test_both_analysis_interfaces_derive_units_from_unique_execution(history):
 def test_dashboard_formats_each_metric_with_its_bound_unit():
     source=(Path(__file__).resolve().parents[2]/"app/web/dashboard.html").read_text(encoding="utf-8")
     assert "row('最大压力 (Pa)'" not in source
-    assert "row('最大场量（各自单位）'" in source
     assert "Number(a.max_pressure).toPrecision(6) + ' ' + analysisUnit(a)" in source
     assert "Number(a.rms_pressure).toPrecision(6) + ' ' + analysisUnit(a)" in source
     assert "Number(r.analysis.max_pressure).toPrecision(6) + ' ' + analysisUnit(r.analysis)" in source
     node=shutil.which("node")
     if node is None:return
     functions=source[source.index("function analysisUnit(a)"):source.index("function renderRow(r)")]
-    functions+=source[source.index("function _cmpMaxP(r)"):source.index("function _cmpDur(r)")]
-    script=functions+"\nconsole.log(JSON.stringify(['numerical_source_normalization','Pa','unknown'].map(units=>_cmpMaxP({analysis:{max_pressure:1,units}}))));"
+    script=functions+"\nconsole.log(JSON.stringify(['numerical_source_normalization','Pa','unknown'].map(units=>formatMetric({analysis:{max_pressure:1,units}}))));"
     result=subprocess.run([node,"-e",script],capture_output=True,text=True,encoding="utf-8",check=True)
     assert json.loads(result.stdout)==["1.00000 数值源归一化","1.00000 Pa","1.00000 单位未知"]

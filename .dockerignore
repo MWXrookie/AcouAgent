@@ -1,4 +1,5 @@
 __pycache__/
+**/__pycache__/
 *.pyc
 *.log
 executor/jwave-env.tar.gz
@@ -9,5 +10,7 @@ auxiliary/
 host_observer/
 tests/
 .pytest_cache/
-deploy/
+deploy/*
+!deploy/jwave-flow-core.Dockerfile
+!deploy/jwave-flow-core.requirements.txt
 docs/dify_workflow_backup/*.local.json

@@ -16,6 +16,17 @@ def evaluate(params=None, **overrides):
 def test_valid_is_only_candidate():
     assert evaluate() == "Q2"
 
+
+def test_explicit_si_parameters_are_canonicalized_before_quality_gate():
+    params = json.dumps({
+        "sound_speed_m_s": 1500,
+        "source_frequency_hz": 100000,
+        "grid_shape": [64, 64],
+        "dx_m": 0.00025,
+        "pml_size": 10,
+    })
+    assert evaluate(params) == "Q2"
+
 @pytest.mark.parametrize("overrides", [
     dict(exit_code=False), dict(exit_code="0"), dict(timed_out=0), dict(analysis=[]),
     dict(analysis=dict(verdict="normal", max_pressure=True, rms_pressure=0.5,

@@ -38,3 +38,5 @@ htmlcov/
 /docs/diagrams/*.visual-check.*
 /docs/desktop/*.visual-check.*
 /docs/desktop/*.delivery.json
+
+.vscode/

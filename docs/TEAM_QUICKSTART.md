@@ -72,3 +72,10 @@ docker exec dify-mcp python -m scripts.skill_library.local_basic status-all
 GitHub 地址为 `https://github.com/MWXrookie/AcouAgent`。已有克隆可继续在原目录更新，
 并按上方命令修改 origin；不要为了改目录名而移动或重建持久数据卷。
 镜像、Docker 服务名、容器名及内部兼容标识继续使用原值，避免影响已有部署。
+
+
+## 参数核对与房间模态（可选）
+
+本轮新增入口在基础安装中默认关闭。需要时，在已有`.env`中设置`ORCHESTRATION_BACKEND=local`、`TASK_CONFIRMATION_ENABLED=true`、`ROOM_MODAL_ENABLED=true`，再运行`docker compose up -d --no-deps --force-recreate dify-mcp`。模态求解独立核对频率，不自动接纳为Helmholtz技能。通用确认首批覆盖完整初压、完整频域合同和均匀二维时域点源；缺项会阻断，不承诺任意场景。
+
+自动学习仍按上方启用指南准备参考和扩展，不因开启参数确认就自动开启。更新后的具体效果见[本轮图文测评](validation/skill-usability/OPTIMIZATION_REPORT.md)。

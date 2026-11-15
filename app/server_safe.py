@@ -12,9 +12,10 @@
 入口保持 `python /app/server_safe.py`（Dockerfile APP_FILE 不变）。
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 try:
     from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
@@ -22,8 +23,11 @@ except ImportError:
     from fastmcp.server.auth import StaticTokenVerifier
 
 from app import config
+from app.async_utils import await_thread
 from app.analysis import register as register_analysis
+from app.agent_api import register as register_agent_api
 from app.dashboard import init_db
+from app.jwave_skill_port import register as register_jwave_skill_port
 from app.portal import register as register_portal
 from app.tools import register as register_tools
 
@@ -43,18 +47,35 @@ async def _learning_lifespan(_server):
         yield {}
     finally:
         if worker is not None:
-            await asyncio.to_thread(worker.stop)
+            await await_thread(worker.stop)
         if manual_worker is not None:
-            await asyncio.to_thread(manual_worker.stop)
+            await await_thread(manual_worker.stop)
 
 
 mcp = FastMCP("Dify JWave Tools", auth=auth, lifespan=_learning_lifespan)
 
 register_tools(mcp)
+
 register_portal(mcp)
 register_analysis(mcp)
+register_jwave_skill_port(mcp)
 
 
 if __name__ == "__main__":
     init_db()
-    mcp.run(transport="http", host="0.0.0.0", port=8001, path="/mcp", stateless_http=True)
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=8001,
+        path="/mcp",
+        stateless_http=True,
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=list(config.PORTAL_ALLOWED_ORIGINS),
+                allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+                allow_headers=["Accept", "Content-Type"],
+                allow_credentials=False,
+            )
+        ],
+    )

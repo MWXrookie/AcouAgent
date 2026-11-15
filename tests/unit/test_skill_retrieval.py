@@ -69,6 +69,43 @@ def test_missing_database_and_bad_injection_request_fall_back(store,monkeypatch)
     assert not store.path.exists()
 
 
+def test_guidance_returns_bounded_metadata_without_code(store, monkeypatch):
+    skill = bounded_candidate(store, preconditions={
+        "dimensions": 2,
+        "frequency_hz": [400000, 600000],
+        "dx_m": [0.0002, 0.0003],
+    })
+    with sqlite3.connect(store.path) as db:
+        db.execute(
+            "UPDATE simulation_skills SET status='active',quality_level='Q3' WHERE skill_id=?",
+            (skill,),
+        )
+    monkeypatch.setattr(config, "SKILL_RETRIEVAL_ENABLED", True)
+    monkeypatch.setattr(config, "SKILL_INJECTION_ENABLED", True)
+    result = retrieval.guidance_context("plane_wave_2d", PARAMS)
+    assert result["available"] is True
+    assert result["skills"][0]["skill_id"] == skill
+    assert result["skills"][0]["constraints"]["frequency_hz"] == [400000, 600000]
+    assert "code_template" not in result["context"]
+    assert "print('bounded')" not in result["context"]
+
+
+def test_guidance_rejects_exact_hash_and_conflicting_parameters(store, monkeypatch):
+    skill = bounded_candidate(store)
+    with sqlite3.connect(store.path) as db:
+        db.execute(
+            "UPDATE simulation_skills SET preconditions=? WHERE skill_id=?",
+            (json.dumps({"dimensions": 2, "parameters_sha256": "a" * 64}), skill),
+        )
+        db.execute(
+            "UPDATE simulation_skills SET status='active',quality_level='Q4' WHERE skill_id=?",
+            (skill,),
+        )
+    monkeypatch.setattr(config, "SKILL_RETRIEVAL_ENABLED", True)
+    monkeypatch.setattr(config, "SKILL_INJECTION_ENABLED", True)
+    assert retrieval.guidance_context("plane_wave_2d", PARAMS)["available"] is False
+
+
 @pytest.mark.parametrize("status,grade,archived",[
     ("candidate","Q2",0),("questioned","Q4",0),("retired","Q4",0),
     ("active","Q2",0),("active","Q4",1)])

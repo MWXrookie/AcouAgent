@@ -356,6 +356,17 @@ def register(mcp) -> None:
             }
 
         from app.initial_pressure_validation import is_initial, validate_initial
+        from app.parameter_contract import canonicalize_parameters
+        params, alias_conflicts = canonicalize_parameters(params)
+        if alias_conflicts:
+            return {
+                "valid": False,
+                "errors": [
+                    {"field": field, "message": f"{field} 的别名值冲突"}
+                    for field in alias_conflicts
+                ],
+                "warnings": [],
+            }
         if is_initial(params):
             return validate_initial(params)
 

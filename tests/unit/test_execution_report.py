@@ -47,3 +47,11 @@ def test_sensor_json_is_hidden_and_canonical_heatmap_wins() -> None:
     report = _build_report(result, "print('ok')")
     assert "传感器时域数据已用于曲线生成" in report
     assert '"pressure": [0, 1]' not in report
+
+def test_confirmed_time_and_frequency_reports_describe_available_contract():
+    base=dict(exit_code=0,timed_out=False,duration_ms=1,total_attempts=1,stdout='',stderr='')
+    time=_build_report(dict(base,display_kind='confirmed_time_field'),'pass')
+    frequency=_build_report(dict(base,display_kind='frequency_field'),'pass')
+    assert '是否通过验证及其等级' in time and '是否通过验证及其等级' in frequency
+    assert '时间轴/参数不足' not in time and '时间轴/参数不足' not in frequency
+    assert '频域求解' in frequency and '已确认' in time

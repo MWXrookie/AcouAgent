@@ -73,6 +73,29 @@ def counts(env):
                              'skill_validation_attempts', 'simulation_skills', 'skill_validation_admissions')}
 
 
+def test_jwave_flow_queue_source_is_lazy_and_idempotent(env):
+    query = canonical({
+        'normalizer_version': 'normalizer_v2',
+        'parameters': env['spec']['parameters'],
+        'result_spec': env['spec']['result_spec'],
+    })
+    first = source.queue_source(
+        scenario_type=env['spec']['scenario_type'],
+        parameters_json=query,
+        request_key='jwave_flow:request-1',
+    )
+    assert first['queued'] is True
+    assert first['job_id']
+    assert env['value']['calls'] == []
+    second = source.queue_source(
+        scenario_type=env['spec']['scenario_type'],
+        parameters_json=query,
+        request_key='jwave_flow:request-1',
+    )
+    assert second['job_id'] == first['job_id']
+    assert env['value']['calls'] == []
+
+
 def finish_source(env, key='source'):
     queued = source.start_source(env['spec'], request_key=key, library=env['library'])
     jobs = source._SourceJobs(env['library'], queued['job_id'])

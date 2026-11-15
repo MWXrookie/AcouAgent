@@ -10,6 +10,8 @@
 
 自然语言声学仿真服务：服务内本地编排器或可选 Dify 兼容工作流负责参数提取和代码生成，FastMCP 网关调用 jwave 沙箱执行，SQLite 保存执行历史、模型调用审计与可复用技能。技能检索发生在参数提取之后、代码生成之前；缺少合格技能或证据时回退原上下文。
 
+本地编排在提取后先将请求区分为 `simulation`、`analytical` 或 `unsupported`。纯公式推导、理论手算等解析请求不进入 jwave 参数合同或 executor，而是返回明确的非仿真业务错误；只有 `simulation` 才校验数值参数。共享校验器会确定性归一化 `sound_speed_m_s`、`density_kg_m3`、`grid_shape`、`dx_m`、`frequency_hz` 等显式 SI 别名，别名冲突直接拒绝，不会猜测或补齐缺失值。
+
 ## 当前可用范围
 
 截至 2026-10-12，本机固定技能目录支持 17 项**精确配置**：
@@ -49,6 +51,14 @@
 `http://127.0.0.1:8001/portal`。首次使用需要已启动的 Docker Compose 和自己的模型 API Key。
 
 基础栈只需要 Docker Compose，不要求已有 Dify：
+
+前后端通用接口的机器契约见 [Agent API v1](openapi.agent.v1.json)，后端接入与事件规则见 [后端接口文档](API_BACKEND.md)，静态前端接入见 [前端接口文档](API_FRONTEND.md)。独立前端跨域部署时，在 `.env` 中设置逗号分隔的精确 origin 白名单：
+
+```dotenv
+PORTAL_ALLOWED_ORIGINS=https://frontend.example
+```
+
+默认空值只允许同源；不要使用通配符。静态前端通过 `/api/v1/agent` 的 meta 配置访问后端，不直接依赖旧 `/chat` 路径。
 
 Linux / WSL（预构建镜像面向 linux/amd64）：
 
@@ -129,6 +139,31 @@ docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 
 通过 `DIFY_NETWORK_NAME` 与 `DIFY_BASE_URL` 指向现有 Dify，并把 `ORCHESTRATION_BACKEND=dify`。此模式中门户 profile 只负责多轮需求合并，Dify 内部模型仍由 Dify 配置。
 
+若要把已迁移到 `cores/jwave_flow/` 的 LangGraph 智能体逻辑作为聊天后端，使用
+受限 bridge overlay。它只复制工作流模块和只读知识库，不复制普通 Web 前端、
+TUI、历史、记忆、会话存储或知识库管理能力：
+
+```bash
+cat >> .env <<'EOF'
+JWAVE_FLOW_BRIDGE_TOKEN=<至少 32 字节的独立随机值>
+MODEL_CONFIG_MODE=managed
+EOF
+docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
+```
+
+`MODEL_CONFIG_MODE=managed` 时，jwave_flow 使用当前网关的模型 profile；只有
+`self` 模式才使用 bridge 自己的固定模型环境（额外设置 `JWAVE_FLOW_MODEL`、
+`JWAVE_FLOW_API_KEY` 和可选的 `JWAVE_FLOW_OPENAI_BASE_URL`）。Dify 始终是 `self`。模型、知识库路径
+和上游 URL 只在对应模式启动时确定；bridge 不暴露知识库、历史、记忆或会话管理接口。
+工作流生成的代码仍提交本项目 `jwave-executor`。`managed` 模式使用统一模型
+profile/BYOK，`self` 模式不使用。jwave_flow 默认使用 `full` 新流程；可设置
+`JWAVE_FLOW_SKILL_MODE=reference|full`，并提供 `JWAVE_FLOW_SKILL_PORT_TOKEN`
+（为空时回退使用 bridge token）。新流程通过网关内部 SkillPort 做精确固定参考
+复用或同场景受控约束注入，bridge 本身仍不能访问技能数据库。接口、健康校验和
+失败边界见；报告复用 local 的 Markdown 构造器，并明确展示确定性状态和
+完成度评审状态。详见
+[Agent Backend API v1](API_BACKEND.md#jwave_flow-受限核心)。
+
 ## 页面与工具
 
 默认门户：`http://127.0.0.1:8001/portal`（绑定地址按 `DIFY_MCP_BIND_IP` 配置）。
@@ -136,6 +171,12 @@ docker compose -f compose.yaml -f deploy/compose.dify.yaml up -d --build
 | 路由 | 功能 |
 | --- | --- |
 | `/`、`/portal`、`/chat` | 自然语言多轮仿真，侧栏包含技能库入口 |
+| `/api/v1/agent/info` | 后端身份、API 版本与能力矩阵 |
+| `/api/v1/agent/chat` | 可替换前端的 canonical 聊天接口；支持 NDJSON 流式响应 |
+| `/api/v1/agent/model-profiles` | canonical 模型 profile 查询 |
+| `/api/v1/agent/model-sessions` | canonical 临时 BYOK 会话管理 |
+| `/api/v1/agent/model-profiles/{profile_id}/test` | canonical 模型连接预检 |
+| `/api/v1/chat`、`/chat`、`/api/model-profiles`、`/api/byok/session`、`/api/model-profiles/test` | 旧接口兼容别名，带 `Deprecation` 与 successor `Link` |
 | `/skills` | 技能列表、适用参数、版本、证据与反馈 |
 | `/dashboard` | 执行历史、代码与报告 |
 | `/cache` | 纠错经验缓存 |

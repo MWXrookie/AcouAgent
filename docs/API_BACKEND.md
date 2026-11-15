@@ -1,0 +1,332 @@
+# Agent Backend API v1
+
+本文档定义 AcouAgent 前后端之间的通用后端接口。浏览器或独立前端只需依赖本契约，不需要知道本地编排、Dify、executor、SQLite 或技能库的实现细节。
+
+## 1. 边界与能力
+
+Canonical namespace：
+
+```text
+/api/v1/agent/*
+```
+
+旧路径 `/chat`、`/api/v1/chat`、`/api/model-profiles`、`/api/byok/session` 和 `/api/model-profiles/test` 仍保留，用于渐进弃用。旧路径继续返回历史裸响应形状，并带：
+
+```text
+Deprecation: true
+Link: </api/v1/agent/...>; rel="successor-version"
+```
+
+后端能力由 `GET /api/v1/agent/info` 发布：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "api_version": "v1",
+    "backend_id": "local",
+    "backend_label": "本地编排",
+    "capabilities": {
+      "chat": true,
+      "streaming": true,
+      "model_profiles": true,
+      "byok": true,
+      "model_preflight": true,
+      "skill_usage": true,
+      "model_config_mode": "managed"
+    }
+  }
+}
+```
+
+- `local` 支持聊天、模型 profile、BYOK 和连接预检。
+- `dify` 支持聊天、流式事件和技能提示；模型由 Dify 管理，因此 `model_profiles`、`byok`、`model_preflight` 为 `false`。
+- `jwave_flow` 默认使用统一模型配置（`model_config_mode=managed`）；设置 `MODEL_CONFIG_MODE=self` 后改用 bridge 固定模型配置，并关闭 profile/BYOK/preflight 能力。`skill_usage` 在 bridge 声明 SkillPort 能力时为 true。
+- `model_config_mode=managed` 表示核心消费网关模型 profile；`self` 表示核心在自身边界内管理模型，前端不得把门户凭据注入该核心。
+- 不具备某项能力时返回 HTTP `501` 和 `capability_not_supported`。
+- 未知或不可启动的后端返回 HTTP `503` 和 `backend_unavailable`。
+
+## 2. Chat API
+
+### 请求
+
+`POST /api/v1/agent/chat`
+
+```json
+{
+  "message": "仿真 2 MHz 点声源",
+  "requirement": "上一轮完整需求",
+  "session_id": "s1",
+  "model_profile": "byok-xxx",
+  "stream": true
+}
+```
+
+字段约束：
+
+| 字段 | 约束 |
+|---|---|
+| `message` | 非空字符串，最多 65536 UTF-8 字节 |
+| `requirement` | 字符串，最多 65536 UTF-8 字节 |
+| `session_id` | 字符串，服务端最多保留 24 个字符 |
+| `model_profile` | 可省略，最多 64 个字符 |
+| `stream` | 严格布尔值；只有 `true` 才启用 NDJSON |
+| 请求体 | 最多 128 KiB |
+
+### 非流式响应
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event": "result",
+    "report": "报告文本",
+    "workflow_status": "succeeded",
+    "request_id": "uuid",
+    "workflow_run_id": "uuid",
+    "skill_usage": [],
+    "orchestration_backend": "local"
+  }
+}
+```
+
+请求合法但工作流失败仍返回 HTTP `200`，由 `data.workflow_status="error"` 表示。协议错误、认证/后端不可用等使用 HTTP 错误码。
+
+### 流式响应
+
+响应类型：`application/x-ndjson`。每行一个事件，不包在 v1 envelope 中。
+
+```json
+{"event":"progress","stage":"本地编排：生成代码","request_id":"uuid","workflow_run_id":"uuid"}
+{"event":"skill_usage","skill_usage":{"message":"已使用验证技能","skill_id":"...","version":1},"request_id":"uuid"}
+{"event":"result","report":"报告文本","workflow_status":"succeeded","request_id":"uuid","workflow_run_id":"uuid","skill_usage":[],"orchestration_backend":"local"}
+```
+
+事件顺序约束：
+
+1. `progress` 可出现 0 到多次。
+2. `skill_usage` 可出现 0 到多次。
+3. `result` 必须出现且只能出现一次，并且是最后一行。
+
+适配层负责把 Dify 的 `outputs.text` 归一化为 `report`；新前端不应依赖内部 `outputs`。
+
+### jwave_flow 受限核心
+
+`ORCHESTRATION_BACKEND=jwave_flow` 时，`JwaveFlowCoreAdapter` 只连接本项目的
+受限 bridge。核心代码已经迁移到本仓库 `cores/jwave_flow/`，不存在跨项目构建
+路径。构建和启动：
+
+```bash
+ORCHESTRATION_BACKEND=jwave_flow
+JWAVE_FLOW_BRIDGE_TOKEN=<至少 32 字节的独立随机值>
+JWAVE_FLOW_SKILL_MODE=full
+JWAVE_FLOW_SKILL_PORT_URL=http://dify-mcp:8001/internal/jwave-flow/skills
+JWAVE_FLOW_SKILL_PORT_TOKEN=<可留空，留空时复用 JWAVE_FLOW_BRIDGE_TOKEN>
+JWAVE_FLOW_SKILL_TIMEOUT_SECONDS=2
+MODEL_CONFIG_MODE=managed
+docker compose -f compose.yaml -f deploy/compose.jwave-flow.yaml up -d --build
+```
+
+`MODEL_CONFIG_MODE=managed` 时，门户模型 profile/BYOK 会解析为一次请求级模型配置并传入受限
+bridge，不写入 bridge 环境或持久存储；`MODEL_CONFIG_MODE=self` 时才要求
+`JWAVE_FLOW_MODEL` 与 `JWAVE_FLOW_API_KEY`（以及可选的
+`JWAVE_FLOW_OPENAI_BASE_URL`），模型只在 bridge 进程启动时确定。
+
+Bridge 的公开接口只有：
+
+```text
+GET  /health
+POST /v1/run   {"query": "本轮完整需求", "model_config": {...}}  # managed
+POST /v1/run   {"query": "本轮完整需求"}                         # self
+```
+
+Bridge 镜像只复制 `cores/jwave_flow/` 中的智能体工作流模块和只读知识库，不复制
+普通前端、TUI、历史、记忆、会话存储、配置编辑器或知识库管理页面。
+固定模型、KB 路径和 executor 地址只在进程启动时从专用环境变量读取；运行中
+没有切换模型、修改知识库或增加新会话的接口。
+
+边界说明：
+
+- jwave_flow 保留需求分析、检索、参数检查、代码生成、静态检查、语义检查、
+  完成度评审和纠错这些智能体节点；执行代码送到本项目现有 `jwave-executor`，
+  不启动 jwave_flow 本地 subprocess 执行器。
+- `JWAVE_FLOW_SKILL_MODE=reference` 只复用精确 Q3/Q4 固定参考；默认
+  `full` 还允许同场景 Q3/Q4 的白名单参数范围作为生成约束。
+- 技能库权威和实际固定参考执行留在网关；bridge 只调用受独立 token 保护的内部
+  SkillPort，不挂载技能数据库。`skill_usage` 会区分参考复用、约束注入和回退，
+  只有产生新 run 并由服务端独立核验后才返回 `execution_reuse_verified=true`。
+- 生成路径成功且现有学习开关全部开启时，服务端只排队既有 Q2 自动学习流程；
+  不会由 bridge 自报结果直接授予 Q3/Q4。
+- 输出报告复用 local 的执行报告构造器，包含执行状态、耗时/尝试次数、程序输出、
+  错误/警告、图像、确定性物理门、技能模式、模型审查和物理解读。完成度评审
+  仍按其原有规则执行，报告只更清晰地展示通过、未通过和缺失项。
+- `managed` 模式接受请求中的 `model_profile`，由网关解析并校验 endpoint、凭据和
+  BYOK 有效期；`self` 模式忽略/拒绝网关 profile，不把凭据转发给 bridge。
+- `JWAVE_FLOW_BASE_URL` 必须是精确的 http(s) URL，且健康响应必须声明
+  `service=jwave-flow-agent-bridge`、`api_version=v1`、匹配的
+  `model_config_mode` 和对应 `model_configuration` 能力；不符合即拒绝执行。
+- 事件大小、单事件解析和总执行期限分别受
+  `JWAVE_FLOW_MAX_EVENT_BYTES`、`JWAVE_FLOW_READ_TIMEOUT_SECONDS` 和
+  `JWAVE_FLOW_DEADLINE_SECONDS` 限制。超时、HTTP 错误或事件流非法只返回脱敏
+  terminal error，不转发 traceback、模型凭据或内部管理数据。
+
+## 3. 模型管理
+
+### 公开 profile
+
+`GET /api/v1/agent/model-profiles`
+
+```json
+{
+  "ok": true,
+  "data": {
+    "default_profile": "fast",
+    "byok": {
+      "enabled": true,
+      "session_ttl_seconds": 43200,
+      "private_endpoints_allowed": false
+    },
+    "profiles": [
+      {
+        "id": "fast",
+        "label": "Fast",
+        "provider": "openai-compatible",
+        "model": "example-model",
+        "configured": true,
+        "tasks": ["parameter_extraction"],
+        "capabilities": ["chat", "json", "code"]
+      }
+    ]
+  }
+}
+```
+
+该接口不返回 API Key、环境变量值或可重放密钥。
+
+### 创建 BYOK 会话
+
+`POST /api/v1/agent/model-sessions`
+
+```json
+{
+  "label": "我的模型",
+  "base_url": "https://models.example.com/v1",
+  "model": "model-id",
+  "api_key": "secret"
+}
+```
+
+返回：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "profile_id": "byok-opaque-handle",
+    "label": "我的模型",
+    "model": "model-id",
+    "expires_in_seconds": 43200
+  }
+}
+```
+
+密钥只保存在当前网关进程内存中；浏览器只保存不透明 `profile_id`。
+
+### 预检与撤销
+
+```text
+POST   /api/v1/agent/model-profiles/{profile_id}/test
+DELETE /api/v1/agent/model-sessions/{profile_id}
+```
+
+预检执行有界模型连接检查，不执行模型返回的代码。撤销不存在的临时会话返回 HTTP `404` 和 `model_session_not_found`。
+
+## 4. 错误契约
+
+v1 错误响应：
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_request",
+    "message": "message is required",
+    "request_id": "uuid"
+  }
+}
+```
+
+常用状态码：
+
+| HTTP | code | 场景 |
+|---|---|---|
+| 400 | `invalid_request` | JSON、字段或模型 profile 无效 |
+| 413 | `request_too_large` | 请求体超过限制 |
+| 404 | `model_session_not_found` | 临时模型会话不存在 |
+| 501 | `capability_not_supported` | 当前后端不支持该能力 |
+| 502 | `workflow_incomplete` / `model_backend_error` | 后端工作流或模型连接失败 |
+| 503 | `backend_unavailable` | 后端未注册或不可用 |
+
+错误信息不得包含模型密钥、完整模型响应、执行器内部凭据或 traceback。
+
+## 5. 前端访问与 CORS
+
+默认同源。独立前端通过页面 meta 或客户端构造参数指定 API base：
+
+```html
+<meta name="acouagent-api-base" content="https://agent.example/api/v1/agent">
+```
+
+跨域来源必须在 `PORTAL_ALLOWED_ORIGINS` 中显式列出，逗号分隔，不能使用通配符：
+
+```dotenv
+PORTAL_ALLOWED_ORIGINS=https://frontend.example
+```
+
+服务端只允许 `GET`、`POST`、`DELETE`、`OPTIONS` 和 `Accept`、`Content-Type` 请求头，不使用 cookie credentials。默认空值表示仅同源。
+
+本次不新增用户登录体系，部署者继续通过网络边界、CORS 白名单和现有管理员令牌保护服务。
+
+## 6. 新后端接入
+
+1. 实现 `CoreBackend`：
+   - `info() -> BackendInfo`
+   - `events(ChatRequest) -> AsyncIterator[WorkflowEvent]`
+2. 在适配器注册表中登记后端 ID，并让 `ORCHESTRATION_BACKEND` 选择它。
+3. 只返回允许的 `progress`、`skill_usage`、`result` 事件；`result` 必须是 terminal event。
+4. 明确声明 `model_config_mode`：核心使用网关统一 profile/BYOK 时为 `managed`；核心自行管理模型时为 `self`。不要在 self 模式声明模型管理能力。
+5. 运行 `tests/unit/test_agent_contracts.py`、`test_agent_api.py` 和全量回归。
+6. 前端通过 `GET /info` 自动降级，不需要为每个后端维护分支。
+
+知识库、技能库和看板维护接口不在此 canonical namespace 内，现有 `/skills/api`、`/skills/api/v1` 和 `/dashboard/api/*` 保持不变。
+
+## 7. 全流程图
+
+```mermaid
+flowchart TD
+  U[用户] --> FE[静态 Chat UI / chat.js]
+  FE --> C[agent-client.js]
+  C --> INFO[GET /api/v1/agent/info]
+  C --> CHAT[POST /api/v1/agent/chat]
+  CHAT --> VAL[请求大小 / ChatRequest / 能力校验]
+  VAL --> BUS[RuntimeBus]
+  BUS --> B{ORCHESTRATION_BACKEND}
+  B -->|local| L[LocalCoreAdapter]
+  B -->|dify| D[DifyCoreAdapter]
+  L --> M[模型 profile / BYOK 预检]
+  L --> K[技能与知识库检索]
+  K --> G[代码生成 / 参数合同]
+  G --> X[jwave executor]
+  X --> A[分析 / 确定性物理门]
+  A --> R[审查与解释]
+  R --> E[progress / skill_usage / result]
+  D --> DS[Dify 工作流 SSE]
+  DS --> E
+  E --> C
+  C --> FE
+  FE --> S[技能 / 知识库维护 API]
+  S --> K
+  FE --> H[执行看板 API]
+  H --> X
+  OLD[/chat / API aliases/] -. deprecated .-> BUS
+```

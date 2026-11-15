@@ -87,6 +87,12 @@ def assess_quality(
     checks.append(_check("parameters_supplied", params_ok, "structured simulation parameters were supplied"))
     if params_ok:
         from app.initial_pressure_validation import is_initial, validate_initial
+        from app.parameter_contract import canonicalize_parameters
+        params, alias_conflicts = canonicalize_parameters(params)
+        if alias_conflicts:
+            checks.append(_check("parameter_aliases", False, "canonical parameter aliases conflict"))
+            return {"quality_level": level, "physics_checks": checks}
+        checks.append(_check("parameter_aliases", True, "explicit-SI and legacy aliases are canonicalized"))
         if is_initial(params):
             validation = validate_initial(params)
             field_matches = params.get("domain_N", params.get("grid_shape")) == shape
