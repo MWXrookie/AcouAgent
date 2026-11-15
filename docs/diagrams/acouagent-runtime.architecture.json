@@ -48,7 +48,7 @@
           "simulation_pipeline",
           "jwave_sandbox"
         ],
-        "note": "固定平面波只保留物理门需要的 352×320 网格、24µs 和双探针窗口；executor 仍固定 2 线程并受 2 CPU、30 秒墙钟和累计 CPU 限额约束。PID 1 回收后代树；只读、降权、无外网不变。"
+        "note": "桌面按实际CPU集合限制至多两核；执行器保留2 CPU、30秒墙钟、累计CPU及PID/内存限额。只读、降权、无外网，PID 1回收后代进程。"
       },
       {
         "id": "skill-workbench",
@@ -74,7 +74,7 @@
           "skill_bootstrap",
           "jwave_sandbox"
         ],
-        "note": "local默认统一管理模型；Dify自行管理；jwave_flow支持两种模式。bridge通过内部SkillPort访问技能，不直连数据库；代码仍由原沙箱执行。新装先Doctor并准备独立参考。"
+        "note": "local统一管理模型，Dify自行管理，jwave_flow两种模式。17技能实际自举；桌面备份后准备schema18，固定参考双重校验。恢复先验新卷，保留原卷；手动和学习开关分离。"
       }
     ]
   },

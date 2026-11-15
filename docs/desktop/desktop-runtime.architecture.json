@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AcouAgent Windows桌面候选架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1260,
+      680
+    ],
+    "output": "docs/desktop/desktop-runtime.architecture.html",
+    "legend": {
+      "mode": "hidden"
+    },
+    "views": [
+      {
+        "id": "desktop-start",
+        "label": "启动与数据保护",
+        "focus": [
+          "user",
+          "manager",
+          "controller",
+          "docker",
+          "vault"
+        ],
+        "note": "主进程核对自有资源；备份暂停写入并导出SQLite快照。恢复先在新卷核验来源、哈希和数据库，再切换并重核17技能；原卷保留。切换日志未提交则下次选择原卷，失败不覆盖原数据或备份。"
+      },
+      {
+        "id": "simulation",
+        "label": "仿真与安全边界",
+        "focus": [
+          "user",
+          "workbench",
+          "gateway",
+          "executor",
+          "model",
+          "data"
+        ],
+        "note": "仿真窗口无宿主机接口；执行器按实际可用CPU编号限制至多两核，保持2 CPU配额、256 PID、4 GiB、30秒与物理门。探测容器无网络、凭据或数据挂载。Windows真实模型与学习复用仍须实跑验收。"
+      },
+      {
+        "id": "skill-extensions",
+        "label": "技能准备与学习",
+        "focus": [
+          "manager",
+          "controller",
+          "reference-source",
+          "docker",
+          "gateway",
+          "executor",
+          "data"
+        ],
+        "note": "桌面使用Windows网络从固定GitHub提交下载资料并核对SHA；只读临时挂载仅给内部准备容器，原解析器再次核验MAT与NPY。先备份再迁移18，手动准备不启用学习；学习单独开关，验证与求解器边界不变。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "使用者",
+      "sublabel": "桌面快捷方式",
+      "pos": [
+        30,
+        240
+      ],
+      "size": [
+        140,
+        74
+      ]
+    },
+    {
+      "id": "manager",
+      "type": "frontend",
+      "label": "本地运行管理",
+      "sublabel": "可信管理页 / 有限IPC",
+      "pos": [
+        230,
+        105
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "controller",
+      "type": "backend",
+      "label": "桌面主进程",
+      "sublabel": "固定操作 / 归属核对",
+      "pos": [
+        480,
+        105
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "docker",
+      "type": "backend",
+      "label": "本机Docker",
+      "sublabel": "本机编排 / 无网络数据维护",
+      "pos": [
+        740,
+        105
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "security",
+      "label": "系统加密凭据",
+      "sublabel": "随机令牌 / 不落明文",
+      "pos": [
+        480,
+        240
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "workbench",
+      "type": "frontend",
+      "label": "仿真工作台",
+      "sublabel": "独立窗口 / 无宿主能力",
+      "pos": [
+        230,
+        370
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "本地编排与物理门",
+      "sublabel": "现有网关 / 127.0.0.1",
+      "pos": [
+        740,
+        370
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "executor",
+      "type": "security",
+      "label": "隔离求解器",
+      "sublabel": "只读 / 无外网 / 限额",
+      "pos": [
+        1000,
+        370
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "用户模型服务",
+      "sublabel": "临时BYOK / 现有协议",
+      "pos": [
+        480,
+        540
+      ],
+      "size": [
+        185,
+        80
+      ]
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "独立持久数据",
+      "sublabel": "原卷保留 / 新卷验证 / 快照",
+      "pos": [
+        1000,
+        540
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "reference-source",
+      "type": "external",
+      "label": "固定公开参考源",
+      "sublabel": "GitHub固定提交 / SHA256",
+      "pos": [
+        1000,
+        105
+      ],
+      "size": [
+        190,
+        80
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "user",
+      "to": "manager",
+      "label": "启动与管理"
+    },
+    {
+      "from": "manager",
+      "to": "controller",
+      "label": "白名单IPC"
+    },
+    {
+      "from": "controller",
+      "to": "docker",
+      "label": "受限CLI"
+    },
+    {
+      "from": "controller",
+      "to": "vault",
+      "label": "加解密令牌",
+      "labelDy": 24
+    },
+    {
+      "from": "user",
+      "to": "workbench",
+      "label": "仿真交互"
+    },
+    {
+      "from": "workbench",
+      "to": "gateway",
+      "label": "仅本机HTTP"
+    },
+    {
+      "from": "docker",
+      "to": "gateway",
+      "label": "项目生命周期",
+      "labelDy": 24
+    },
+    {
+      "from": "gateway",
+      "to": "executor",
+      "label": "执行与回执"
+    },
+    {
+      "from": "gateway",
+      "to": "model",
+      "label": "模型请求"
+    },
+    {
+      "from": "gateway",
+      "to": "data",
+      "label": "持久记录"
+    },
+    {
+      "from": "controller",
+      "to": "reference-source",
+      "label": "Windows网络下载",
+      "fromSide": "top",
+      "toSide": "top"
+    }
+  ]
+}

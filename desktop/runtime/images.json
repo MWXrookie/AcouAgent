@@ -1,0 +1,9 @@
+{
+  "gateway": "ghcr.io/mwxrookie/acouagent-gateway@sha256:bafa5ce96b97b83106abaa768c6827a5509f09dfd88609b1dd268367c37d8b62",
+  "executor": "ghcr.io/mwxrookie/acouagent-executor@sha256:42085fb21cbf85fd1a429ecfbcb89fd5163e278006cbeb9f9048b4d806d67150",
+  "schema": 1,
+  "backendVersion": "0.1.0",
+  "gatewaySource": "d3ab537eac6f41a30d5ddfa2cb2cc8994c58c24c",
+  "executorSource": "f65addf",
+  "platform": "linux/amd64"
+}
