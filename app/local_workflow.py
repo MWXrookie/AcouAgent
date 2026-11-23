@@ -558,11 +558,16 @@ async def workflow_events(query: str, user: str, profile_id: str | None, *, _con
                            "request_id": request_id, "workflow_run_id": workflow_run_id}
         used_direct_reference = result is not None
         if "result_spec" in extracted and result is None:
-            yield {"event": "result", "report": "未找到可用的已验证技能，需要先完成独立验证并接纳；如已派发执行，请检查本次执行记录。",
+            run_id = (direct_outcome or {}).get("run_id")
+            if run_id:
+                report = f"本次计算已派发，但未获得通过核验的结果。请在执行看板核对本次运行 `{run_id}` 的状态和失败原因。"
+            else:
+                report = "当前条件缺少可用的独立证据，请先完成对应技能的独立验证与接纳。"
+            yield {"event": "result", "report": report,
                    "workflow_status": "error", "request_id": request_id,
                    "workflow_run_id": workflow_run_id, "skill_usage": notices,
                    "quality_level": "Q0", "error_code": "validated_general_reference_required",
-                   "run_id": (direct_outcome or {}).get("run_id"),
+                   "run_id": run_id,
                    "orchestration_backend": "local"}
             return
         if result is None:

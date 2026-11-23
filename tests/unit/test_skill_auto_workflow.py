@@ -187,6 +187,7 @@ def test_previously_dispatched_reference_failure_never_starts_another_source(flo
     monkeypatch.setattr(workflow, "_direct_reference", lambda *a: (None, {"run_id": "already-dispatched"}))
     result = collect()[-1]
     assert result["workflow_status"] == "error" and result["run_id"] == "already-dispatched"
+    assert "执行看板" in result["report"] and "already-dispatched" in result["report"]
     assert not flow["source_calls"]
 
 
