@@ -25,6 +25,8 @@ try{
   await page.locator('#token').fill('invalid');await click('unlock');
   await page.locator('#error-box:not([hidden])').waitFor();
   check((await page.locator('#error-message').innerText()).includes('管理员'),'invalid_admin_visible');
+  check(await page.locator('#save').isDisabled(),'rejected_admin_cannot_save');
+  check(await page.locator('#refresh').isDisabled(),'rejected_admin_cannot_refresh');
   await page.locator('#token').fill(token);await click('unlock');await idle();
   check(await page.locator('#token').inputValue()==='','token_field_cleared');
   await page.locator('#import').setInputFiles({name:'duplicate.json',mimeType:'application/json',buffer:Buffer.from('{"name":"one","name":"two"}')});
@@ -50,6 +52,8 @@ try{
   await click('result');await page.locator('#result-panel:not([hidden])').waitFor();
   await page.waitForFunction(()=>{const i=document.querySelector('#heatmap');return i.complete&&i.naturalWidth>0;});
   check((await page.locator('#metrics').innerText()).includes('128 × 128'),'real_result_shape_displayed');
+  check((await page.locator('#metrics').innerText()).includes('数值源归一化'),'normalization_unit_is_readable');
+  check((await page.locator('#jobs button').first().innerText()).includes('独立验证通过'),'job_list_updates_after_poll');
   check((await page.locator('#comparison').innerText()).includes('relative_magnitude_linf'),'independent_numeric_comparison_displayed');
   check(await page.locator('#download-field').isEnabled(),'validated_field_download_enabled');
   const fieldDownload=page.waitForEvent('download');await click('download-field');const fieldFile=await fieldDownload;
@@ -57,6 +61,7 @@ try{
   check((await readFile(fieldPath)).subarray(0,6).equals(Buffer.from([147,78,85,77,80,89])),'complete_complex_npy_downloaded');
   await screenshot('03-validated-result');await click('admit');
   await page.waitForFunction(()=>document.querySelector('#job-state').textContent.startsWith('已接纳'));
+  check((await page.locator('#jobs button').first().innerText()).includes('已接纳'),'job_list_updates_after_admit');
   await click('result');await page.waitForFunction(()=>document.querySelector('#metrics').textContent.includes('Q4'));
   const download=page.waitForEvent('download');await click('export');const file=await download;await file.saveAs(path.join(out,'manual-skill-export.json'));
   check(file.suggestedFilename()==='skill-spec.json','spec_export_download');

@@ -62,16 +62,16 @@ def register(mcp, runner=None, service=None, workflow_service=None):
             previous = body.get('requirement', '').strip()
             # Follow-up material is combined literally, never rewritten by a model.
             contract = room_contract(query)
-            if contract is None and previous and room_contract(previous) is not None:
-                query = previous+'\n'+query
-                contract = room_contract(query)
+            if contract is None and previous:
+                from app.workflow_contract import explicit_request
+                # A structured request carries its own conditions, including omissions.
+                # Free-text follow-ups continue to include the previous conditions.
+                if workflow_service is None or explicit_request(query) is None:
+                    query = previous+'\n'+query
+                    contract = room_contract(query) if room_contract(previous) is not None else None
             room = contract is not None
             if contract is None and workflow_service is not None:
                 from app.workflow_contract import prepare as prepare_workflow
-                # Preserve every old condition; ambiguity is resolved in the
-                # visible contract, not through a model rewriting the history.
-                if previous:
-                    query = previous+'\n'+query
                 contract = await prepare_workflow(query,body.get('model_profile'))
             if contract is None:
                 return _response(dict(handled=False))

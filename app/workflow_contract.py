@@ -336,6 +336,21 @@ def build_contract(query, extracted, audit, profile_id, available, *, explicit=F
     return contract
 
 
+def explicit_request(query):
+    """Read a standalone structured request before applying conversation history."""
+    start = query.find('{')
+    if start >= 0:
+        try:
+            from app.skill_spec import _decode
+            declared = _decode(query[start:])
+        except ValueError:
+            declared = None
+        if (isinstance(declared, dict) and {'scenario_type', 'simulation_params'} <= declared.keys()
+                and not set(declared) - {'scenario_type', 'simulation_params', 'result_spec'}):
+            return dict(declared, skill_query=None)
+    return local_workflow._explicit_initial_contract(query)
+
+
 async def prepare(query, profile_id):
     if not isinstance(query,str) or not query.strip() or len(query.encode())>65536:
         raise ValueError('task_input_invalid')
@@ -347,23 +362,11 @@ async def prepare(query, profile_id):
             unsupported=['workflow_task_kind'],proposals=[],result_contract={},status='unsupported')
         contract['contract_sha256'] = digest(contract)
         return contract
-    # The original explicit declaration is authoritative and needs no extraction
-    # model. A model is still configured for the existing generation/review path.
-    frequency = None
-    start = query.find('{')
-    if start>=0:
-        try:
-            from app.skill_spec import _decode
-            declared = _decode(query[start:])
-        except ValueError:
-            declared = None
-        if (isinstance(declared,dict) and {'scenario_type','simulation_params'}<=declared.keys()
-                and not set(declared)-{'scenario_type','simulation_params','result_spec'}):
-            frequency = dict(declared,skill_query=None)
-    initial = local_workflow._explicit_initial_contract(query)
-    if frequency is not None or initial is not None:
-        extracted = frequency or initial
-        if extracted['simulation_params'].get('source_type',extracted['simulation_params'].get('source_kind')) in {'modal_initial_pressure','gaussian_initial_pressure'} and 'result_spec' not in extracted:
+    # Keep the user's declaration, including omissions, independent of model extraction.
+    extracted = explicit_request(query)
+    if extracted is not None:
+        params = extracted['simulation_params']
+        if isinstance(params, dict) and params.get('source_type', params.get('source_kind')) in {'modal_initial_pressure','gaussian_initial_pressure'} and 'result_spec' not in extracted:
             extracted = dict(extracted,skill_query=dict(scenario_type=extracted['scenario_type'],
                 parameters=local_workflow._retrieval_parameters(extracted['simulation_params'])))
         profile,_ = model_profiles.resolve(profile_id,'parameter_extraction')

@@ -33,6 +33,8 @@ function renderMarkdown(md) {
   return html.replace(/REPORTBLOCK(\d+)END/g,function(_,n){return blocks[n];});
 }
 
+var agentClient = AcouAgentApi.createAgentClient();
+
 var conversation = [];
 var currentRequirement = '';
 var byokConfigDirty = false;
