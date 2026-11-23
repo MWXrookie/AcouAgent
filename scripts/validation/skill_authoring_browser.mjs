@@ -25,6 +25,8 @@ try{
   await page.locator('#token').fill('invalid');await click('unlock');
   await page.locator('#error-box:not([hidden])').waitFor();
   check((await page.locator('#error-message').innerText()).includes('管理员'),'invalid_admin_visible');
+  check(await page.locator('#save').isDisabled(),'rejected_admin_cannot_save');
+  check(await page.locator('#refresh').isDisabled(),'rejected_admin_cannot_refresh');
   await page.locator('#token').fill(token);await click('unlock');await idle();
   check(await page.locator('#token').inputValue()==='','token_field_cleared');
   await page.locator('#import').setInputFiles({name:'duplicate.json',mimeType:'application/json',buffer:Buffer.from('{"name":"one","name":"two"}')});

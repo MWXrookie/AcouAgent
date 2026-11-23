@@ -42,7 +42,7 @@ function writeKey(path,body){const signature=path+'\n'+JSON.stringify(body);if(!
 const states={queued:'排队中',running:'执行中',needs_reconciliation:'执行状态未知，等待核对',cancel_requested:'已请求取消，等待终态',cancelled:'已取消',failed:'执行失败',rejected:'未授级 / 未通过',validated:'独立验证通过，待接纳',admitted:'已接纳'};
 function message(s){$('status').textContent=s;}
 function clearErrors(){$('error-box').hidden=true;for(const id of ['name','description','spec']){$(id+'-error').textContent='';$(id).removeAttribute('aria-invalid');}}
-function error(e){clearErrors();message('操作未完成，请查看提示。');if((e.payload?.error?.code||e.message)==='authoring_disabled'){authoringAvailable=false;stop();token='';$('token').value='';$('availability').hidden=false;$('authoring-workspace').hidden=true;message('添加技能功能尚未启用；已有技能仍可浏览。');controls();return;}let pointer=e.payload?.error?.fields?.[0]?.pointer||'/spec',id=pointer==='/spec/name'?'name':pointer==='/spec/description'?'description':'spec';let code=e.payload?.error?.code||e.message||'操作失败';const hints={admin_required:'管理员令牌无效，请重新解锁。',revision_conflict:'内容已被其他操作更新。请刷新草稿，保留导出的修改后重新编辑。',controlled_version_required:'请先预览并应用受控代码差异，再启动独立验证。',profile_not_available:'验证参考尚未由管理员安装，请完成部署准备。',unsupported_validation_case:'当前参数不在 B01–B03 精确认证范围内，可保存或试运行。',authoring_disabled:'添加功能尚未启用。请按部署说明准备后开启。',result_not_ready:'任务还未产生终态结果。'};const hasField=Boolean(e.payload?.error?.fields?.length);let text=(hints[code]||code)+(hasField?' · '+pointer:'');$('error-message').textContent=text;if(hasField){$(id+'-error').textContent=text;$(id).setAttribute('aria-invalid','true');}$('error-link').hidden=!hasField;$('error-link').href='#'+id;$('error-box').hidden=false;$('error-box').focus();}
+function error(e){clearErrors();message('操作未完成，请查看提示。');if((e.payload?.error?.code||e.message)==='authoring_disabled'){authoringAvailable=false;stop();token='';$('token').value='';$('availability').hidden=false;$('authoring-workspace').hidden=true;message('添加技能功能尚未启用；已有技能仍可浏览。');controls();return;}let pointer=e.payload?.error?.fields?.[0]?.pointer||'/spec',id=pointer==='/spec/name'?'name':pointer==='/spec/description'?'description':'spec';let code=e.payload?.error?.code||(e.name==='AbortError'?'AbortError':e.message)||'操作失败';const hints={admin_required:'管理员令牌无效，请重新解锁。',revision_conflict:'内容已被其他操作更新。请刷新草稿，保留导出的修改后重新编辑。',controlled_version_required:'请先预览并应用受控代码差异，再启动独立验证。',profile_not_available:'验证参考尚未由管理员安装，请完成部署准备。',AbortError:'请求超时，请刷新并检查任务是否已提交，再决定是否重试。',unsupported_validation_case:'当前参数不在 B01–B03 精确认证范围内，可保存或试运行。',authoring_disabled:'添加功能尚未启用。请按部署说明准备后开启。',result_not_ready:'任务还未产生终态结果。'};const hasField=Boolean(e.payload?.error?.fields?.length);let text=(hints[code]||code)+(hasField?' · '+pointer:'');$('error-message').textContent=text;if(hasField){$(id+'-error').textContent=text;$(id).setAttribute('aria-invalid','true');}$('error-link').hidden=!hasField;$('error-link').href='#'+id;$('error-box').hidden=false;$('error-box').focus();}
 async function api(path,method='GET',body,key){const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);const generation=epoch;try{const headers={};if(token)headers['X-Admin-Token']=token;if(body!==undefined)headers['Content-Type']='application/json';if(key)headers['Idempotency-Key']=key;const r=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal,cache:'no-store'});const data=await r.json();if(generation!==epoch)throw Error('会话已锁定');if(!r.ok){const e=Error(data.error?.code||'请求失败');e.payload=data;throw e;}return data;}finally{clearTimeout(timeout);}}
 function updateSteps(){const selected=job?.state==='admitted'?'admit':job?'validate':previewRevision!==null?'diff':draft?'save':'edit';for(const key of ['edit','save','diff','validate','admit']){const li=$('step-'+key);if(key===selected)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current');}}
 function stop(){clearTimeout(timer);timer=null;}
@@ -59,27 +59,68 @@ function parseJSON(text){
 }
 function readSpec(){const value=parseJSON($('spec').value);value.name=$('name').value;value.description=$('description').value;if($('notes').value.trim())value.author_notes=$('notes').value;else delete value.author_notes;return value;}
 function fill(spec){$('spec').value=pretty(spec);$('name').value=spec.name||'';$('description').value=spec.description||'';$('notes').value=spec.author_notes||'';}
-function setDraft(value){draft=value;fill(value.spec);$('identity').textContent=`${value.draft_id} · 版本 ${value.version} · 修订 ${value.revision} · ${value.state}`;$('derivation').hidden=true;previewRevision=null;controls();}
+function updateDraftIdentity(value){
+  draft=value;
+  $('identity').textContent=`${value.draft_id} · 版本 ${value.version} · 修订 ${value.revision} · ${value.state}`;
+}
+function setDraft(value){updateDraftIdentity(value);fill(value.spec);$('derivation').hidden=true;previewRevision=null;controls();}
 function download(value,filename){const url=URL.createObjectURL(new Blob([pretty(value)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function reset(){stop();$('heatmap').removeAttribute('src');$('metrics').textContent='';$('comparison').textContent='';requestKeys.clear();draft=null;job=null;resultData=null;$('identity').textContent='尚未保存';$('job-state').textContent='尚无任务。';$('jobs').replaceChildren();$('derivation').hidden=true;$('result-panel').hidden=true;previewRevision=null;if(templates[$('template').value])fill(templates[$('template').value]);controls();}
 async function list(more=false){const data=await api('/drafts'+(more&&cursor?'?after_id='+encodeURIComponent(cursor):''));if(!more)$('drafts').replaceChildren();for(const d of data.items){const b=document.createElement('button');b.textContent=`${d.spec.name} · v${d.current_version} · ${d.state}`;b.onclick=()=>action(async()=>{stop();job=null;$('result-panel').hidden=true;setDraft(await api('/drafts/'+d.draft_id));await jobs();});$('drafts').append(b);}cursor=data.next_after_id;$('more').hidden=!cursor;message(data.items.length?'草稿列表已更新':'当前没有手动草稿。');}
 async function jobs(){if(!draft)return;const data=await api('/drafts/'+draft.draft_id+'/jobs');$('jobs').replaceChildren();for(const j of data.items){const b=document.createElement('button');b.textContent=`${j.intent==='trial'?'试运行':'验证'} · ${states[j.state]||j.state} · ${j.job_id.slice(0,8)}`;b.onclick=()=>action(async()=>{setJob(await api('/jobs/'+j.job_id));});$('jobs').append(b);}if(data.items.length)setJob(data.items[0]);else{job=null;$('job-state').textContent='尚无任务。';}}
 function setJob(value){if(job?.job_id!==value.job_id){resultData=null;$('result-panel').hidden=true;}job=value;$('job-state').textContent=`${states[value.state]||value.state} · ${value.job_id} · 修订 ${value.revision} · ${value.reason_code||'等待推进'}`;controls();schedule();}
-function schedule(){stop();if(token&&job&&!document.hidden&&['queued','running','cancel_requested'].includes(job.state)){const id=job.job_id,generation=epoch;timer=setTimeout(async()=>{if(busy){schedule();return;}try{const value=await api('/jobs/'+id);if(epoch!==generation||job?.job_id!==id)return;setJob(value);if(draft&&!['queued','running','cancel_requested','needs_reconciliation'].includes(value.state)){const fresh=await api('/drafts/'+draft.draft_id);draft=fresh;$('identity').textContent=`${fresh.draft_id} · 版本 ${fresh.version} · 修订 ${fresh.revision} · ${fresh.state}`;controls();}}catch(e){stop();message('任务刷新暂停，请手动刷新：'+(e.payload?.error?.code||e.message));}},2500);}}
-$('unlock').onclick=()=>action(async()=>{token=$('token').value;$('token').value='';if(!token)throw Error('请输入管理员令牌');await list();$('auth-state').textContent='本页已解锁。关闭页面或锁定后清除令牌。';});
+const pollingJobStates=['queued','running','cancel_requested'];
+function schedule(){
+  stop();
+  if(!token||!job||document.hidden||!pollingJobStates.includes(job.state))return;
+  const id=job.job_id,generation=epoch;
+  timer=setTimeout(async()=>{
+    if(busy){schedule();return;}
+    const selectedDraft=draft;
+    const stillSelected=()=>epoch===generation&&job?.job_id===id&&draft===selectedDraft;
+    try{
+      const value=await api('/jobs/'+id);
+      if(!stillSelected())return;
+      if(busy){schedule();return;}
+      setJob(value);
+      if(!selectedDraft||pollingJobStates.includes(value.state)||value.state==='needs_reconciliation')return;
+      const fresh=await api('/drafts/'+selectedDraft.draft_id);
+      if(stillSelected()&&!busy){
+        updateDraftIdentity(fresh);
+        controls();
+      }
+    }catch(e){
+      if(!stillSelected()||busy)return;
+      stop();
+      message('任务刷新暂停，请手动刷新：'+(e.payload?.error?.code||e.message));
+    }
+  },2500);
+}
+$('unlock').onclick=()=>action(async()=>{
+  token=$('token').value;
+  $('token').value='';
+  if(!token)throw Error('请输入管理员令牌');
+  try{
+    await list();
+  }catch(e){
+    $('lock').onclick();
+    throw e;
+  }
+  $('auth-state').textContent='本页已解锁。关闭页面或锁定后清除令牌。';
+});
 $('lock').onclick=()=>{epoch++;token='';$('token').value='';stop();reset();$('spec').value='';$('name').value='';$('description').value='';$('notes').value='';$('drafts').replaceChildren();$('auth-state').textContent='已锁定，令牌和当前草稿已清除。';clearErrors();controls();};
 $('refresh').onclick=()=>action(()=>list());$('more').onclick=()=>action(()=>list(true));$('new').onclick=()=>{if(busy)return;reset();message('已开始新草稿。');};
 $('load-template').onclick=()=>{if(busy)return;reset();message('模板已载入；保存前可以修改名称和完整参数。');};
 $('download-template').onclick=()=>{if(templates[$('template').value])download(templates[$('template').value],'skill-'+$('template').value+'.json');};
 $('export').onclick=()=>action(async()=>download(readSpec(),'skill-spec.json'));
-$('import').onchange=()=>action(async()=>{const file=$('import').files[0];if(!file)return;if(file.size>64000)throw Error('文件超过 64 KB');const value=parseJSON(await file.text());reset();fill(value);message('已导入，尚未保存。服务端将严格检查标准格式。');$('import').value='';});
+$('import').onchange=()=>action(async()=>{const file=$('import').files[0];if(!file)return;$('import').value='';if(file.size>64000)throw Error('文件超过 64 KB');const value=parseJSON(await file.text());reset();fill(value);message('已导入，尚未保存。服务端将严格检查标准格式。');});
 $('save').onclick=()=>action(async()=>{const spec=readSpec(),body={spec,origin:'manual'};const value=draft?await api('/drafts/'+draft.draft_id,'PUT',{expected_revision:draft.revision,spec}):await api('/drafts','POST',body,writeKey('/drafts',body));setDraft(value);await list();message('已保存草稿 v'+value.version+'；尚未验证。');});
 $('archive').onclick=()=>action(async()=>{setDraft(await api('/drafts/'+draft.draft_id+'/archive','POST',{expected_revision:draft.revision}));await list();});
 $('preview').onclick=()=>action(async()=>{const value=await api('/drafts/'+draft.draft_id+'/controlled','POST',{expected_revision:draft.revision,apply:false});$('diff').textContent=value.diff||'代码已符合受控适配器，无需修改。';previewRevision=value.changed?draft.revision:null;$('derivation').hidden=false;message('正在预览已保存版本；尚未保存的编辑不参与验证。');});
 $('apply').onclick=()=>action(async()=>{const value=await api('/drafts/'+draft.draft_id+'/controlled','POST',{expected_revision:previewRevision,apply:true});if(value.draft)setDraft(value.draft);await list();message('受控代码已保存为新版本，请启动独立验证。');});
-async function enqueue(trial){const path='/drafts/'+draft.draft_id+(trial?'/trials':'/validations'),body={expected_revision:draft.revision,draft_version:draft.current_version};const value=await api(path,'POST',body,writeKey(path,body));setJob(value);draft=await api('/drafts/'+draft.draft_id);$('identity').textContent=`${draft.draft_id} · 版本 ${draft.version} · 修订 ${draft.revision} · ${draft.state}`;message('任务已提交；执行的是已保存版本。');}
+async function enqueue(trial){const path='/drafts/'+draft.draft_id+(trial?'/trials':'/validations'),body={expected_revision:draft.revision,draft_version:draft.current_version};const value=await api(path,'POST',body,writeKey(path,body));setJob(value);updateDraftIdentity(await api('/drafts/'+draft.draft_id));message('任务已提交；执行的是已保存版本。');}
 $('trial').onclick=()=>action(()=>enqueue(true));$('validate').onclick=()=>action(()=>enqueue(false));
-$('job-refresh').onclick=()=>action(async()=>{setJob(await api('/jobs/'+job.job_id));if(draft)draft=await api('/drafts/'+draft.draft_id);});
+$('job-refresh').onclick=()=>action(async()=>{setJob(await api('/jobs/'+job.job_id));if(draft)updateDraftIdentity(await api('/drafts/'+draft.draft_id));});
 $('cancel').onclick=()=>action(async()=>setJob(await api('/jobs/'+job.job_id+'/cancel','POST',{expected_revision:job.revision})));
 $('reconcile').onclick=()=>action(async()=>setJob(await api('/jobs/'+job.job_id+'/reconcile','POST',{expected_revision:job.revision})));
 $('admit').onclick=()=>action(async()=>{const value=await api('/jobs/'+job.job_id+'/admit','POST',{expected_revision:job.revision});setJob(await api('/jobs/'+job.job_id));message(value.admitted?'已接纳，可回技能库查看与复用。':'当前版本未接纳。');});

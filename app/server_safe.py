@@ -25,7 +25,6 @@ except ImportError:
 from app import config
 from app.async_utils import await_thread
 from app.analysis import register as register_analysis
-from app.agent_api import register as register_agent_api
 from app.dashboard import init_db
 from app.jwave_skill_port import register as register_jwave_skill_port
 from app.portal import register as register_portal

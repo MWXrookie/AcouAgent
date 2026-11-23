@@ -13,12 +13,18 @@ const page=await browser.newPage({viewport:{width:1440,height:1000}}),checks=[];
 const headers={'X-Admin-Token':token};
 function check(value,name){if(!value)throw Error(name);checks.push(name);}
 async function click(id){await page.locator('#'+id).click();}
-async function admin(){await page.locator('#admin').fill(token);await page.locator('#reason').fill('阶段6人工反馈与独立重验检查');}
+async function admin(){
+ const adminDetails=page.locator('details').filter({has:page.locator('#admin')});
+ if(!await adminDetails.evaluate(element=>element.open))await adminDetails.locator('summary').click();
+ await page.locator('#admin').fill(token);
+ await page.locator('#reason').fill('人工反馈与独立重验检查');
+}
 try{
  const draft=await (await page.request.get(base+'/skills/api/v1/drafts/'+author.draft_id,{headers})).json();
- const listed=await (await page.request.get(base+'/skills/api')).json();
- const item=listed.items.find(x=>x.scenario_type==='point_source_2d'&&x.quality_level==='Q4'&&x.state_text===draft.spec.name);
- if(!item)throw Error('manual_general_skill_required');
+ const skillId=author.result?.skill_id;
+ if(!skillId)throw Error('manual_admission_skill_id_required');
+ const {item}=await (await page.request.get(base+'/skills/api/'+encodeURIComponent(skillId))).json();
+ if(item?.quality_level!=='Q4')throw Error('manual_general_skill_required');
  await page.goto(base+'/skills?skill_id='+encodeURIComponent(item.skill_id));
  await page.locator('#detail:not([hidden])').waitFor();
  await admin();await page.locator('#run').fill(reused.run_id);await click('negative');
@@ -56,4 +62,9 @@ try{
  const events=await (await page.request.get(base+'/skills/api/'+item.skill_id+'/events?limit=50')).json();
  await writeFile(path.join(out,'feedback-report.json'),JSON.stringify({checks,skill_id:item.skill_id,negative_run:reused.run_id,new_validation:fresh,events,production_database_writes:0},null,2));
  console.log(JSON.stringify({feedback_checks:checks.length,skill_id:item.skill_id,new_run:fresh.run_id}));
+}catch(error){
+ await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});
+ const message=String(error.message||error).replaceAll(token,'[redacted]');
+ await writeFile(path.join(out,'failure.json'),JSON.stringify({checks,error:message},null,2));
+ throw new Error(message);
 }finally{await browser.close();}
