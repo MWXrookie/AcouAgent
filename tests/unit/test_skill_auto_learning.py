@@ -314,3 +314,32 @@ def test_parallel_observation_creates_one_source_draft_and_one_job(env):
     assert all(result["observed"] for result in results), results
     assert len({r["job_id"] for r in results}) == 1
     assert rows(env, "skill_drafts") == rows(env, "skill_validation_jobs") == rows(env, "skill_validation_outbox") == 1
+
+
+
+def test_distinct_sources_for_same_case_share_one_automatic_admission(env):
+    original = env["sources"][env["source_run"]]
+    run_ids = [env["source_run"], str(uuid.uuid4()), str(uuid.uuid4())]
+    for run_id in run_ids[1:]:
+        env["sources"][run_id] = dict(original, source_run_id=run_id,
+                                     source_binding_sha256=digest("server-source-" + run_id))
+
+    barrier = Barrier(2)
+
+    def submit(run_id):
+        barrier.wait()
+        return env["learning"].observe(run_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(submit, run_ids[:2]))
+    assert sorted(result["reason"] for result in results) == [
+        "automatic_validation_queued", "case_validation_in_progress",
+    ]
+    assert rows(env, "skill_validation_jobs") == 1
+    assert env["learning"].tick("worker")["admitted"]
+    env["library"]._preflights.clear()
+    restarted = AutoLearning(env["library"], env["verifier"])
+    assert restarted.observe(run_ids[2])["reason"] == "case_already_validated"
+    assert rows(env, "simulation_skills") == rows(env, "skill_versions") == 1
+    assert rows(env, "skill_validation_admissions") == 1
+    assert len(env["calls"]) == 1

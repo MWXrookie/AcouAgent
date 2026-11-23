@@ -115,6 +115,7 @@ modal_wavenumber_rad_per_m、boundary_condition、initial_velocity 及用户给�
 density_kg_m3、grid_shape、dx_m、frequency_hz、pml_size、source_index、source_type、source_geometry、
 helmholtz_source_coefficient、background_attenuation_db_mhz2_cm、material_regions、boundary_condition。
 材料区域保留 start/stop 半开索引及其声速/密度；用户未明确声明均匀介质、无损或源系数时不能填默认值。
+二维频域点源的 scenario_type 必须使用 point_source_2d。介质的均匀或非均匀设置保留在 simulation_params，不能另造场景枚举。
 对于用户已明确的二维频域连续正弦点源，规范值是 dimensions=2、solver_mode=frequency_domain、
 source_type=continuous_sinusoid、source_geometry=point、boundary_condition=absorbing_pml。
 source_type描述时间激励，point属于source_geometry；不能把point_source写入source_type。
@@ -409,6 +410,10 @@ def _learning_message(status: dict) -> str:
         return "本次执行已记录，独立验证通过并接纳；后续精确请求可复用。首次执行结果仍为 Q2。"
     if status.get("validated"):
         return "独立验证已通过，技能尚未接纳；首次执行结果仍为 Q2。"
+    if status.get("reason") == "case_already_validated":
+        return "当前条件已有独立验证的技能。本次重新求解为 Q2，未新增技能版本。"
+    if status.get("reason") == "case_validation_in_progress":
+        return "相同条件的学习候选正在验证。本次重新求解为 Q2，未重复排队。"
     if status.get("recorded") or status.get("queued"):
         return "本次执行已记录为学习候选，待独立验证与接纳；首次执行结果仍为 Q2。"
     return "首次仿真已完成，本次自动学习未接纳技能；首次执行结果仍为 Q2。"

@@ -309,6 +309,8 @@ class GeneralLibrary:
                 raise ValueError("learning_disabled")
             pre_attempt = pre_job["attempt"]
             self.verify_proof(before, pre_job, pre_attempt["output_manifest_sha256"], pre_attempt["receipt_sha256"])
+            if _automatic:
+                self.current_reference(before, pre_job["case_fingerprint"], pre_job["spec"])
         with DraftStore(self.store)._connection(True) as db:
             row = ValidationJobs._row(db, job_id, actor_id)
             job = ValidationJobs._view(db, row)
@@ -341,6 +343,14 @@ class GeneralLibrary:
                 raise ValueError("withdrawn_skill_cannot_be_reactivated")
             if existing and not self._feedback_allows(db, existing["skill_id"], job, automatic=_automatic):
                 raise ValueError("negative_feedback_prevents_readmission")
+            if _automatic:
+                current = self.current_reference(db, job["case_fingerprint"], job["spec"])
+                if current is not None:
+                    db.execute("""UPDATE skill_validation_jobs
+                        SET state='rejected',reason_code='case_already_validated',revision=revision+1,updated_ms=?
+                        WHERE job_id=?""", (time.time_ns() // 1_000_000, job_id))
+                    return {"admitted": False, "duplicate": True,
+                            "skill_id": current["skill_id"], "version": current["version"]}
             evidence = db.execute("SELECT * FROM skill_validation_evidence WHERE job_id=? AND attempt_no=?", (job_id, attempt["attempt_no"])).fetchone()
             # The ordinary candidate API continues to require Q2. Only this verified transaction activates it.
             spec = job["spec"]
@@ -364,6 +374,18 @@ class GeneralLibrary:
             if _automatic and config.SKILL_LEARNING_ENABLED is not True:
                 raise ValueError("learning_disabled_before_commit")
             return {"admitted": True, "duplicate": False, "skill_id": skill_id, "version": version, "quality_level": "Q4"}
+
+    def current_reference(self, db, fingerprint, spec):
+        """Verify the current exact-case reference independently of retrieval switches."""
+        candidate = db.execute("""SELECT s.skill_id, max(v.version) AS version
+            FROM simulation_skills s JOIN skill_versions v USING(skill_id)
+            WHERE s.fingerprint=? AND s.status='active' AND s.quality_level='Q4'
+                  AND s.archived=0 GROUP BY s.skill_id""", (fingerprint,)).fetchone()
+        if candidate is None:
+            return None
+        envelope = dict(normalizer_version="normalizer_v2", parameters=spec["parameters"],
+                        result_spec=spec["result_spec"])
+        return self.verify_connection(db, candidate, spec["scenario_type"], envelope)
 
     def verify_connection(self, db, candidate, scenario, envelope):
         self._enabled()

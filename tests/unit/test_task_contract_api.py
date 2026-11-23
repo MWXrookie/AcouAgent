@@ -215,3 +215,39 @@ def test_reidentification_invalidates_old_draft_before_model_returns(monkeypatch
             release.set()
             assert (await request).status_code==503
     asyncio.run(run())
+
+
+
+def test_standalone_explicit_request_uses_current_parameters_within_same_session(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from app import local_workflow, workflow_contract
+    from tests.unit.test_workflow_contract import PARAMS
+
+    async def forbidden(*args):
+        raise AssertionError('standalone explicit declarations should not invoke the extraction model')
+
+    profile = SimpleNamespace(audit_profile_id=lambda: 'unit-profile', model='unit-model')
+    monkeypatch.setattr(workflow_contract.model_profiles, 'resolve', lambda *args: (profile, {}))
+    monkeypatch.setattr(local_workflow, 'extract_parameters', forbidden)
+    monkeypatch.setattr(task_contract_api, 'DRAFTS', ConfirmationDrafts())
+
+    async def run():
+        app = client_app(workflow_service=object())
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://isolated') as client:
+            old = json.dumps(dict(scenario_type='point_source_2d', simulation_params=PARAMS))
+            params = dict(PARAMS, source_frequency=120000)
+            message = '使用下列完整条件求解声场。\n' + json.dumps(
+                dict(scenario_type='point_source_2d', simulation_params=params))
+            for previous in (old, QUERY):
+                response = await client.post('/api/task-intake', json=dict(
+                    message=message, requirement=previous, session_id='same-session'))
+                assert response.status_code == 200
+                contract = response.json()['contract']
+                assert contract['source_text'] == message
+                assert contract['parameters'] == params
+                assert contract['status'] == 'ready_for_confirmation'
+                assert [proposal['id'] for proposal in contract['proposals']] == ['time_field_result']
+
+    asyncio.run(run())

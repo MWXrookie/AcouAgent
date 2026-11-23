@@ -106,7 +106,20 @@ class AutoLearning:
                 if prior["request_sha256"] != source["source_binding_sha256"]:
                     raise DraftError("automatic_source_changed")
                 return prior["draft_id"], True
-            self._lifecycle(db, prepared["case_fingerprint"])
+            fingerprint = prepared["case_fingerprint"]
+            self._lifecycle(db, fingerprint)
+            if self.library.current_reference(db, fingerprint, prepared["spec"]) is not None:
+                raise DraftError("case_already_validated")
+            pending = db.execute("""SELECT 1 FROM skill_draft_versions v
+                JOIN skill_drafts d ON d.draft_id=v.draft_id AND d.current_version=v.version
+                LEFT JOIN skill_validation_jobs j ON j.draft_id=d.draft_id AND j.draft_version=v.version
+                WHERE v.case_fingerprint=? AND d.origin='automatic' AND d.actor_id=?
+                      AND d.state!='archived'
+                      AND ((j.job_id IS NULL AND d.state='editing')
+                          OR j.state NOT IN ('admitted','cancelled','failed','rejected'))
+                LIMIT 1""", (fingerprint, ACTOR)).fetchone()
+            if pending is not None:
+                raise DraftError("case_validation_in_progress")
             draft_id, now = str(uuid.uuid4()), time.time_ns() // 1_000_000
             db.execute("INSERT INTO skill_drafts VALUES(?,'automatic',?,'editing',1,1,?,?)", (draft_id, ACTOR, now, now))
             self.drafts._version(db, draft_id, 1, prepared, now, source_run_id=run_id)
@@ -190,7 +203,10 @@ class AutoLearning:
             source, prepared, controlled, case = self._source(run_id)
             with self.drafts._connection() as db:
                 self._profile(db, case)
-                self._lifecycle(db, controlled["case_fingerprint"])
+                fingerprint = controlled["case_fingerprint"]
+                self._lifecycle(db, fingerprint)
+                if self._request(db, run_id) is None:
+                    self.library.current_reference(db, fingerprint, controlled["spec"])
             draft_id, duplicate = self._new_source_draft(run_id, source, prepared)
             jobs = GeneralValidationJobs(self.store, self.library.runtime_sha256, case, self.library)
             with self.drafts._connection() as db:
@@ -319,8 +335,13 @@ class AutoLearning:
             if enabled():
                 self._event(job, row["source_run_id"], row["source_binding_sha256"], case,
                             state="done" if job["state"] in TERMINAL else "pending")
+            reason = "automatic_job_terminal" if job["state"] in TERMINAL else "automatic_job_pending"
+            if admitted:
+                reason = "automatic_admission_complete"
+            elif job["reason_code"] == "case_already_validated":
+                reason = job["reason_code"]
             return dict(observed=True, queued=job["state"] == "queued", admitted=admitted,
-                        reason="automatic_admission_complete" if admitted else "automatic_job_pending" if job["state"] not in TERMINAL else "automatic_job_terminal",
+                        reason=reason,
                         source_run_id=row["source_run_id"], job_id=job["job_id"], state=job["state"], counters=self.counts())
         except (DraftError, ValueError, TypeError, KeyError, OSError, sqlite3.Error, TimeoutError) as error:
             reason = self._reason(error)
